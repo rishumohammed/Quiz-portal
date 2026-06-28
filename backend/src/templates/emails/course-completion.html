@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Congratulations on Completing Your Course!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .header {
+            background-color: #4CAF50;
+            color: #ffffff;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 40px 30px;
+            color: #333333;
+            line-height: 1.6;
+        }
+        .content h2 {
+            color: #1a1a2e;
+            margin-top: 0;
+        }
+        .course-details {
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            padding: 15px 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+        .course-details p {
+            margin: 5px 0;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #3b82f6;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 12px 25px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-top: 15px;
+            text-align: center;
+        }
+        .btn-secondary {
+            background-color: #6366f1;
+            margin-left: 10px;
+        }
+        .footer {
+            background-color: #f1f5f9;
+            padding: 20px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .emoji {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .action-buttons {
+            margin-top: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            {{PROFILE_PICTURE_HTML}}
+            <div class="emoji">🎉</div>
+            <h1>Congratulations!</h1>
+        </div>
+        <div class="content">
+            <h2>Hi {{STUDENT_NAME}},</h2>
+            <p>You have successfully completed all the requirements for your course. This is a huge milestone, and we are incredibly proud of your achievement!</p>
+            
+            <div class="course-details">
+                <p><strong>Course:</strong> {{COURSE_NAME}}</p>
+                <p><strong>Completed On:</strong> {{COMPLETION_DATE}}</p>
+            </div>
+            
+            <p>Your dedication and hard work have paid off. {{CERTIFICATE_TEXT}}</p>
+            
+            <div class="action-buttons">
+                {{CERTIFICATE_BUTTON}}
+                <a href="{{FRONTEND_URL}}/dashboard/student" class="btn btn-secondary">Explore More Courses</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 AEMS Academy. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

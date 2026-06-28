@@ -1,0 +1,201 @@
+:root {
+  --color-brand:           #5624D0;   /* Udemy primary purple */
+  --color-brand-dark:      #3D1FA3;   /* hover state */
+  --color-brand-secondary: #E59819;   /* Udemy gold */
+  --color-success:  #1CA15B;
+  --color-danger:   #D63D2D;
+  --color-surface:  #FFFFFF;
+  --color-background: #F7F9FA;
+  --color-text-primary:   #1C1D1F;
+  --color-text-secondary: #6A6F73;
+  --color-border:   rgba(0, 0, 0, 0.07);
+  --shadow-card:    0 2px 4px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-brand:   0 4px 14px rgba(86,36,208,0.30);
+  --border-radius-card: 8px;
+  --border-radius-pill: 999px;
+  --font-family: 'Figtree', sans-serif;
+}
+
+* {
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  /* Paint the root so the gradient persists on overscroll / elastic scroll */
+  background: var(--site-gradient);
+  min-height: 100%;
+}
+
+body {
+  /* Gradient runs the full page height */
+  background: var(--site-gradient);
+  background-attachment: fixed;
+  color: var(--color-text-primary);
+  margin: 0;
+  min-height: 100vh;
+}
+
+
+/* Apple-inspired scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Vuetify Overrides for Design System */
+.v-card {
+  box-shadow: var(--shadow-card) !important;
+  border-radius: var(--border-radius-card) !important;
+  border: 1px solid var(--color-border) !important;
+  background: var(--surface-frosted) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Cards that intentionally use a solid colour (e.g. primary CTA) */
+.v-card.v-card--color,
+.v-card[style*="background"],
+.v-card.bg-primary,
+.v-card.bg-white {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v-navigation-drawer {
+    border-right: 1px solid var(--color-border) !important;
+}
+
+/* Vuetify app-bar transparent/frosted on the gradient */
+.v-app-bar {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+/* Section backgrounds that should show the gradient through */
+.section-on-gradient {
+  background: transparent !important;
+}
+
+/* Sections that need a slightly raised feel (frosted white panels) */
+.section-frosted {
+  background: var(--surface-frosted) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+
+/* Animations */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active {
+    transition: all 0.3s ease-out;
+}
+.modal-enter-from {
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+/* ── Gap Utilities ─────────────────────────────────────── */
+.gap-1 { gap: var(--sp-1) !important; }
+.gap-2 { gap: var(--sp-2) !important; }
+.gap-3 { gap: var(--sp-3) !important; }
+.gap-4 { gap: var(--sp-4) !important; }
+.gap-6 { gap: var(--sp-6) !important; }
+.gap-8 { gap: var(--sp-8) !important; }
+
+/* ── Section Rhythm Utilities ──────────────────────────── */
+/*  Use these on the wrapping <div> of every page section. */
+.section-default {
+  padding-top:    var(--sp-20);   /* 80px */
+  padding-bottom: var(--sp-20);
+}
+.section-compact {
+  padding-top:    var(--sp-16);   /* 64px */
+  padding-bottom: var(--sp-16);
+}
+/* Hero must clear the 72px fixed navbar */
+.section-hero {
+  padding-top:    var(--sp-24);   /* 96px */
+  padding-bottom: var(--sp-20);
+}
+
+/* ── Section Heading Block ─────────────────────────────── */
+/*  Wraps the heading + subtext above a section's content. */
+.section-header {
+  margin-bottom: var(--sp-12);   /* 48px to content */
+}
+.section-header--center {
+  text-align: center;
+}
+/* The <h2> inside a section header */
+.section-title {
+  font-size:   clamp(1.6rem, 3vw, 2.25rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--g7);
+  margin-bottom: var(--sp-3);    /* 12px → subtext */
+}
+/* The <p> subtitle below the section title */
+.section-sub {
+  font-size:   1rem;
+  color: var(--g5);
+  line-height: 1.7;
+  max-width: 600px;
+  margin: 0 auto;
+}
+/* Inline (non-centered) sub doesn't auto-center */
+.section-header:not(.section-header--center) .section-sub {
+  margin: 0;
+}
+
+/* ── Card uniform padding ──────────────────────────────── */
+.card-body { padding: var(--sp-6) !important; }    /* 24px */
+.card-body--tight { padding: var(--sp-5) !important; } /* 20px */
+
+/* ── Gradient CTA block ────────────────────────────────── */
+.cta-block {
+  background: linear-gradient(135deg, #5624D0 0%, #7C3AED 50%, #A435F0 100%);
+  border-radius: var(--r20);
+  overflow: hidden;
+  position: relative;
+  color: white;
+  border: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 20px 60px rgba(86,36,208,0.30) !important;
+}
+
+/* ── Typography helpers ────────────────────────────────── */
+.tracking-tight  { letter-spacing: -0.04em !important; }
+.tracking-normal { letter-spacing: -0.01em !important; }
+.leading-tight   { line-height: 1.1 !important; }
+.leading-relaxed { line-height: 1.7 !important; }
+.text-secondary-color { color: var(--g5) !important; }
+.text-tertiary-color  { color: var(--g4) !important; }
+
+/* Fix scrolling black screen issue by hiding navigation drawer scrims globally */
+.v-navigation-drawer__scrim {
+  display: none !important;
+}

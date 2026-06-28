@@ -1,0 +1,94 @@
+@import './tokens.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font);
+  background-color: var(--bg);
+  color: var(--g7);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+button {
+  font-family: var(--font);
+  border: none;
+  background: none;
+  cursor: pointer;
+  outline: none;
+}
+
+input, textarea, select {
+  font-family: var(--font);
+  outline: none;
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--g2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--g3);
+}
+
+/* Page transitions */
+.page-enter-active,
+.page-leave-active {
+  transition: all 0.2s ease;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* Utility classes */
+.text-label { color: var(--g4); font-size: 12px; }
+.text-tertiary { color: var(--g5); }
+.font-mono { font-family: var(--mono); }
+.rounded-apple { border-radius: var(--r16); }
+.shadow-apple { box-shadow: var(--s2); }
+.bg-apple-gray { background-color: var(--g1); }
+
+/* Message Bubbles */
+.msg-sent {
+  background: var(--blue);
+  color: white;
+  border-radius: 12px 0 12px 12px;
+  padding: 8px 12px;
+}
+.msg-received {
+  background: var(--g1);
+  color: var(--g7);
+  border-radius: 0 12px 12px 12px;
+  padding: 8px 12px;
+}
