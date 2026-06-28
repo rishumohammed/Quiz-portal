@@ -40,18 +40,7 @@
             bg-color="white"
           ></v-text-field>
 
-          <v-select
-            v-model="formData.role"
-            :items="roles"
-            item-title="label"
-            item-value="value"
-            label="Assign System Role (User Type)"
-            variant="outlined"
-            required
-            :rules="[v => !!v || 'Role is required']"
-            bg-color="white"
-            class="mb-4"
-          ></v-select>
+
 
           <div v-if="!isEdit">
             <v-text-field
@@ -66,14 +55,7 @@
             ></v-text-field>
           </div>
 
-          <v-alert
-            v-if="formData.role && formData.role !== 'sub_admin'"
-            type="info"
-            variant="tonal"
-            class="mb-4 bg-blue-lighten-5 text-blue-darken-2"
-          >
-            {{ getRoleDescription(formData.role) }}
-          </v-alert>
+
 
           <!-- SUB-ADMIN CUSTOM PERMISSIONS -->
           <v-expand-transition>
@@ -193,7 +175,7 @@ const formData = ref({
   email: '',
   phone: '',
   password: '',
-  role: null,
+  role: 'super_admin',
   permissions_json: defaultPermissions()
 });
 
@@ -204,7 +186,7 @@ watch(() => props.modelValue, (val) => {
         name: props.user.name || '',
         email: props.user.email || '',
         phone: props.user.phone || '',
-        role: props.user.role || null,
+        role: props.user.role || 'super_admin',
         password: '',
         permissions_json: props.user.permissions_json 
           ? (typeof props.user.permissions_json === 'string' ? JSON.parse(props.user.permissions_json) : props.user.permissions_json) 
@@ -223,7 +205,7 @@ watch(() => props.modelValue, (val) => {
         email: '',
         phone: '',
         password: '',
-        role: null,
+        role: 'super_admin',
         permissions_json: defaultPermissions()
       };
     }
