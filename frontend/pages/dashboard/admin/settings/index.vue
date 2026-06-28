@@ -487,16 +487,10 @@ const snackbarColor = ref('success');
 
 const tabs = [
   { label: 'Branding', value: 'branding', icon: 'mdi-palette-outline' },
-  { label: 'LMS Settings', value: 'lms', icon: 'mdi-school-outline' },
   { label: 'Homepage', value: 'homepage', icon: 'mdi-home-outline' },
   { label: 'Contact Info', value: 'contact', icon: 'mdi-map-marker-outline' },
   { label: 'Email (SMTP)', value: 'email', icon: 'mdi-email-outline' },
-  { label: 'WhatsApp API', value: 'whatsapp', icon: 'mdi-whatsapp' },
-  { label: 'Payments', value: 'payments', icon: 'mdi-credit-card-outline' },
-  { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' },
-  { label: 'Social Platforms', value: 'social', icon: 'mdi-account-group-outline' },
-  { label: 'Currencies', value: 'currencies', icon: 'mdi-currency-usd' },
-  { label: 'Certifications', value: 'certifications', icon: 'mdi-certificate-outline' },
+  { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' }
 ];
 
 
