@@ -92,6 +92,10 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Stubs for stripped CRM/LMS features to prevent 404s in frontend console
+app.get('/api/notifications', (req, res) => res.json([]));
+app.get('/api/dashboard/counts', (req, res) => res.json({ followups: 0, unreadMessages: 0, pendingApprovals: 0 }));
+
 const PORT = process.env.PORT || 5000;
 
 // Initialize scheduled jobs
