@@ -566,7 +566,7 @@ router.post('/', async (req, res) => {
       instructions || null, pass_percentage || 50, negative_marking || 0.00,
       !!randomize_questions, !!randomize_options, show_correct_answers !== false, show_explanations !== false,
       allow_retake !== false, enable_certificate !== false, anonymous_access !== false,
-      require_name !== false, !!require_name, !!require_email, !!require_mobile,
+      require_name !== false, !!require_email, !!require_mobile,
       !!enable_proctoring, max_proctoring_warnings !== undefined ? max_proctoring_warnings : 3, !!enforce_fullscreen,
       registration_start_date || null, registration_end_date || null, exam_start_date || null, exam_end_date || null, image_url || null
     ]);
