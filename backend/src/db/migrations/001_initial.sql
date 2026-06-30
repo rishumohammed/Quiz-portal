@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    last_login_at TIMESTAMP NULL,
+    force_password_change BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -70,6 +72,14 @@ CREATE TABLE IF NOT EXISTS institute_info (
     office_hours VARCHAR(100),
     founded_year INT,
     city VARCHAR(100)
+);
+
+CREATE TABLE IF NOT EXISTS system_config (
+    \`key\` VARCHAR(100) PRIMARY KEY,
+    \`value\` TEXT,
+    \`group\` VARCHAR(50) DEFAULT 'general',
+    is_sensitive BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS team_members (
