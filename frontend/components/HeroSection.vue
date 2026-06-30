@@ -86,7 +86,7 @@ const baseUrl = computed(() => runtimeConfig.public.apiBase.replace('/api', ''))
 
 const heroImgSrc = computed(() => {
   const url = props.config?.homepage_hero_image_url || props.config?.homepage_hero_image;
-  if (!url) return '';
+  if (!url) return '/img/commercial-food-processing.png';
   if (url.startsWith('http')) return url;
   return baseUrl.value + (url.startsWith('/') ? url : `/${url}`);
 });

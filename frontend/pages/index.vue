@@ -1,7 +1,35 @@
 <template>
   <div class="kefta-homepage">
     <!-- Hero Section -->
-    <HeroSection :config="config" />
+    <section class="hero-section py-16 position-relative d-flex align-center" 
+             :style="heroImage ? `background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)), url(${heroImage}); background-size: cover; background-position: center; min-height: 60vh;` : `background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 60vh;`">
+      <v-container>
+        <v-row align="center" justify="center">
+          <v-col cols="12" md="10" class="text-center">
+            <v-chip :color="heroImage ? 'white' : 'primary'" :variant="heroImage ? 'outlined' : 'flat'" size="small" class="mb-6 px-4 py-3 font-weight-bold tracking-wide text-uppercase" rounded="pill">
+              Official Platform
+            </v-chip>
+            <h1 class="main-title mb-6 font-weight-black" :class="heroImage ? 'text-white' : 'text-primary-darken-3'">
+              {{ config.homepage_title || 'KEFTA National Food Tech Talent Hunt' }}
+            </h1>
+            <p class="text-h6 font-weight-regular mb-8 mx-auto" style="line-height: 1.6; max-width: 800px;" :class="heroImage ? 'text-grey-lighten-2' : 'text-blue-grey-darken-1'">
+              {{ config.homepage_subtitle || 'Discovering, motivating, and supporting emerging food science talents across the nation.' }}
+            </p>
+            <v-btn
+              color="primary"
+              size="x-large"
+              rounded="pill"
+              elevation="0"
+              class="px-8 font-weight-bold text-none"
+              @click="scrollToExams"
+            >
+              View Active Exams
+              <v-icon end>mdi-arrow-down</v-icon>
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-container>
+    </section>
 
     <!-- About Section -->
     <section class="about-section py-16 bg-white">
