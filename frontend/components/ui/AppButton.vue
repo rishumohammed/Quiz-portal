@@ -67,17 +67,17 @@ defineEmits(['click']);
   gap: 4px;
 }
 
-/* Primary (blue) */
+/* Primary */
 .btn-p,
 .btn-blue {
-  background-color: var(--blue);
+  background-color: var(--ink);
   color: white;
   border: 1px solid var(--border);
   
 }
 .btn-p:hover:not(:disabled),
 .btn-blue:hover:not(:disabled) {
-  background-color: var(--blue-d);
+  background-color: #0f0f24;
   transform: translateY(-1px);
   border: 1px solid var(--border);
   
@@ -85,12 +85,12 @@ defineEmits(['click']);
 
 /* Ghost */
 .btn-g {
-  background-color: var(--g1);
-  color: var(--g6);
+  background-color: var(--paper);
+  color: var(--muted);
   border: 1px solid rgba(0, 0, 0, 0.07);
 }
 .btn-g:hover:not(:disabled) {
-  background-color: var(--g2);
+  background-color: var(--panel);
 }
 
 /* Danger */

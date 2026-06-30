@@ -25,6 +25,7 @@ export const useNavStore = defineStore('nav', {
       { label: 'Talent Proctoring', icon: 'mdi-webcam', route: '/dashboard/admin/public-exams/proctoring', roles: ['super_admin', 'lms_user'], section: 'EXAMS' },
       
       // SETTINGS
+      { label: 'Manage FAQs', icon: 'mdi-frequently-asked-questions', route: '/dashboard/admin/faqs', roles: ['super_admin'], section: 'SETTINGS' },
       { label: 'System Users', icon: 'mdi-account-group', route: '/dashboard/admin/settings/system-users', roles: ['super_admin'], section: 'SETTINGS' },
       { label: 'Profile', icon: 'mdi-account-outline', route: '/dashboard/profile', roles: ['super_admin', 'sub_admin', 'tutor', 'student', 'employer', 'crm_agent', 'placement_coordinator', 'finance_staff', 'lms_user', 'support_staff'], section: 'SETTINGS' },
       { label: 'Logout', icon: 'mdi-logout', action: 'logout', roles: ['super_admin', 'sub_admin', 'tutor', 'student', 'employer', 'crm_agent', 'placement_coordinator', 'finance_staff', 'lms_user', 'support_staff'], section: 'SETTINGS' },

@@ -87,4 +87,14 @@ router.get('/exams/active', async (req, res) => {
   }
 });
 
+router.get('/faqs', async (req, res) => {
+  try {
+    const [faqs] = await pool.query('SELECT id, question, answer FROM faqs WHERE is_active = 1 ORDER BY order_index ASC, id DESC');
+    res.json(faqs);
+  } catch (error) {
+    console.error('Error fetching public FAQs:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

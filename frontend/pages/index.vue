@@ -2,7 +2,7 @@
   <div class="kefta-homepage">
     <!-- Hero Section -->
     <section class="hero-section py-16 position-relative d-flex align-center" 
-             :style="heroImage ? `background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)), url(${heroImage}); background-size: cover; background-position: center; min-height: 60vh;` : `background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 60vh;`">
+             :style="heroImage ? `background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.4)), url(${heroImage}); background-size: cover; background-position: center; min-height: 60vh;` : `background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 60vh;`">
       <v-container>
         <v-row align="center" justify="center">
           <v-col cols="12" md="10" class="text-center">
@@ -125,6 +125,35 @@
         </div>
       </v-container>
     </section>
+
+    <!-- FAQ Section -->
+    <section v-if="faqs.length > 0" class="faq-section py-16 bg-white">
+      <v-container>
+        <div class="text-center mb-12">
+          <h2 class="text-h3 font-weight-bold text-primary-darken-3 mb-4">Frequently Asked Questions</h2>
+          <p class="text-h6 text-blue-grey-darken-1 font-weight-regular">Everything you need to know about the Talent Hunt</p>
+        </div>
+        <v-row justify="center">
+          <v-col cols="12" md="8">
+            <v-expansion-panels variant="accordion" class="custom-panels">
+              <v-expansion-panel
+                v-for="faq in faqs"
+                :key="faq.id"
+                class="mb-4 border rounded-lg overflow-hidden"
+                elevation="0"
+              >
+                <v-expansion-panel-title class="text-subtitle-1 font-weight-bold py-4">
+                  {{ faq.question }}
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="text-body-1 text-grey-darken-2 pt-2 pb-4">
+                  {{ faq.answer }}
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
+          </v-col>
+        </v-row>
+      </v-container>
+    </section>
   </div>
 </template>
 
@@ -145,6 +174,7 @@ const api = useApi();
 const router = useRouter();
 const config = ref<any>({});
 const exams = ref<any[]>([]);
+const faqs = ref<any[]>([]);
 const baseUrl = useRuntimeConfig().public.apiBase;
 
 const fetchConfig = async () => {
@@ -165,9 +195,19 @@ const fetchExams = async () => {
   }
 };
 
+const fetchFaqs = async () => {
+  try {
+    const { data } = await api.get('/public/faqs');
+    faqs.value = data;
+  } catch (err) {
+    console.error('Failed to fetch FAQs', err);
+  }
+};
+
 onMounted(() => {
   fetchConfig();
   fetchExams();
+  fetchFaqs();
 });
 
 const heroImage = computed(() => {
