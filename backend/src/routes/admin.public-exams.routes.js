@@ -9,7 +9,10 @@ import { authenticateJWT, authorizeRoles, requirePermission } from '../middlewar
 const router = express.Router();
 
 // Ensure exams upload directory exists
-const examsUploadDir = path.resolve('uploads/exams');
+const __filename = new URL(import.meta.url).pathname;
+let __dirname = path.dirname(__filename);
+if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
+const examsUploadDir = path.join(__dirname, '../../uploads/exams');
 if (!fs.existsSync(examsUploadDir)) {
   fs.mkdirSync(examsUploadDir, { recursive: true });
 }

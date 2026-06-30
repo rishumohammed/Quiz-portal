@@ -12,7 +12,10 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const attemptId = req.body.attempt_id;
     if (!attemptId) return cb(new Error('attempt_id is required in the body BEFORE the file field'));
-    const dir = path.join(process.cwd(), 'uploads', 'recordings', attemptId);
+    const __filename = new URL(import.meta.url).pathname;
+    let __dirname = path.dirname(__filename);
+    if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
+    const dir = path.join(__dirname, '../../uploads/recordings', attemptId);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -28,7 +31,10 @@ const screenshotStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const attemptId = req.body.attempt_id;
     if (!attemptId) return cb(new Error('attempt_id is required in the body BEFORE the file field'));
-    const dir = path.join(process.cwd(), 'uploads', 'screenshots', attemptId);
+    const __filename = new URL(import.meta.url).pathname;
+    let __dirname = path.dirname(__filename);
+    if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
+    const dir = path.join(__dirname, '../../uploads/screenshots', attemptId);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },

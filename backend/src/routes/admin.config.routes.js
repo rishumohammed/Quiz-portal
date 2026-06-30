@@ -13,7 +13,14 @@ const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = 'uploads/branding';
+    // Ensure we upload to the backend/uploads directory regardless of PM2 working directory
+    const __filename = new URL(import.meta.url).pathname;
+    let __dirname = path.dirname(__filename);
+    // Fix Windows leading slash issue in ES modules URL
+    if (process.platform === 'win32' && __dirname.startsWith('/')) {
+        __dirname = __dirname.substring(1);
+    }
+    const uploadPath = path.join(__dirname, '../../uploads/branding');
     if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
