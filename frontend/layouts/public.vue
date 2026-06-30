@@ -18,20 +18,8 @@
 
         <!-- Desktop Navigation -->
         <div class="d-none d-md-flex align-center">
-          <v-btn variant="text" to="/" class="text-capitalize px-4 font-weight-medium">Home</v-btn>
-          <v-btn variant="text" to="/courses" class="text-capitalize px-4 font-weight-medium">Courses</v-btn>
-          <v-btn variant="text" to="/live-courses" class="text-capitalize px-4 font-weight-medium text-primary">Live Courses</v-btn>
-          <v-btn variant="text" to="/about" class="text-capitalize px-4 font-weight-medium">About</v-btn>
-          <v-btn variant="text" to="/verify" class="text-capitalize px-4 font-weight-medium">Verify Certificate</v-btn>
-          <v-btn variant="text" to="/jobs" class="text-capitalize px-4 font-weight-medium">Jobs</v-btn>
-          
-          <v-divider vertical inset class="mx-4"></v-divider>
-          
-          <template v-if="!authStore.isAuthenticated">
-            <v-btn variant="text" to="/login" class="text-capitalize px-4 font-weight-medium">Login</v-btn>
-            <v-btn variant="outlined" color="primary" rounded="lg" class="text-capitalize px-6 ml-2 font-weight-bold" to="/register">Register</v-btn>
-          </template>
-          <template v-else>
+          <template v-if="authStore.isAuthenticated">
+            <v-divider vertical inset class="mx-4"></v-divider>
             <v-btn color="primary" rounded="lg" class="text-capitalize px-6 ml-2 font-weight-bold" elevation="0" to="/dashboard">Go to Dashboard</v-btn>
           </template>
         </div>
@@ -46,20 +34,8 @@
     <!-- Mobile Drawer -->
     <v-navigation-drawer v-model="drawer" temporary position="right" width="300">
       <v-list nav class="pa-4">
-        <v-list-item to="/" prepend-icon="mdi-home" title="Home" class="rounded-lg mb-2"></v-list-item>
-        <v-list-item to="/courses" prepend-icon="mdi-book-open-variant" title="Courses" class="rounded-lg mb-2"></v-list-item>
-        <v-list-item to="/live-courses" prepend-icon="mdi-video-account" title="Live Courses" class="rounded-lg mb-2 text-primary"></v-list-item>
-        <v-list-item to="/about" prepend-icon="mdi-information" title="About" class="rounded-lg mb-2"></v-list-item>
-        <v-list-item to="/verify" prepend-icon="mdi-certificate" title="Verify Certificate" class="rounded-lg mb-2"></v-list-item>
-        <v-list-item to="/jobs" prepend-icon="mdi-briefcase" title="Jobs" class="rounded-lg mb-2"></v-list-item>
-        
-        <v-divider class="my-4"></v-divider>
-        
-        <template v-if="!authStore.isAuthenticated">
-          <v-btn block variant="outlined" color="primary" to="/register" class="text-capitalize mb-2" rounded="lg">Register</v-btn>
-          <v-btn block variant="text" to="/login" class="text-capitalize" rounded="lg">Login</v-btn>
-        </template>
-        <template v-else>
+        <template v-if="authStore.isAuthenticated">
+          <v-divider class="my-4"></v-divider>
           <v-btn block color="primary" class="text-capitalize mb-2" rounded="lg" to="/dashboard">Go to Dashboard</v-btn>
         </template>
       </v-list>
@@ -98,21 +74,9 @@
             </div>
           </v-col>
           
-          <v-col cols="6" md="2">
-            <h4 class="text-subtitle-1 font-weight-bold mb-4 tracking-tight">Learn</h4>
+          <v-col cols="12" md="4">
+            <h4 class="text-subtitle-1 font-weight-bold mb-4 tracking-tight">Important Links</h4>
             <v-list density="compact" class="bg-transparent pa-0 footer-list">
-              <v-list-item to="/courses" class="footer-link">Browse Courses</v-list-item>
-              <v-list-item to="/live-courses" class="footer-link">Live Courses</v-list-item>
-              <!-- Removed Categories for Talent Hunt -->
-              <v-list-item to="/resources" class="footer-link">Tutor Resources</v-list-item>
-            </v-list>
-          </v-col>
-          
-          <v-col cols="6" md="2">
-            <h4 class="text-subtitle-1 font-weight-bold mb-4 tracking-tight">Company</h4>
-            <v-list density="compact" class="bg-transparent pa-0 footer-list">
-              <v-list-item to="/about" class="footer-link">About Us</v-list-item>
-              <v-list-item to="/jobs" class="footer-link">Careers</v-list-item>
               <v-list-item to="/privacy-policy" class="footer-link">Privacy Policy</v-list-item>
               <v-list-item to="/terms-of-service" class="footer-link">Terms of Service</v-list-item>
             </v-list>

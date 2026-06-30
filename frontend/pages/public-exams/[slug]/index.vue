@@ -119,20 +119,7 @@
                 Login &amp; Access Exam
               </v-btn>
 
-              <!-- Register (only if open) -->
-              <v-btn
-                v-if="exam.registration_status !== 'closed'"
-                variant="outlined"
-                color="primary"
-                size="large"
-                rounded="lg"
-                class="px-8 text-capitalize font-weight-bold"
-                height="52"
-                :to="`/public-exams/${exam.slug}/register`"
-              >
-                <v-icon start>mdi-account-plus-outline</v-icon>
-                Register for this Exam
-              </v-btn>
+              <!-- Register removed as requested -->
             </div>
           </div>
         </v-card>

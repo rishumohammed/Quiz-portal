@@ -206,14 +206,36 @@
             </v-dialog>
 
             <v-col cols="12" class="mt-4">
-              <v-btn type="submit" color="primary" size="large" block rounded="lg" height="54"
-                class="text-capitalize font-weight-bold text-h6" elevation="0" :loading="submitting">
-                Register
+              <v-btn color="primary" size="large" block rounded="lg" height="54"
+                class="text-capitalize font-weight-bold text-h6" elevation="0"
+                @click="openOtpModal" :disabled="!isFormValid">
+                Register Now
               </v-btn>
             </v-col>
           </v-row>
         </v-form>
       </v-card>
+      
+      <!-- OTP Verification Dialog -->
+      <v-dialog v-model="otpModal.show" max-width="400" persistent>
+        <v-card rounded="xl" class="pa-6 text-center">
+          <v-icon size="48" color="primary" class="mb-4 mx-auto">mdi-email-check-outline</v-icon>
+          <h3 class="text-h5 font-weight-bold mb-2">Verify Your Email</h3>
+          <p class="text-body-2 text-secondary mb-6">Enter the 6-digit OTP sent to <strong>{{ form.email }}</strong></p>
+          
+          <v-otp-input v-model="form.otp" length="6" class="mb-6"></v-otp-input>
+          
+          <div class="d-flex flex-column gap-3">
+            <v-btn color="primary" size="large" block rounded="lg" class="text-capitalize font-weight-bold" 
+                   @click="submitForm" :loading="submitting" :disabled="form.otp.length !== 6">
+              Confirm & Register
+            </v-btn>
+            <v-btn variant="text" block class="text-capitalize" @click="otpModal.show = false" :disabled="submitting">
+              Cancel
+            </v-btn>
+          </div>
+        </v-card>
+      </v-dialog>
     </div>
 
     <!-- Snackbar -->
@@ -246,11 +268,12 @@ const termsContent = ref('');
 const privacyContent = ref('');
 const termsModal = ref({ show: false });
 const privacyModal = ref({ show: false });
+const otpModal = ref({ show: false });
 
 const form = ref({
   name: '', email: '', phone: '', password: '', confirmPassword: '',
   country: '', state: '', city: '', qualification: '', college: '',
-  course_stream: '', year_of_study: '', agreed_to_terms: false
+  course_stream: '', year_of_study: '', agreed_to_terms: false, otp: ''
 });
 
 const snackbar = ref(false);
@@ -280,7 +303,7 @@ async function loadTermsPrivacy() {
 function openTermsModal() { termsModal.value.show = true; }
 function openPrivacyModal() { privacyModal.value.show = true; }
 
-async function submitForm() {
+async function openOtpModal() {
   if (!form.value.agreed_to_terms) {
     snackbarText.value = 'You must agree to the Terms & Conditions and Privacy Policy to continue.';
     snackbarColor.value = 'error';
@@ -288,11 +311,36 @@ async function submitForm() {
     return;
   }
   if (!isFormValid.value) return;
+  
+  // Send OTP
+  try {
+    submitting.value = true;
+    await api.post(`/public/exams/${route.params.slug}/send-otp`, { 
+      email: form.value.email,
+      name: form.value.name 
+    });
+    otpModal.value.show = true;
+    snackbarText.value = 'OTP sent successfully to your email!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err: any) {
+    console.error('Send OTP failed:', err);
+    snackbarText.value = err.response?.data?.message || 'Failed to send OTP. Please check your email.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function submitForm() {
+  if (form.value.otp.length !== 6) return;
   submitting.value = true;
   try {
     const { data } = await api.post(`/public/exams/${route.params.slug}/register`, form.value);
     registeredCandidate.value = data.candidate;
     success.value = true;
+    otpModal.value.show = false;
   } catch (err: any) {
     console.error('Registration failed:', err);
     snackbarText.value = err.response?.data?.message || 'Failed to register. Please try again.';

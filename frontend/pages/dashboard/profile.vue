@@ -186,16 +186,9 @@ const invoices = ref<any[]>([]);
 const loadingPayments = ref(false);
 
 const loadPaymentSummary = async () => {
-  if (authStore.userRole !== 'student') return;
-  loadingPayments.value = true;
-  try {
-    const res = await api.get('/billing/my-invoices');
-    invoices.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-  } catch (error) {
-    console.error('Failed to load payment summary:', error);
-  } finally {
-    loadingPayments.value = false;
-  }
+  // Billing module has been removed in this Talent Hunt port.
+  // Safely returning to prevent 404 errors.
+  return;
 };
 
 onMounted(() => {

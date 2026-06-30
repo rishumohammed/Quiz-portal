@@ -2,8 +2,12 @@ import mysql from 'mysql2/promise';
 import IORedis from 'ioredis';
 import RedisMock from 'ioredis-mock';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
-dotenv.config({ path: '../.env' });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const Redis = process.env.USE_MOCK_REDIS === 'true' ? RedisMock : IORedis;
 

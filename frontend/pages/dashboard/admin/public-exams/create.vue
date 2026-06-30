@@ -109,7 +109,88 @@
             </v-row>
           </v-card>
 
-          <!-- 2. Exam Settings & Controls -->
+          <!-- 2. Scheduling & Media -->
+          <v-card class="pa-6 border rounded-xl mb-6" flat>
+            <h3 class="text-h6 font-weight-bold text-dark mb-4">Scheduling & Media</h3>
+            
+            <v-row>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="fields.registration_start_date"
+                  label="Registration Start Date & Time"
+                  type="datetime-local"
+                  class="mb-3"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="fields.registration_end_date"
+                  label="Registration End Date & Time"
+                  type="datetime-local"
+                  class="mb-3"
+                ></v-text-field>
+              </v-col>
+            </v-row>
+            
+            <v-row>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="fields.exam_start_date"
+                  label="Exam Start Date & Time"
+                  type="datetime-local"
+                  class="mb-3"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="fields.exam_end_date"
+                  label="Exam End Date & Time"
+                  type="datetime-local"
+                  class="mb-3"
+                ></v-text-field>
+              </v-col>
+            </v-row>
+
+            <h4 class="text-subtitle-1 font-weight-bold mb-2 text-dark">Exam Card Image</h4>
+            <div v-if="fields.image_url" class="mb-4">
+              <img
+                :src="fields.image_url.startsWith('http') ? fields.image_url : (baseUrl.replace('/api', '') + (fields.image_url.startsWith('/') ? fields.image_url : '/' + fields.image_url))"
+                alt="Exam Image Preview"
+                style="width:100%; max-height:200px; object-fit:cover; border-radius:12px; border:1px solid rgba(0,0,0,0.08);"
+              />
+            </div>
+            <v-row>
+              <v-col cols="12" md="6">
+                <v-file-input
+                  v-model="imageFile"
+                  accept="image/*"
+                  label="Upload new image"
+                  variant="outlined"
+                  density="compact"
+                  prepend-icon=""
+                  prepend-inner-icon="mdi-upload"
+                  hide-details
+                  class="mb-3"
+                />
+                <v-btn color="primary" variant="tonal" rounded="lg" size="small" :loading="uploadingImage" @click="uploadExamImage" class="text-none">
+                  <v-icon start>mdi-cloud-upload</v-icon> Upload Image
+                </v-btn>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="fields.image_url"
+                  label="Or paste image URL"
+                  placeholder="https://example.com/image.png"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                ></v-text-field>
+                <div class="text-caption text-secondary mt-1">If set, URL takes priority over uploaded file.</div>
+              </v-col>
+            </v-row>
+          </v-card>
+
+          <!-- 3. Exam Settings & Controls -->
           <v-card class="pa-6 border rounded-xl mb-6" flat>
             <h3 class="text-h6 font-weight-bold text-dark mb-4">Exam Simulator Settings</h3>
             
@@ -334,8 +415,44 @@ const fields = ref<any>({
   enable_proctoring: false,
   max_proctoring_warnings: 3,
   enforce_fullscreen: false,
-  status: 'draft'
+  status: 'draft',
+  registration_start_date: '',
+  registration_end_date: '',
+  exam_start_date: '',
+  exam_end_date: '',
+  image_url: ''
 });
+
+const baseUrl = useRuntimeConfig().public.apiBase;
+const imageFile = ref(null);
+const uploadingImage = ref(false);
+
+const uploadExamImage = async () => {
+  if (!imageFile.value) return;
+  uploadingImage.value = true;
+  const formData = new FormData();
+  
+  const file = Array.isArray(imageFile.value) ? imageFile.value[0] : imageFile.value;
+  formData.append('image', file);
+
+  try {
+    const { data } = await api.post('/admin/public-exams/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    fields.value.image_url = data.url;
+    snackbarText.value = 'Image uploaded successfully!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    imageFile.value = null;
+  } catch (err) {
+    console.error('Failed to upload image:', err);
+    snackbarText.value = 'Failed to upload image';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    uploadingImage.value = false;
+  }
+};
 
 const certFields = ref<any>({
   title: 'Practice Completion Certificate',
@@ -391,7 +508,12 @@ async function fetchExamDetails() {
         enable_proctoring: !!examMatch.enable_proctoring,
         max_proctoring_warnings: examMatch.max_proctoring_warnings !== undefined ? examMatch.max_proctoring_warnings : 3,
         enforce_fullscreen: !!examMatch.enforce_fullscreen,
-        status: examMatch.status
+        status: examMatch.status,
+        registration_start_date: examMatch.registration_start_date ? new Date(new Date(examMatch.registration_start_date).getTime() - new Date(examMatch.registration_start_date).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        registration_end_date: examMatch.registration_end_date ? new Date(new Date(examMatch.registration_end_date).getTime() - new Date(examMatch.registration_end_date).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        exam_start_date: examMatch.exam_start_date ? new Date(new Date(examMatch.exam_start_date).getTime() - new Date(examMatch.exam_start_date).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        exam_end_date: examMatch.exam_end_date ? new Date(new Date(examMatch.exam_end_date).getTime() - new Date(examMatch.exam_end_date).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        image_url: examMatch.image_url || ''
       };
       
       // Load cert settings

@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/config', async (req, res) => {
   try {
     const [configs] = await pool.query(
-      'SELECT `key`, `value` FROM system_config WHERE (`group` IN ("branding", "contact", "lms") AND `is_sensitive` = 0) OR `key` IN ("homepage_hero_image", "homepage_hero_image_url", "homepage_about_image", "homepage_about_image_url", "aboutpage_who_image", "aboutpage_who_image_url")'
+      'SELECT `key`, `value` FROM system_config WHERE (`group` IN ("branding", "contact", "lms") AND `is_sensitive` = 0) OR `key` IN ("homepage_hero_image", "homepage_hero_image_url", "homepage_about_image", "homepage_about_image_url", "aboutpage_who_image", "aboutpage_who_image_url", "homepage_title", "homepage_subtitle", "homepage_about_title", "homepage_about_description", "homepage_bullets", "homepage_footer_text")'
     );
     const configMap = {};
     configs.forEach(c => configMap[c.key] = c.value);
@@ -65,6 +65,24 @@ router.post('/contact', async (req, res) => {
     res.status(201).json({ message: 'Your message has been sent successfully' });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// GET /api/public/exams/active - Fetch active public exams for the homepage
+router.get('/exams/active', async (req, res) => {
+  try {
+    const [exams] = await pool.query(`
+      SELECT 
+        e.id, e.name, e.slug, e.description, e.duration_minutes, e.total_questions, e.total_marks,
+        e.registration_start_date, e.registration_end_date, e.exam_start_date, e.exam_end_date, e.image_url, e.registration_status
+      FROM public_exams e
+      WHERE e.deleted_at IS NULL AND e.status = 'published'
+      ORDER BY e.created_at DESC
+    `);
+    res.json(exams);
+  } catch (error) {
+    console.error('Fetch active exams error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

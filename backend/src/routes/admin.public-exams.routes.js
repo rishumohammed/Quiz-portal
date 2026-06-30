@@ -1,9 +1,27 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { pool } from '../db/connection.js';
 import { authenticateJWT, authorizeRoles, requirePermission } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Ensure exams upload directory exists
+const examsUploadDir = path.resolve('uploads/exams');
+if (!fs.existsSync(examsUploadDir)) {
+  fs.mkdirSync(examsUploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, examsUploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+const upload = multer({ storage });
 
 // Helper to grade correct answers
 function gradeQuestion(type, correct, submitted) {
@@ -40,6 +58,61 @@ function gradeQuestion(type, correct, submitted) {
 
 // Apply admin protection to all routes in this file
 router.use(authenticateJWT, requirePermission('exams'));
+
+// POST /api/admin/public-exams/upload-image
+router.post('/upload-image', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+    const fileUrl = `/uploads/exams/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Image upload failed', details: error.message });
+  }
+});
+
+// ─── 0. DASHBOARD STATS ────────────────────────────────────────────────────────
+
+// GET /api/admin/public-exams/dashboard-stats
+router.get('/dashboard-stats', async (req, res) => {
+  try {
+    const [[{ totalExams }]] = await pool.query("SELECT COUNT(*) AS totalExams FROM public_exams WHERE status = 'published'");
+    const [[{ totalCandidates }]] = await pool.query('SELECT COUNT(*) AS totalCandidates FROM public_exam_candidates');
+    const [[{ totalAttempts }]] = await pool.query('SELECT COUNT(*) AS totalAttempts FROM public_exam_attempts');
+    const [[{ passRate }]] = await pool.query('SELECT COALESCE(AVG(percentage), 0) AS passRate FROM public_exam_results');
+
+    // Recent Candidates
+    const [recentCandidates] = await pool.query(`
+      SELECT c.id, c.name, c.email, c.created_at, e.name as exam_name
+      FROM public_exam_candidates c
+      JOIN public_exams e ON c.exam_id = e.id
+      ORDER BY c.created_at DESC
+      LIMIT 5
+    `);
+
+    // System Health mock (since we are focusing on exam stats, we can keep the basics)
+    const systemHealth = {
+      diskUsage: 32,
+      dbStatus: 'Online',
+      redisStatus: 'Online'
+    };
+
+    res.json({
+      kpis: {
+        row1: [
+          { title: 'Active Exams', value: totalExams, icon: 'mdi-file-document-multiple-outline', color: 'primary' },
+          { title: 'Total Candidates', value: totalCandidates, icon: 'mdi-account-group-outline', color: 'info' },
+          { title: 'Total Attempts', value: totalAttempts, icon: 'mdi-check-decagram-outline', color: 'success' },
+          { title: 'Average Score', value: Number(passRate).toFixed(1) + '%', icon: 'mdi-chart-line', color: 'warning' }
+        ]
+      },
+      recentCandidates,
+      systemHealth
+    });
+  } catch (error) {
+    console.error('Fetch dashboard stats error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 // ─── 1. CATEGORIES CRUD ────────────────────────────────────────────────────────
 
@@ -472,7 +545,7 @@ router.get('/', async (req, res) => {
 // POST /api/admin/public-exams
 router.post('/', async (req, res) => {
   try {
-    const { name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen } = req.body;
+    const { name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url } = req.body;
 
     if (!name || !category_id || !slug) {
       return res.status(400).json({ message: 'Name, Category, and SEO Slug are required' });
@@ -481,8 +554,8 @@ router.post('/', async (req, res) => {
     const id = uuidv4();
     await pool.query(`
       INSERT INTO public_exams (
-        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id, name, category_id, description || null, syllabus || null,
       duration_minutes || 60, total_questions || 0, total_marks || 0,
@@ -491,7 +564,8 @@ router.post('/', async (req, res) => {
       !!randomize_questions, !!randomize_options, show_correct_answers !== false, show_explanations !== false,
       allow_retake !== false, enable_certificate !== false, anonymous_access !== false,
       require_name !== false, !!require_name, !!require_email, !!require_mobile,
-      !!enable_proctoring, max_proctoring_warnings !== undefined ? max_proctoring_warnings : 3, !!enforce_fullscreen
+      !!enable_proctoring, max_proctoring_warnings !== undefined ? max_proctoring_warnings : 3, !!enforce_fullscreen,
+      registration_start_date || null, registration_end_date || null, exam_start_date || null, exam_end_date || null, image_url || null
     ]);
 
     res.status(201).json({ id, message: 'Exam created successfully' });
@@ -509,7 +583,8 @@ router.put('/:id', async (req, res) => {
       'total_questions', 'total_marks', 'passing_marks', 'difficulty_level', 'status', 'slug',
       'instructions', 'pass_percentage', 'negative_marking', 'randomize_questions', 'randomize_options',
       'show_correct_answers', 'show_explanations', 'allow_retake', 'enable_certificate', 'anonymous_access',
-      'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'max_proctoring_warnings', 'enforce_fullscreen'
+      'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'max_proctoring_warnings', 'enforce_fullscreen',
+      'registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date', 'image_url'
     ];
     const updates = fields.filter(f => req.body[f] !== undefined);
     
@@ -521,6 +596,9 @@ router.put('/:id', async (req, res) => {
     const values = updates.map(f => {
       if (['randomize_questions', 'randomize_options', 'show_correct_answers', 'show_explanations', 'allow_retake', 'enable_certificate', 'anonymous_access', 'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'enforce_fullscreen'].includes(f)) {
         return !!req.body[f];
+      }
+      if (['registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date'].includes(f) && req.body[f] === '') {
+        return null;
       }
       return req.body[f];
     });

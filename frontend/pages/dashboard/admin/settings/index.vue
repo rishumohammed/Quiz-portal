@@ -87,34 +87,6 @@
               <AppInput v-model="form.brand_primary_color" label="Primary Color" type="color" large />
               <AppInput v-model="form.brand_secondary_color" label="Secondary Color" type="color" large />
             </div>
-            <div class="fr2 mt-4">
-              <div>
-                <AppInput v-model="form.invoice_header_color" label="Invoice Header Color" type="color" large />
-                <div class="text-caption text-secondary mt-1">Choose a header background color for your PDF invoices that complements your logo.</div>
-              </div>
-              <div class="d-flex align-center justify-center">
-                <v-card :style="{ background: form.invoice_header_color || '#1a237e', minHeight: '64px', width: '100%', borderRadius: '12px' }" class="d-flex align-center justify-center pa-4">
-                  <span class="text-white font-weight-bold" style="opacity:0.85; font-size:13px;">INVOICE</span>
-                </v-card>
-              </div>
-            </div>
-
-            <v-divider class="my-6" />
-
-            <div class="d-flex align-center justify-space-between">
-              <div>
-                <div class="text-subtitle-2 font-weight-bold">Regenerate Invoice PDFs</div>
-                <div class="text-caption text-secondary">After saving, click this to apply branding changes to all existing invoice PDFs immediately.</div>
-              </div>
-              <v-btn
-                color="primary"
-                variant="tonal"
-                rounded="lg"
-                :loading="regenerating"
-                prepend-icon="mdi-file-refresh-outline"
-                @click="regenerateInvoicePDFs"
-              >Regenerate Now</v-btn>
-            </div>
 
           </div>
 
@@ -251,8 +223,31 @@
 
           <!-- Homepage Tab -->
           <div v-if="activeTab[0] === 'homepage'" class="fade-in">
-            <h2 class="text-h6 font-weight-bold mb-2">Static Pages Image Management</h2>
-            <p class="text-body-2 text-secondary mb-8">Upload or set URL for the main images displayed on the homepage and about page.</p>
+            <h2 class="text-h6 font-weight-bold mb-2">Homepage Content & Settings</h2>
+            <p class="text-body-2 text-secondary mb-8">Manage the main text and images displayed on the public Talent Hunt homepage.</p>
+
+            <v-card variant="outlined" class="rounded-xl pa-6 mb-6">
+              <h3 class="text-subtitle-1 font-weight-bold mb-4">Text Content</h3>
+              
+              <div class="mb-4">
+                <AppInput v-model="form.homepage_title" label="Main Title" placeholder="KEFTA National Food Tech Talent Hunt 2026" large />
+              </div>
+              <div class="mb-4">
+                <v-textarea v-model="form.homepage_subtitle" label="Subtitle" placeholder="Discovering, motivating, and supporting emerging food science talents across the nation." variant="outlined" auto-grow rows="2" />
+              </div>
+              <div class="mb-4">
+                <AppInput v-model="form.homepage_about_title" label="About Section Title" placeholder="About the Competition" large />
+              </div>
+              <div class="mb-4">
+                <v-textarea v-model="form.homepage_about_description" label="About Section Description" placeholder="Enter paragraph text here..." variant="outlined" auto-grow rows="4" />
+              </div>
+              <div class="mb-4">
+                <v-textarea v-model="form.homepage_bullets" label="About Section Bullets (One per line)" placeholder="Promote scientific temperament..." variant="outlined" auto-grow rows="4" />
+              </div>
+              <div class="mb-4">
+                <AppInput v-model="form.homepage_footer_text" label="Footer Text" placeholder="All assessments will be conducted..." large />
+              </div>
+            </v-card>
 
             <!-- Hero Image -->
             <v-card variant="outlined" class="rounded-xl pa-6 mb-6">
@@ -309,115 +304,7 @@
               </v-row>
             </v-card>
 
-            <!-- About / Why Section Image -->
-            <v-card variant="outlined" class="rounded-xl pa-6">
-              <div class="d-flex align-center mb-4">
-                <v-avatar color="teal" size="40" class="mr-3">
-                  <v-icon color="white" size="20">mdi-image-multiple</v-icon>
-                </v-avatar>
-                <div>
-                  <div class="text-subtitle-1 font-weight-bold">"Why Brixify" Section Image</div>
-                  <div class="text-caption text-secondary">Shown on the left side of the Why Brixify split section</div>
-                </div>
-              </div>
 
-              <!-- Preview -->
-              <div v-if="form.homepage_about_image" class="mb-4">
-                <img
-                  :src="form.homepage_about_image?.startsWith('/') ? (baseUrl + form.homepage_about_image) : form.homepage_about_image"
-                  alt="About Image Preview"
-                  style="width:100%; max-height:200px; object-fit:cover; border-radius:12px; border:1px solid rgba(0,0,0,0.08);"
-                />
-              </div>
-              <div v-else class="mb-4 pa-6 rounded-xl d-flex align-center justify-center" style="background:#f8f9fc; border:1px dashed rgba(0,0,0,0.12); min-height:120px;">
-                <div class="text-center text-secondary">
-                  <v-icon size="40" color="grey-lighten-2" class="mb-2">mdi-image-outline</v-icon>
-                  <div class="text-caption">No image set — using default</div>
-                </div>
-              </div>
-
-              <v-row>
-                <v-col cols="12" md="6">
-                  <v-file-input
-                    v-model="aboutImageFile"
-                    accept="image/*"
-                    label="Upload new section image"
-                    variant="outlined"
-                    density="compact"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-upload"
-                    hide-details
-                    class="mb-3"
-                  />
-                  <v-btn color="teal" variant="tonal" rounded="lg" size="small" :loading="saving" @click="uploadHomepageImages" class="text-none">
-                    <v-icon start>mdi-cloud-upload</v-icon> Upload Section Image
-                  </v-btn>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <AppInput
-                    v-model="form.homepage_about_image_url"
-                    label="Or paste image URL"
-                    placeholder="https://images.unsplash.com/..."
-                  />
-                  <div class="text-caption text-secondary mt-1">If set, URL takes priority over uploaded file.</div>
-                </v-col>
-              </v-row>
-            </v-card>
-
-            <!-- About Page Who We Are Image -->
-            <v-card variant="outlined" class="rounded-xl pa-6 mb-6">
-              <div class="d-flex align-center mb-4">
-                <v-avatar color="primary" size="40" class="mr-3">
-                  <v-icon color="white" size="20">mdi-account-group</v-icon>
-                </v-avatar>
-                <div>
-                  <div class="text-subtitle-1 font-weight-bold">About Page - Who We Are</div>
-                  <div class="text-caption text-secondary">Shown next to the Who We Are text block on the About page</div>
-                </div>
-              </div>
-
-              <!-- Preview -->
-              <div v-if="form.aboutpage_who_image" class="mb-4">
-                <img
-                  :src="form.aboutpage_who_image?.startsWith('/') ? (baseUrl + form.aboutpage_who_image) : form.aboutpage_who_image"
-                  alt="Who We Are Image Preview"
-                  style="width:100%; max-height:200px; object-fit:cover; border-radius:12px; border:1px solid rgba(0,0,0,0.08);"
-                />
-              </div>
-              <div v-else class="mb-4 pa-6 rounded-xl d-flex align-center justify-center" style="background:#f8f9fc; border:1px dashed rgba(0,0,0,0.12); min-height:120px;">
-                <div class="text-center text-secondary">
-                  <v-icon size="40" color="grey-lighten-2" class="mb-2">mdi-image-outline</v-icon>
-                  <div class="text-caption">No image set — using default</div>
-                </div>
-              </div>
-
-              <v-row>
-                <v-col cols="12" md="6">
-                  <v-file-input
-                    v-model="aboutpageWhoImageFile"
-                    accept="image/*"
-                    label="Upload new section image"
-                    variant="outlined"
-                    density="compact"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-upload"
-                    hide-details
-                    class="mb-3"
-                  />
-                  <v-btn color="teal" variant="tonal" rounded="lg" size="small" :loading="saving" @click="uploadHomepageImages" class="text-none">
-                    <v-icon start>mdi-cloud-upload</v-icon> Upload Section Image
-                  </v-btn>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <AppInput
-                    v-model="form.aboutpage_who_image_url"
-                    label="Or paste image URL"
-                    placeholder="https://images.unsplash.com/..."
-                  />
-                  <div class="text-caption text-secondary mt-1">If set, URL takes priority over uploaded file.</div>
-                </v-col>
-              </v-row>
-            </v-card>
 
             <div class="d-flex justify-end gap-3 mt-8 pt-6 border-t">
               <AppButton variant="g" size="lg" icon="mdi-refresh" @click="fetchData">Reset</AppButton>
@@ -435,7 +322,12 @@
             <CertificationsTab />
           </div>
 
-          <div class="d-flex justify-end gap-3 mt-12 pt-6 border-t" v-if="activeTab[0] !== 'social' && activeTab[0] !== 'currencies' && activeTab[0] !== 'homepage' && activeTab[0] !== 'certifications'">
+          <!-- Email Templates Tab -->
+          <div v-if="activeTab[0] === 'email_templates'" class="fade-in">
+            <EmailTemplatesTab />
+          </div>
+
+          <div class="d-flex justify-end gap-3 mt-12 pt-6 border-t" v-if="activeTab[0] !== 'social' && activeTab[0] !== 'currencies' && activeTab[0] !== 'homepage' && activeTab[0] !== 'certifications' && activeTab[0] !== 'email_templates'">
             <AppButton variant="g" size="lg" icon="mdi-refresh" @click="fetchData">
               Reset Changes
             </AppButton>
@@ -460,6 +352,7 @@ import { useApi } from '@/composables/useApi';
 import SocialPlatformsTab from '@/components/admin/settings/SocialPlatformsTab.vue';
 import CurrenciesTab from '@/components/admin/settings/CurrenciesTab.vue';
 import CertificationsTab from '@/components/admin/settings/CertificationsTab.vue';
+import EmailTemplatesTab from '@/components/admin/settings/EmailTemplatesTab.vue';
 
 definePageMeta({
   layout: 'dashboard',
@@ -490,6 +383,7 @@ const tabs = [
   { label: 'Homepage', value: 'homepage', icon: 'mdi-home-outline' },
   { label: 'Contact Info', value: 'contact', icon: 'mdi-map-marker-outline' },
   { label: 'Email (SMTP)', value: 'email', icon: 'mdi-email-outline' },
+  { label: 'Email Templates', value: 'email_templates', icon: 'mdi-email-edit-outline' },
   { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' }
 ];
 

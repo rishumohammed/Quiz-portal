@@ -4,9 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
-import { pool } from '../db/connection.js';
+import { pool, redis } from '../db/connection.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '../services/notification.service.js';
+import { ConfigService } from '../services/config.service.js';
+import EmailService from '../services/email.service.js';
 
 const PUBLIC_EXAM_JWT_SECRET = process.env.PUBLIC_EXAM_JWT_SECRET || 'aems_public_exam_secret_key_2024';
 
@@ -214,17 +217,68 @@ router.post('/candidates/login', async (req, res) => {
   }
 });
 
+// 3.4 POST /api/public/exams/:slug/send-otp
+router.post('/:slug/send-otp', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { email, name } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const [exams] = await pool.query('SELECT id, name, registration_status FROM public_exams WHERE slug = ?', [slug]);
+    if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
+    if (exams[0].registration_status === 'closed') {
+      return res.status(403).json({ message: 'Registrations are currently closed.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const redisKey = `exam_reg_otp:${slug}:${email.toLowerCase().trim()}`;
+    
+    await redis.setex(redisKey, 600, otp);
+
+    const [tplRows] = await pool.query('SELECT subject, body FROM email_templates WHERE id = ?', ['exam_registration_otp']);
+    let subject = tplRows[0].subject.replace(/{{exam_name}}/g, exams[0].name);
+    
+    const logoConfig = await ConfigService.getByKey('app_logo');
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
+
+    let html = tplRows[0].body
+      .replace(/{{name}}/g, name || 'Candidate')
+      .replace(/{{exam_name}}/g, exams[0].name)
+      .replace(/{{otp}}/g, otp)
+      .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+
+    await EmailService.sendEmail({
+      to: email,
+      subject: subject,
+      html
+    });
+
+    res.json({ message: 'OTP sent successfully to your email.' });
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ message: 'Failed to send OTP. Please try again later.' });
+  }
+});
+
 // 3.5 POST /api/public/exams/:slug/register
 router.post('/:slug/register', async (req, res) => {
   try {
     const { slug } = req.params;
-    const { name, email, phone, password, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms } = req.body;
+    const { name, email, phone, password, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, otp } = req.body;
 
     if (!agreed_to_terms) {
       return res.status(400).json({ message: 'You must agree to the Terms & Conditions and Privacy Policy to continue.' });
     }
+    
+    if (!otp) {
+      return res.status(400).json({ message: 'OTP is required. Please verify your email.' });
+    }
 
-    const [exams] = await pool.query('SELECT id, name, status, registration_status FROM public_exams WHERE slug = ?', [slug]);
+    const [exams] = await pool.query('SELECT id, name, slug, status, registration_status, exam_start_date, duration_minutes FROM public_exams WHERE slug = ?', [slug]);
     if (exams.length === 0) {
       return res.status(404).json({ message: 'Exam not found' });
     }
@@ -235,10 +289,17 @@ router.post('/:slug/register', async (req, res) => {
       return res.status(403).json({ message: 'Registrations for this examination are currently closed. Please contact the administrator.' });
     }
 
-    // Optional: check if candidate already registered for THIS exam
+    // Check if candidate already registered for THIS exam
     const [existing] = await pool.query('SELECT id FROM public_exam_candidates WHERE email = ? AND exam_id = ?', [email, exam.id]);
     if (existing.length > 0) {
       return res.status(400).json({ message: 'You have already registered for this exam.' });
+    }
+
+    // Verify OTP
+    const redisKey = `exam_reg_otp:${slug}:${email.toLowerCase().trim()}`;
+    const storedOtp = await redis.get(redisKey);
+    if (!storedOtp || storedOtp !== otp) {
+      return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
     }
 
     // Fetch config versions
@@ -273,6 +334,39 @@ router.post('/:slug/register', async (req, res) => {
       throw e;
     } finally {
       connection.release();
+    }
+    
+    // Clean up OTP
+    await redis.del(redisKey);
+
+    // Send Registration Success Email
+    try {
+      const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}`;
+      const examDate = exam.exam_start_date ? new Date(exam.exam_start_date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'TBD';
+      
+      const [tplRows] = await pool.query('SELECT subject, body FROM email_templates WHERE id = ?', ['exam_registration_success']);
+      let subject = tplRows[0].subject.replace(/{{exam_name}}/g, exam.name);
+      
+      const logoConfig = await ConfigService.getByKey('app_logo');
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
+
+      let html = tplRows[0].body
+        .replace(/{{name}}/g, name || 'Candidate')
+        .replace(/{{exam_name}}/g, exam.name)
+        .replace(/{{exam_date}}/g, examDate)
+        .replace(/{{exam_duration}}/g, exam.duration_minutes || '--')
+        .replace(/{{email}}/g, email)
+        .replace(/{{password}}/g, password)
+        .replace(/{{exam_link}}/g, loginUrl)
+        .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+      await EmailService.sendEmail({
+        to: email,
+        subject: subject,
+        html
+      });
+    } catch (e) {
+      console.warn('Failed to send registration success email:', e.message);
     }
 
     res.status(201).json({
