@@ -75,9 +75,9 @@ CREATE TABLE IF NOT EXISTS institute_info (
 );
 
 CREATE TABLE IF NOT EXISTS system_config (
-    \`key\` VARCHAR(100) PRIMARY KEY,
-    \`value\` TEXT,
-    \`group\` VARCHAR(50) DEFAULT 'general',
+    `key` VARCHAR(100) PRIMARY KEY,
+    `value` TEXT,
+    `group` VARCHAR(50) DEFAULT 'general',
     is_sensitive BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
