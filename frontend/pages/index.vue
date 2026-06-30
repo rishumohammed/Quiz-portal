@@ -1,41 +1,7 @@
 <template>
   <div class="kefta-homepage">
     <!-- Hero Section -->
-    <section class="hero-section py-16 position-relative">
-      <v-container>
-        <v-row align="center" justify="space-between">
-          <v-col cols="12" :md="heroImage ? 6 : 12" :class="{ 'text-center': !heroImage }">
-            <v-chip color="primary" variant="flat" size="small" class="mb-6 px-4 py-3 font-weight-bold tracking-wide text-uppercase" rounded="pill">
-              Official Platform
-            </v-chip>
-            <h1 class="main-title text-primary-darken-3 mb-6 font-weight-black">
-              {{ config.homepage_title || 'KEFTA National Food Tech Talent Hunt' }}
-            </h1>
-            <p class="text-h6 text-blue-grey-darken-1 font-weight-regular mb-8" style="line-height: 1.6; max-width: 600px;" :class="{ 'mx-auto': !heroImage }">
-              {{ config.homepage_subtitle || 'Discovering, motivating, and supporting emerging food science talents across the nation.' }}
-            </p>
-            <v-btn
-              color="primary"
-              size="x-large"
-              rounded="pill"
-              elevation="0"
-              class="px-8 font-weight-bold text-none"
-              @click="scrollToExams"
-            >
-              View Active Exams
-              <v-icon end>mdi-arrow-down</v-icon>
-            </v-btn>
-          </v-col>
-          
-          <v-col v-if="heroImage" cols="12" md="5" class="d-none d-md-block">
-            <div class="hero-image-wrapper">
-              <img :src="heroImage" alt="Hero Image" class="hero-image elevation-4 rounded-xl" />
-              <div class="decorative-blob"></div>
-            </div>
-          </v-col>
-        </v-row>
-      </v-container>
-    </section>
+    <HeroSection :config="config" />
 
     <!-- About Section -->
     <section class="about-section py-16 bg-white">

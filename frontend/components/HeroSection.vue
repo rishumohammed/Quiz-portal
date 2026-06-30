@@ -6,106 +6,64 @@
     <div class="bg-shape shape-2"></div>
     <div class="bg-shape shape-3"></div>
     
-    <div class="hero-inner">
-      <!-- Left: Copy -->
-      <div class="hero-copy" v-motion-fade-visible>
-        <!-- Badge -->
+    <div class="hero-minimalist">
+      <div class="hero-text-container" v-motion-fade-visible>
         <div class="hero-badge">
           <span class="badge-dot"></span>
-          Global Food Safety & Certification
+          Official Platform
         </div>
-
-        <!-- Headline -->
-        <h1 class="hero-headline" style="font-size: clamp(3rem, 6vw, 4.5rem); letter-spacing: -0.03em;">
-          <span style="color: var(--primary);">brix</span> <span style="color: var(--secondary);">Certifications</span>
+        
+        <h1 class="hero-headline">
+          {{ config?.homepage_title || 'KEFTA National Food Tech Talent Hunt' }}
         </h1>
-
-        <!-- Sub-copy -->
-        <div style="margin-bottom: 40px; display: flex; flex-direction: column; gap: 12px;">
-          <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--g7); letter-spacing: -0.01em; margin: 0;">
-            Elevating Global Food Industry Excellence
-          </h2>
-          <h3 style="font-size: 1.25rem; font-weight: 600; color: var(--primary); letter-spacing: 0.02em; margin: 0;">
-            ISO | FSSC | BRCGS | OHSMS | QMS | HACCP
-          </h3>
-        </div>
-
-        <!-- CTAs -->
+        
+        <h2 class="hero-sub">
+          {{ config?.homepage_subtitle || 'Discovering, motivating, and supporting emerging food science talents across the nation.' }}
+        </h2>
+        
         <div class="hero-ctas">
-          <NuxtLink to="/courses" class="cta-primary">
-            Browse Courses
+          <NuxtLink to="#exams-section" class="cta-primary">
+            View Active Exams
             <svg class="cta-arrow" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 3v10M4 9l4 4 4-4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </NuxtLink>
-          <NuxtLink to="/about" class="cta-ghost">Learn More</NuxtLink>
-        </div>
-
-        <!-- Social proof -->
-        <div class="hero-proof">
-          <div class="proof-avatars">
-            <v-avatar
-              v-for="(color, i) in ['primary', 'success', 'warning', 'info']"
-              :key="i"
-              :color="color"
-              class="proof-avatar"
-              size="32"
-            >
-              <span class="text-caption text-white font-weight-bold">{{ ['J', 'S', 'M', 'A'][i] }}</span>
-            </v-avatar>
-          </div>
-          <div class="proof-text">
-            <strong>Trusted globally</strong> by industry leaders
-            <div class="proof-stars">
-              <span v-for="s in 5" :key="s" class="star">★</span>
-              <span class="proof-rating">4.9 / 5</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      <!-- Right: Visual panel -->
-      <div class="hero-visual" v-motion-slide-right>
-        <!-- Main image -->
-        <div class="image-frame">
+      <div class="hero-image-container" v-motion-slide-visible-bottom>
+        <div class="floating-wrapper">
           <img
             v-if="heroImgSrc"
             :src="heroImgSrc"
-            alt="Food technology quality control"
-            class="hero-img"
-            width="600"
-            height="450"
+            alt="Food Tech Talent Hunt Hero"
+            class="hero-img-3d"
           />
-          <!-- Scrim at bottom -->
-          <div class="image-scrim"></div>
+          <div class="hero-shadow"></div>
         </div>
-
-        <!-- Floating stat: Placement rate -->
-        <div class="float-card float-top" v-motion-roll-visible-top>
-          <div class="float-icon float-icon--green">
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-              <path d="M3 17l5-5 4 4 9-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="float-content">
-            <div class="float-label">Global Compliance</div>
-            <div class="float-value">100%</div>
-            <div class="float-bar">
-              <div class="float-bar-fill" style="width: 94%"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Floating stat: Certified -->
-        <div class="float-card float-bottom" v-motion-roll-visible-bottom>
+        
+        <!-- Floating Stat Badges -->
+        <div class="float-card float-left" v-motion-roll-visible-left>
           <div class="float-icon float-icon--blue">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-              <path d="M9 12l2 2 4-4M12 2a10 10 0 100 20A10 10 0 0012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
           <div class="float-content">
-            <div class="float-label">Certified Experts</div>
-            <div class="float-value-sm">Industry Recognized</div>
+            <div class="float-label">National Level</div>
+            <div class="float-value-sm">Recognition</div>
+          </div>
+        </div>
+
+        <div class="float-card float-right" v-motion-roll-visible-right>
+          <div class="float-icon float-icon--green">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="float-content">
+            <div class="float-label">Global Standards</div>
+            <div class="float-value-sm">100% Verified</div>
           </div>
         </div>
       </div>
@@ -116,16 +74,21 @@
 </template>
 
 <script setup lang="ts">
-const config = useRuntimeConfig();
-const baseUrl = computed(() => config.public.apiBase.replace('/api', ''));
+const props = defineProps({
+  config: {
+    type: Object,
+    default: () => ({})
+  }
+});
 
-const heroImageConfig = useState('homepage_hero_image', () => '');
-const heroImageUrlConfig = useState('homepage_hero_image_url', () => '');
+const runtimeConfig = useRuntimeConfig();
+const baseUrl = computed(() => runtimeConfig.public.apiBase.replace('/api', ''));
 
 const heroImgSrc = computed(() => {
-  if (heroImageUrlConfig.value) return heroImageUrlConfig.value;
-  if (heroImageConfig.value) return baseUrl.value + heroImageConfig.value;
-  return '';
+  const url = props.config?.homepage_hero_image_url || props.config?.homepage_hero_image;
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return baseUrl.value + (url.startsWith('/') ? url : `/${url}`);
 });
 </script>
 
@@ -184,27 +147,29 @@ const heroImgSrc = computed(() => {
 }
 
 /* ── Inner layout ─────────────────────────────────────── */
-.hero-inner {
+.hero-minimalist {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: var(--sp-24) var(--sp-8) var(--sp-20); /* 96px 32px 80px */
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-20);  /* 80px */
+  padding: var(--sp-24) var(--sp-8) var(--sp-20);
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
 }
 
 @media (max-width: 900px) {
-  .hero-inner {
-    grid-template-columns: 1fr;
-    padding: var(--sp-20) var(--sp-6) var(--sp-16); /* 80px 24px 64px */
-    gap: var(--sp-12); /* 48px */
+  .hero-minimalist {
+    padding: var(--sp-16) var(--sp-4) var(--sp-12);
   }
-  .hero-visual {
-    order: -1;
-  }
+}
+
+.hero-text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 60px;
 }
 
 /* ── Badge ────────────────────────────────────────────── */
@@ -265,9 +230,10 @@ const heroImgSrc = computed(() => {
 .hero-ctas {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .cta-primary {
@@ -314,72 +280,51 @@ const heroImgSrc = computed(() => {
   background: var(--g1);
 }
 
-/* ── Social Proof ─────────────────────────────────────── */
-.hero-proof {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.proof-avatars {
-  display: flex;
-}
-.proof-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid #f0f6ff;
-  margin-left: -8px;
-  object-fit: cover;
-}
-.proof-avatar:first-child { margin-left: 0; }
-
-.proof-text {
-  font-size: 13px;
-  color: #636366;
-  line-height: 1.4;
-}
-.proof-text strong {
-  color: #1D1D1F;
-  font-weight: 700;
-}
-.proof-stars {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-top: 2px;
-}
-.star {
-  color: var(--accent);
-  font-size: 11px;
-}
-.proof-rating {
-  color: #636366;
-  font-size: 12px;
-  font-weight: 600;
-  margin-left: 4px;
-}
-
 /* ── Visual / Image ───────────────────────────────────── */
-.hero-visual {
+.hero-image-container {
   position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
 }
-.image-frame {
+
+.floating-wrapper {
   position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--border);
+  animation: float 6s ease-in-out infinite;
 }
-.hero-img {
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+
+.hero-img-3d {
   width: 100%;
   height: auto;
   display: block;
   object-fit: cover;
-  aspect-ratio: 4/3;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15), 0 10px 20px rgba(0, 0, 0, 0.05);
+  border: 4px solid #ffffff;
+  background-color: #ffffff;
 }
-.image-scrim {
+
+.hero-shadow {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 60%);
+  bottom: -40px;
+  left: 10%;
+  width: 80%;
+  height: 20px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 70%);
+  animation: shadowScale 6s ease-in-out infinite;
+  opacity: 0.7;
+}
+
+@keyframes shadowScale {
+  0% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(0.8); opacity: 0.3; }
+  100% { transform: scale(1); opacity: 0.7; }
 }
 
 /* ── Floating cards ───────────────────────────────────── */
@@ -393,19 +338,20 @@ const heroImgSrc = computed(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   min-width: 190px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
-.float-top {
-  top: -20px;
-  right: -20px;
+.float-left {
+  top: 20%;
+  left: -40px;
 }
-.float-bottom {
-  bottom: -18px;
-  left: -20px;
+.float-right {
+  bottom: 20%;
+  right: -40px;
 }
 
 @media (max-width: 900px) {
-  .float-top  { top: 12px; right: 12px; }
-  .float-bottom { bottom: 12px; left: 12px; }
+  .float-left  { top: 12px; left: 12px; }
+  .float-right { bottom: 12px; right: 12px; }
 }
 
 .float-icon {
