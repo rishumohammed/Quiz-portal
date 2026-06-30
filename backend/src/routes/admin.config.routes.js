@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import EmailService from '../services/email.service.js';
 
 // Cleaned up invoice PDF generator
 
@@ -59,9 +60,28 @@ router.put('/', authenticateJWT, authorizeRoles('super_admin'), async (req, res)
 
 // Test Email Config
 router.post('/test-email', authenticateJWT, authorizeRoles('super_admin'), async (req, res) => {
-    // This would use a mail service to send a test email
-    // For now, just a placeholder
-    res.json({ message: 'Test email sent successfully' });
+    try {
+      const { email } = req.body;
+      const targetEmail = email || req.user.email;
+      
+      await EmailService.sendEmail({
+        to: targetEmail,
+        subject: 'Kefta Talent Hunt - SMTP Test Successful',
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px;">
+            <h2 style="color: #4f46e5;">✅ SMTP Configuration Successful!</h2>
+            <p>If you are reading this email, it means your SMTP configuration in the Kefta Talent Hunt admin panel is working perfectly.</p>
+            <p>You can now send system notifications, password resets, and exam results to candidates.</p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 12px; color: #999;">Sent dynamically from Kefta Talent Hunt</p>
+          </div>
+        `
+      });
+      res.json({ message: `Test email successfully sent to ${targetEmail}` });
+    } catch (error) {
+      console.error('Test email failed:', error);
+      res.status(500).json({ message: 'Failed to send test email. Check your SMTP credentials and console logs.', error: error.message });
+    }
 });
 
 // Upload Branding Assets (logo, favicon, hero images)

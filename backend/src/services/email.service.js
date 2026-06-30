@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ConfigService } from './config.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,43 +13,49 @@ class EmailService {
   }
 
   async init() {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      this.transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
-        port: process.env.SMTP_PORT || 2525,
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-      this.ready = true;
-    } else {
-      // Create test account for development
+    try {
+      // Fetch dynamic config from DB (unmasked)
+      let configMap = {};
       try {
-        const testAccount = await nodemailer.createTestAccount();
+        const config = await ConfigService.getAll(false);
+        config.forEach(c => configMap[c.key] = c.value);
+      } catch(e) {
+        console.warn('Could not fetch config from DB, falling back to ENV');
+      }
+
+      const smtpUser = configMap.smtp_user || process.env.SMTP_USER;
+      const smtpPass = configMap.smtp_pass || process.env.SMTP_PASS;
+      const smtpHost = configMap.smtp_host || process.env.SMTP_HOST || 'smtp.mailtrap.io';
+      const smtpPort = configMap.smtp_port || process.env.SMTP_PORT || 587;
+      
+      this.smtpFromEmail = configMap.smtp_from_email || process.env.SMTP_FROM || 'noreply@kefta.in';
+      this.smtpFromName = configMap.smtp_from_name || 'Kefta Talent Hunt';
+
+      if (smtpUser && smtpPass) {
         this.transporter = nodemailer.createTransport({
-          host: 'smtp.ethereal.email',
-          port: 587,
-          secure: false,
+          host: smtpHost,
+          port: parseInt(smtpPort, 10),
+          secure: parseInt(smtpPort, 10) === 465, // true for 465, false for other ports
           auth: {
-            user: testAccount.user,
-            pass: testAccount.pass
+            user: smtpUser,
+            pass: smtpPass
           }
         });
-        console.log('\n--- TEST EMAIL ACCOUNT CREATED ---');
-        console.log('User:', testAccount.user);
-        console.log('Pass:', testAccount.pass);
-        console.log('View emails at: https://ethereal.email');
-        console.log('----------------------------------\n');
         this.ready = true;
-      } catch (err) {
-        console.warn('Failed to create test email account, emails will only be logged to console.');
+      } else {
+        // Fallback to ethereal if no config provided
         this.ready = false;
+        console.warn('No SMTP credentials found in DB or ENV. Emails will be logged to console.');
       }
+    } catch (err) {
+      console.error('EmailService init error:', err);
+      this.ready = false;
     }
   }
 
   async sendEmail({ to, subject, html }) {
+    await this.init(); // Refresh config dynamically before sending
+
     if (!this.ready) {
       console.log('\n--- EMAIL LOG (NO SMTP) ---');
       console.log('To:', to);
@@ -60,7 +67,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"AEMS Academy" <${process.env.SMTP_FROM || 'noreply@aems.local'}>`,
+        from: `"${this.smtpFromName}" <${this.smtpFromEmail}>`,
         to,
         subject,
         html
