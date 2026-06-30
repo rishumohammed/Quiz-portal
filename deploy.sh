@@ -80,6 +80,12 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    location /uploads/ {
+        proxy_pass http://localhost:5003;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
