@@ -8,6 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function runMigrations() {
+  console.log(`[DEBUG] Attempting to connect to database...`);
+  console.log(`[DEBUG] DB_HOST: ${process.env.DB_HOST || 'localhost'}`);
+  console.log(`[DEBUG] DB_USER: ${process.env.DB_USER || 'root'}`);
+  console.log(`[DEBUG] DB_NAME: ${process.env.DB_NAME || 'aems_db'}`);
+  console.log(`[DEBUG] Did it load from process.env? DB_USER=${process.env.DB_USER}`);
+
   const rootPool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 3306,
