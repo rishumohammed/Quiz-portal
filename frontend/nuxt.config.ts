@@ -129,7 +129,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: process.env.API_BASE_URL || 'http://localhost:5000/api',
+      apiBase: process.env.API_BASE_URL || '/api',
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder'
     }
   },
