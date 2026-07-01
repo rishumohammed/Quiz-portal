@@ -61,7 +61,7 @@ router.put('/', authenticateJWT, authorizeRoles('super_admin'), async (req, res)
 // Test Email Config
 router.post('/test-email', authenticateJWT, authorizeRoles('super_admin'), async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email } = req.body || {};
       const targetEmail = email || req.user.email;
       
       await EmailService.sendEmail({
