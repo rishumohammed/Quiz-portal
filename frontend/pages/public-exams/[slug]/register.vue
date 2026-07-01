@@ -230,7 +230,10 @@
                    @click="submitForm" :loading="submitting" :disabled="form.otp.length !== 6">
               Confirm & Register
             </v-btn>
-            <v-btn variant="text" block class="text-capitalize" @click="showOtpModal = false" :disabled="submitting">
+            <v-btn variant="text" color="primary" block class="text-capitalize font-weight-bold" @click="resendOtp" :disabled="submitting">
+              Resend OTP
+            </v-btn>
+            <v-btn variant="text" block class="text-capitalize" @click="cancelOtp" :disabled="submitting">
               Cancel
             </v-btn>
           </div>
@@ -302,6 +305,16 @@ async function loadTermsPrivacy() {
 
 function openTermsModal() { showTermsModal.value = true; }
 function openPrivacyModal() { showPrivacyModal.value = true; }
+
+function cancelOtp() {
+  form.value.otp = '';
+  showOtpModal.value = false;
+}
+
+function resendOtp() {
+  form.value.otp = '';
+  openOtpModal();
+}
 
 async function openOtpModal() {
   if (!form.value.agreed_to_terms) {
