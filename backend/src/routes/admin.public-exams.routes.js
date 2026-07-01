@@ -1135,6 +1135,12 @@ router.post('/:id/notify-candidates', async (req, res) => {
       return res.status(404).json({ message: 'No approved candidates found for this exam' });
     }
 
+    const logId = uuidv4();
+    await pool.query(
+      'INSERT INTO exam_email_logs (id, exam_id, subject, body, total_candidates, status) VALUES (?, ?, ?, ?, ?, "processing")',
+      [logId, examId, subject, body, candidates.length]
+    );
+
     // Immediately return response to avoid timeout
     res.status(202).json({ message: 'Custom email notification process started in the background.', total_candidates: candidates.length });
 
@@ -1155,12 +1161,39 @@ router.post('/:id/notify-candidates', async (req, res) => {
           console.error(`Failed to send custom email to ${c.email}:`, err);
           failCount++;
         }
+        
+        // Update counts periodically (or every record to keep it simple since it's background)
+        await pool.query(
+          'UPDATE exam_email_logs SET success_count = ?, fail_count = ? WHERE id = ?',
+          [successCount, failCount, logId]
+        );
       }
+
+      await pool.query(
+        'UPDATE exam_email_logs SET status = "completed", completed_at = NOW() WHERE id = ?',
+        [logId]
+      );
+      
       console.log(`Custom Email Notification for Exam ${examId} Complete. Success: ${successCount}, Failed: ${failCount}`);
     }, 100);
 
   } catch (error) {
     console.error('Notify candidates error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/public-exams/:id/email-logs
+router.get('/:id/email-logs', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const [logs] = await pool.query(
+      'SELECT * FROM exam_email_logs WHERE exam_id = ? ORDER BY created_at DESC',
+      [examId]
+    );
+    res.json(logs);
+  } catch (error) {
+    console.error('Fetch email logs error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

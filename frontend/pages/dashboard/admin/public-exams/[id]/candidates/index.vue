@@ -26,6 +26,7 @@
             View Exam
           </v-btn>
           <!-- Export Actions -->
+          <v-btn color="secondary" variant="tonal" rounded="lg" prepend-icon="mdi-history" @click="openEmailHistory">Email History</v-btn>
           <v-btn color="info" variant="tonal" rounded="lg" prepend-icon="mdi-email-fast" @click="showEmailModal = true">Email Candidates</v-btn>
           <v-btn color="success" variant="tonal" rounded="lg" prepend-icon="mdi-file-excel" @click="exportExcel">Export Excel</v-btn>
           <v-btn color="error" variant="tonal" rounded="lg" prepend-icon="mdi-file-pdf-box" @click="exportPDF">Export PDF</v-btn>
@@ -196,6 +197,42 @@
       </v-card>
     </v-dialog>
 
+    <!-- Email History Dialog -->
+    <v-dialog v-model="showHistoryModal" max-width="800" scrollable>
+      <v-card rounded="xl" class="border-0 shadow-lg">
+        <v-card-title class="pa-4 bg-secondary text-white d-flex align-center justify-space-between">
+          <span class="text-h6 font-weight-bold">Email Campaign History</span>
+          <v-btn icon="mdi-refresh" variant="text" size="small" class="mr-2" @click="openEmailHistory" :loading="loadingHistory"></v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showHistoryModal = false"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-0">
+          <v-data-table
+            :headers="historyHeaders"
+            :items="emailLogs"
+            :loading="loadingHistory"
+            class="custom-table"
+          >
+            <template v-slot:item.created_at="{ item }">
+              {{ formatDate(item.created_at) }}
+            </template>
+            <template v-slot:item.status="{ item }">
+              <v-chip size="small" :color="item.status === 'completed' ? 'success' : (item.status === 'processing' ? 'primary' : 'error')" variant="tonal" class="font-weight-bold text-uppercase">
+                {{ item.status }}
+              </v-chip>
+            </template>
+            <template v-slot:item.stats="{ item }">
+              <div class="d-flex align-center gap-2">
+                <v-chip size="x-small" color="success" variant="flat">{{ item.success_count }}</v-chip>
+                <v-chip size="x-small" color="error" variant="flat">{{ item.fail_count }}</v-chip>
+                <span class="text-caption text-secondary">/ {{ item.total_candidates }}</span>
+              </div>
+            </template>
+          </v-data-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
       {{ snackbarText }}
@@ -232,6 +269,18 @@ const sendingEmail = ref(false);
 const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
+
+// Email History State
+const showHistoryModal = ref(false);
+const loadingHistory = ref(false);
+const emailLogs = ref<any[]>([]);
+
+const historyHeaders = [
+  { title: 'Date', key: 'created_at', width: '150px' },
+  { title: 'Subject', key: 'subject' },
+  { title: 'Status', key: 'status', width: '120px' },
+  { title: 'Success / Fail', key: 'stats', sortable: false, width: '150px' }
+];
 
 const headers = [
   { title: 'Candidate Name', key: 'name' },
@@ -293,6 +342,19 @@ async function sendCustomEmail() {
     snackbar.value = true;
   } finally {
     sendingEmail.value = false;
+  }
+}
+
+async function openEmailHistory() {
+  showHistoryModal.value = true;
+  loadingHistory.value = true;
+  try {
+    const { data } = await api.get(`/admin/public-exams/${route.params.id}/email-logs`);
+    emailLogs.value = data;
+  } catch (err) {
+    console.error('Failed to load email history:', err);
+  } finally {
+    loadingHistory.value = false;
   }
 }
 
