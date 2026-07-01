@@ -208,7 +208,7 @@
             <v-col cols="12" class="mt-4">
               <v-btn color="primary" size="large" block rounded="lg" height="54"
                 class="text-capitalize font-weight-bold text-h6" elevation="0"
-                @click="openOtpModal" :disabled="!isFormValid">
+                @click="openOtpModal" :disabled="!isFormValid" :loading="submitting">
                 Register Now
               </v-btn>
             </v-col>
