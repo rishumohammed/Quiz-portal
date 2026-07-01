@@ -26,6 +26,7 @@
             View Exam
           </v-btn>
           <!-- Export Actions -->
+          <v-btn color="info" variant="tonal" rounded="lg" prepend-icon="mdi-email-fast" @click="showEmailModal = true">Email Candidates</v-btn>
           <v-btn color="success" variant="tonal" rounded="lg" prepend-icon="mdi-file-excel" @click="exportExcel">Export Excel</v-btn>
           <v-btn color="error" variant="tonal" rounded="lg" prepend-icon="mdi-file-pdf-box" @click="exportPDF">Export PDF</v-btn>
         </div>
@@ -157,6 +158,48 @@
         </v-data-table>
       </v-card>
     </template>
+
+    <!-- Custom Email Dialog -->
+    <v-dialog v-model="showEmailModal" max-width="700" persistent scrollable>
+      <v-card rounded="xl" class="border-0 shadow-lg">
+        <v-card-title class="pa-4 bg-primary text-white d-flex align-center justify-space-between">
+          <span class="text-h6 font-weight-bold">Email Registered Candidates</span>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showEmailModal = false"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-6">
+          <v-alert type="info" variant="tonal" class="mb-6 rounded-lg text-body-2" density="compact">
+            You can use <strong>{{name}}</strong> in your message, and it will be replaced with the candidate's actual name.
+          </v-alert>
+
+          <v-text-field
+            v-model="emailSubject"
+            label="Email Subject"
+            variant="outlined"
+            density="comfortable"
+            class="mb-4"
+            hint="E.g., Exam Schedule Update"
+          ></v-text-field>
+
+          <div class="text-subtitle-2 font-weight-bold mb-2 text-dark">Email Message</div>
+          <rich-text-editor v-model="emailBody"></rich-text-editor>
+        </v-card-text>
+
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4 bg-grey-lighten-4">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" class="text-capitalize" @click="showEmailModal = false" :disabled="sendingEmail">Cancel</v-btn>
+          <v-btn color="primary" class="text-capitalize px-6" rounded="lg" @click="sendCustomEmail" :loading="sendingEmail" :disabled="!emailSubject || !emailBody || emailBody === '<p></p>'">
+            Send Emails
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Snackbar -->
+    <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
+      {{ snackbarText }}
+    </v-snackbar>
   </v-container>
 </template>
 
@@ -164,6 +207,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
+import RichTextEditor from '@/components/ui/RichTextEditor.vue';
 
 definePageMeta({
   layout: 'dashboard',
@@ -179,6 +223,15 @@ const candidates = ref<any[]>([]);
 const stats = ref<any>({});
 const search = ref('');
 const exam = ref<any>(null);
+
+// Custom Email State
+const showEmailModal = ref(false);
+const emailSubject = ref('');
+const emailBody = ref('');
+const sendingEmail = ref(false);
+const snackbar = ref(false);
+const snackbarText = ref('');
+const snackbarColor = ref('success');
 
 const headers = [
   { title: 'Candidate Name', key: 'name' },
@@ -212,6 +265,34 @@ async function loadData() {
     console.error('Failed to load candidates:', err);
   } finally {
     loading.value = false;
+  }
+}
+
+async function sendCustomEmail() {
+  if (!emailSubject.value || !emailBody.value) return;
+
+  sendingEmail.value = true;
+  try {
+    const { data } = await api.post(`/admin/public-exams/${route.params.id}/notify-candidates`, {
+      subject: emailSubject.value,
+      body: emailBody.value
+    });
+
+    snackbarText.value = data.message || 'Emails are being sent in the background.';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    showEmailModal.value = false;
+    
+    // Clear form
+    emailSubject.value = '';
+    emailBody.value = '';
+  } catch (err: any) {
+    console.error('Failed to send custom emails:', err);
+    snackbarText.value = err.response?.data?.message || 'Failed to start email process.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    sendingEmail.value = false;
   }
 }
 

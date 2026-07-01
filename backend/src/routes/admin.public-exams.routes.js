@@ -1116,5 +1116,53 @@ router.post('/candidates/:id/certificate', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+// POST /api/admin/public-exams/:id/notify-candidates
+router.post('/:id/notify-candidates', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const { subject, body } = req.body;
+
+    if (!subject || !body) {
+      return res.status(400).json({ message: 'Subject and body are required' });
+    }
+
+    const [candidates] = await pool.query(
+      'SELECT id, name, email FROM public_exam_candidates WHERE exam_id = ? AND registration_status = "approved"',
+      [examId]
+    );
+
+    if (candidates.length === 0) {
+      return res.status(404).json({ message: 'No approved candidates found for this exam' });
+    }
+
+    // Immediately return response to avoid timeout
+    res.status(202).json({ message: 'Custom email notification process started in the background.', total_candidates: candidates.length });
+
+    // Send emails asynchronously
+    setTimeout(async () => {
+      let successCount = 0;
+      let failCount = 0;
+      for (const c of candidates) {
+        try {
+          const personalizedBody = body.replace(/{{name}}/g, c.name);
+          await EmailService.sendEmail({
+            to: c.email,
+            subject: subject,
+            html: personalizedBody
+          });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to send custom email to ${c.email}:`, err);
+          failCount++;
+        }
+      }
+      console.log(`Custom Email Notification for Exam ${examId} Complete. Success: ${successCount}, Failed: ${failCount}`);
+    }, 100);
+
+  } catch (error) {
+    console.error('Notify candidates error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 export default router;
