@@ -1158,9 +1158,17 @@ router.post('/:id/notify-candidates', async (req, res) => {
             html: personalizedBody
           });
           successCount++;
+          await pool.query(
+            'INSERT INTO exam_email_log_details (id, log_id, email, status) VALUES (?, ?, ?, ?)',
+            [uuidv4(), logId, c.email, 'success']
+          );
         } catch (err) {
           console.error(`Failed to send custom email to ${c.email}:`, err);
           failCount++;
+          await pool.query(
+            'INSERT INTO exam_email_log_details (id, log_id, email, status, error_message) VALUES (?, ?, ?, ?, ?)',
+            [uuidv4(), logId, c.email, 'failed', err.message || err.toString()]
+          );
         }
         
         // Update counts periodically (or every record to keep it simple since it's background)
@@ -1195,6 +1203,21 @@ router.get('/:id/email-logs', async (req, res) => {
     res.json(logs);
   } catch (error) {
     console.error('Fetch email logs error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/public-exams/:id/email-logs/:logId/details
+router.get('/:id/email-logs/:logId/details', async (req, res) => {
+  try {
+    const { logId } = req.params;
+    const [details] = await pool.query(
+      'SELECT id, email, status, error_message, created_at FROM exam_email_log_details WHERE log_id = ? ORDER BY created_at DESC',
+      [logId]
+    );
+    res.json(details);
+  } catch (error) {
+    console.error('Fetch email log details error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

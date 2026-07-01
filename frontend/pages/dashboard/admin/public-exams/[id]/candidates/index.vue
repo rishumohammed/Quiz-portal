@@ -228,6 +228,50 @@
                 <span class="text-caption text-secondary">/ {{ item.total_candidates }}</span>
               </div>
             </template>
+            <template v-slot:item.actions="{ item }">
+              <v-btn 
+                size="small" 
+                variant="tonal" 
+                color="primary" 
+                class="text-capitalize"
+                :disabled="item.status !== 'completed'"
+                @click="openLogDetails(item)"
+              >
+                Details
+              </v-btn>
+            </template>
+          </v-data-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Email Log Details Sub-Dialog -->
+    <v-dialog v-model="showDetailsModal" max-width="900" scrollable>
+      <v-card rounded="xl" class="border-0 shadow-lg">
+        <v-card-title class="pa-4 bg-primary text-white d-flex align-center justify-space-between">
+          <div>
+            <div class="text-h6 font-weight-bold">Campaign Details</div>
+            <div class="text-caption opacity-80">{{ selectedLog?.subject || '' }}</div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showDetailsModal = false"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-0">
+          <v-data-table
+            :headers="detailHeaders"
+            :items="logDetails"
+            :loading="loadingDetails"
+            class="custom-table"
+          >
+            <template v-slot:item.status="{ item }">
+              <v-chip size="small" :color="item.status === 'success' ? 'success' : 'error'" variant="tonal" class="font-weight-bold text-uppercase">
+                {{ item.status }}
+              </v-chip>
+            </template>
+            <template v-slot:item.error_message="{ item }">
+              <span v-if="item.error_message" class="text-error text-caption">{{ item.error_message }}</span>
+              <span v-else class="text-grey text-caption">-</span>
+            </template>
           </v-data-table>
         </v-card-text>
       </v-card>
@@ -279,7 +323,20 @@ const historyHeaders = [
   { title: 'Date', key: 'created_at', width: '150px' },
   { title: 'Subject', key: 'subject' },
   { title: 'Status', key: 'status', width: '120px' },
-  { title: 'Success / Fail', key: 'stats', sortable: false, width: '150px' }
+  { title: 'Success / Fail', key: 'stats', sortable: false, width: '150px' },
+  { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
+];
+
+// Details State
+const showDetailsModal = ref(false);
+const loadingDetails = ref(false);
+const logDetails = ref<any[]>([]);
+const selectedLog = ref<any>(null);
+
+const detailHeaders = [
+  { title: 'Email Address', key: 'email' },
+  { title: 'Status', key: 'status', width: '120px' },
+  { title: 'Error Reason (if any)', key: 'error_message' }
 ];
 
 const headers = [
@@ -355,6 +412,23 @@ async function openEmailHistory() {
     console.error('Failed to load email history:', err);
   } finally {
     loadingHistory.value = false;
+  }
+}
+
+async function openLogDetails(log: any) {
+  selectedLog.value = log;
+  showDetailsModal.value = true;
+  loadingDetails.value = true;
+  try {
+    const { data } = await api.get(`/admin/public-exams/${route.params.id}/email-logs/${log.id}/details`);
+    logDetails.value = data;
+  } catch (err) {
+    console.error('Failed to load log details:', err);
+    snackbarText.value = 'Failed to load details';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    loadingDetails.value = false;
   }
 }
 
