@@ -361,13 +361,14 @@ router.post('/:slug/register', async (req, res) => {
         .replace(/{{password}}/g, password)
         .replace(/{{exam_link}}/g, loginUrl)
         .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
-      await EmailService.sendEmail({
+      // Send email asynchronously to prevent API timeouts
+      EmailService.sendEmail({
         to: email,
         subject: subject,
         html
-      });
+      }).catch(err => console.error('Background Registration Email Error:', err));
     } catch (e) {
-      console.warn('Failed to send registration success email:', e.message);
+      console.warn('Failed to prepare registration success email:', e.message);
     }
 
     res.status(201).json({

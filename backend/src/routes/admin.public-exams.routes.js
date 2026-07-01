@@ -930,7 +930,7 @@ router.get('/:id/candidates', async (req, res) => {
     const [candidates] = await pool.query(`
       SELECT 
         c.id as candidate_id, c.name, c.email, c.phone, c.created_at as registered_at,
-        c.login_count, c.last_login_at, c.registration_status,
+        c.registration_status,
         a.id as attempt_id, a.status as exam_status, a.started_at, a.submitted_at,
         r.score, r.percentage, r.passed
       FROM public_exam_candidates c
@@ -965,8 +965,6 @@ router.get('/:id/candidates', async (req, res) => {
         email: c.email,
         phone: c.phone,
         registered_at: c.registered_at,
-        login_count: c.login_count || 0,
-        last_login_at: c.last_login_at || null,
         registration_status: c.registration_status || 'approved',
         attempt_id: c.attempt_id,
         exam_status: status,
