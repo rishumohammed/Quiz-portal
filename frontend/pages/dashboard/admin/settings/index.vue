@@ -110,14 +110,20 @@
 
           <!-- Email Tab -->
           <div v-if="activeTab[0] === 'email'" class="fade-in">
-            <h2 class="text-h6 font-weight-bold mb-6">Email Settings (SMTP)</h2>
+            <h2 class="text-h6 font-weight-bold mb-6">Email Settings (Google Workspace OAuth2)</h2>
             <div class="fr2 mb-4" style="grid-template-columns: 2fr 1fr;">
               <AppInput v-model="form.smtp_host" label="SMTP Host" placeholder="smtp.gmail.com" large />
-              <AppInput v-model="form.smtp_port" label="Port" placeholder="587" large />
+              <AppInput v-model="form.smtp_port" label="Port" placeholder="465" large />
+            </div>
+            <div class="mb-4">
+              <AppInput v-model="form.smtp_user" label="Google Workspace Email" placeholder="user@example.com" large />
             </div>
             <div class="fr2 mb-4">
-              <AppInput v-model="form.smtp_user" label="Username" placeholder="user@example.com" large />
-              <AppInput v-model="form.smtp_pass" label="Password" type="password" placeholder="••••••••" large />
+              <AppInput v-model="form.smtp_client_id" label="OAuth Client ID" placeholder="client_id.apps.googleusercontent.com" large />
+              <AppInput v-model="form.smtp_client_secret" label="OAuth Client Secret" type="password" placeholder="••••••••" large />
+            </div>
+            <div class="mb-6">
+              <AppInput v-model="form.smtp_refresh_token" label="OAuth Refresh Token" type="password" placeholder="1//0..." large />
             </div>
             <div class="fr2 mb-6">
               <AppInput v-model="form.smtp_from_name" label="From Name" placeholder="AEMS Team" large />

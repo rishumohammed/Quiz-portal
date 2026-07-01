@@ -24,21 +24,27 @@ class EmailService {
       }
 
       const smtpUser = configMap.smtp_user || process.env.SMTP_USER;
-      const smtpPass = configMap.smtp_pass || process.env.SMTP_PASS;
-      const smtpHost = configMap.smtp_host || process.env.SMTP_HOST || 'smtp.mailtrap.io';
-      const smtpPort = configMap.smtp_port || process.env.SMTP_PORT || 587;
+      const smtpHost = configMap.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
+      const smtpPort = configMap.smtp_port || process.env.SMTP_PORT || 465;
+      
+      const clientId = configMap.smtp_client_id || process.env.SMTP_CLIENT_ID;
+      const clientSecret = configMap.smtp_client_secret || process.env.SMTP_CLIENT_SECRET;
+      const refreshToken = configMap.smtp_refresh_token || process.env.SMTP_REFRESH_TOKEN;
       
       this.smtpFromEmail = configMap.smtp_from_email || process.env.SMTP_FROM || 'noreply@kefta.in';
       this.smtpFromName = configMap.smtp_from_name || 'Kefta Talent Hunt';
 
-      if (smtpUser && smtpPass) {
+      if (smtpUser && clientId && clientSecret && refreshToken) {
         this.transporter = nodemailer.createTransport({
           host: smtpHost,
           port: parseInt(smtpPort, 10),
           secure: parseInt(smtpPort, 10) === 465, // true for 465, false for other ports
           auth: {
+            type: 'OAuth2',
             user: smtpUser,
-            pass: smtpPass
+            clientId: clientId,
+            clientSecret: clientSecret,
+            refreshToken: refreshToken
           }
         });
         this.ready = true;
