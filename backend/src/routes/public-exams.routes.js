@@ -251,13 +251,14 @@ router.post('/:slug/send-otp', async (req, res) => {
       .replace(/{{otp}}/g, otp)
       .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
 
-    await EmailService.sendEmail({
+    // Send email asynchronously to prevent API timeouts on slow SMTP connections
+    EmailService.sendEmail({
       to: email,
       subject: subject,
       html
-    });
+    }).catch(err => console.error('Background OTP Email Error:', err));
 
-    res.json({ message: 'OTP sent successfully to your email.' });
+    return res.json({ message: 'OTP sent successfully to your email.' });
   } catch (error) {
     console.error('Send OTP error:', error);
     res.status(500).json({ message: 'Failed to send OTP. Please try again later.' });
