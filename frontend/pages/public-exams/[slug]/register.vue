@@ -168,11 +168,11 @@
             </v-col>
 
             <!-- Terms & Conditions Dialog -->
-            <v-dialog v-model="termsModal.show" max-width="700" scrollable>
+            <v-dialog v-model="showTermsModal" max-width="700" scrollable>
               <v-card rounded="xl" class="pa-4 bg-white">
                 <v-card-title class="d-flex justify-space-between align-center">
                   <span class="text-h5 font-weight-bold">Terms &amp; Conditions</span>
-                  <v-btn icon="mdi-close" variant="text" @click="termsModal.show = false" />
+                  <v-btn icon="mdi-close" variant="text" @click="showTermsModal = false" />
                 </v-card-title>
                 <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
                   <div style="white-space: pre-wrap; line-height: 1.6;">{{ termsContent }}</div>
@@ -181,17 +181,17 @@
                   <v-btn variant="text" color="primary" to="/terms-and-conditions" target="_blank" class="text-capitalize pl-0">
                     View Full Terms <v-icon end size="14">mdi-open-in-new</v-icon>
                   </v-btn>
-                  <v-btn    class="" @click="termsModal.show = false" variant="text">Close</v-btn>
+                  <v-btn    class="" @click="showTermsModal = false" variant="text">Close</v-btn>
                 </v-card-actions>
               </v-card>
             </v-dialog>
 
             <!-- Privacy Policy Dialog -->
-            <v-dialog v-model="privacyModal.show" max-width="700" scrollable>
+            <v-dialog v-model="showPrivacyModal" max-width="700" scrollable>
               <v-card rounded="xl" class="pa-4 bg-white">
                 <v-card-title class="d-flex justify-space-between align-center">
                   <span class="text-h5 font-weight-bold">Privacy Policy</span>
-                  <v-btn icon="mdi-close" variant="text" @click="privacyModal.show = false" />
+                  <v-btn icon="mdi-close" variant="text" @click="showPrivacyModal = false" />
                 </v-card-title>
                 <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
                   <div style="white-space: pre-wrap; line-height: 1.6;">{{ privacyContent }}</div>
@@ -200,13 +200,13 @@
                   <v-btn variant="text" color="primary" to="/privacy-policy" target="_blank" class="text-capitalize pl-0">
                     View Full Privacy Policy <v-icon end size="14">mdi-open-in-new</v-icon>
                   </v-btn>
-                  <v-btn    class="" @click="privacyModal.show = false" variant="text">Close</v-btn>
+                  <v-btn    class="" @click="showPrivacyModal = false" variant="text">Close</v-btn>
                 </v-card-actions>
               </v-card>
             </v-dialog>
 
             <v-col cols="12" class="mt-4">
-              <v-btn color="primary" size="large" block rounded="lg" height="54"
+              <v-btn type="button" color="primary" size="large" block rounded="lg" height="54"
                 class="text-capitalize font-weight-bold text-h6" elevation="0"
                 @click="openOtpModal" :disabled="!isFormValid" :loading="submitting">
                 Register Now
@@ -217,7 +217,7 @@
       </v-card>
       
       <!-- OTP Verification Dialog -->
-      <v-dialog v-model="otpModal.show" max-width="400" persistent>
+      <v-dialog v-model="showOtpModal" max-width="400" persistent>
         <v-card rounded="xl" class="pa-6 text-center">
           <v-icon size="48" color="primary" class="mb-4 mx-auto">mdi-email-check-outline</v-icon>
           <h3 class="text-h5 font-weight-bold mb-2">Verify Your Email</h3>
@@ -230,7 +230,7 @@
                    @click="submitForm" :loading="submitting" :disabled="form.otp.length !== 6">
               Confirm & Register
             </v-btn>
-            <v-btn variant="text" block class="text-capitalize" @click="otpModal.show = false" :disabled="submitting">
+            <v-btn variant="text" block class="text-capitalize" @click="showOtpModal = false" :disabled="submitting">
               Cancel
             </v-btn>
           </div>
@@ -266,9 +266,9 @@ const registeredCandidate = ref<any>(null);
 
 const termsContent = ref('');
 const privacyContent = ref('');
-const termsModal = ref({ show: false });
-const privacyModal = ref({ show: false });
-const otpModal = ref({ show: false });
+const showTermsModal = ref(false);
+const showPrivacyModal = ref(false);
+const showOtpModal = ref(false);
 
 const form = ref({
   name: '', email: '', phone: '', password: '', confirmPassword: '',
@@ -300,8 +300,8 @@ async function loadTermsPrivacy() {
   }
 }
 
-function openTermsModal() { termsModal.value.show = true; }
-function openPrivacyModal() { privacyModal.value.show = true; }
+function openTermsModal() { showTermsModal.value = true; }
+function openPrivacyModal() { showPrivacyModal.value = true; }
 
 async function openOtpModal() {
   if (!form.value.agreed_to_terms) {
@@ -319,7 +319,7 @@ async function openOtpModal() {
       email: form.value.email,
       name: form.value.name 
     });
-    otpModal.value.show = true;
+    showOtpModal.value = true;
     snackbarText.value = 'OTP sent successfully to your email!';
     snackbarColor.value = 'success';
     snackbar.value = true;
@@ -340,7 +340,7 @@ async function submitForm() {
     const { data } = await api.post(`/public/exams/${route.params.slug}/register`, form.value);
     registeredCandidate.value = data.candidate;
     success.value = true;
-    otpModal.value.show = false;
+    showOtpModal.value = false;
   } catch (err: any) {
     console.error('Registration failed:', err);
     snackbarText.value = err.response?.data?.message || 'Failed to register. Please try again.';
