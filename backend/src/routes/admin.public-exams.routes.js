@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { pool } from '../db/connection.js';
 import { authenticateJWT, authorizeRoles, requirePermission } from '../middleware/auth.js';
+import EmailService from '../services/email.service.js';
 
 const router = express.Router();
 
