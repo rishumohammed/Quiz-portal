@@ -1222,4 +1222,16 @@ router.get('/:id/email-logs/:logId/details', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/public-exams/:id/email-logs/:logId
+router.delete('/:id/email-logs/:logId', async (req, res) => {
+  try {
+    const { logId } = req.params;
+    await pool.query('DELETE FROM exam_email_logs WHERE id = ?', [logId]);
+    res.json({ message: 'Email log deleted successfully' });
+  } catch (error) {
+    console.error('Delete email log error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 export default router;

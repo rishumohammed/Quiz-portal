@@ -229,16 +229,25 @@
               </div>
             </template>
             <template v-slot:item.actions="{ item }">
-              <v-btn 
-                size="small" 
-                variant="tonal" 
-                color="primary" 
-                class="text-capitalize"
-                :disabled="item.status !== 'completed'"
-                @click="openLogDetails(item)"
-              >
-                Details
-              </v-btn>
+              <div class="d-flex align-center justify-end gap-2">
+                <v-btn 
+                  icon="mdi-eye"
+                  size="small" 
+                  variant="tonal" 
+                  color="primary" 
+                  :disabled="item.status !== 'completed'"
+                  @click="openLogDetails(item)"
+                  title="View Details"
+                ></v-btn>
+                <v-btn 
+                  icon="mdi-delete"
+                  size="small" 
+                  variant="tonal" 
+                  color="error" 
+                  @click="deleteEmailLog(item.id)"
+                  title="Delete Log"
+                ></v-btn>
+              </div>
             </template>
           </v-data-table>
         </v-card-text>
@@ -429,6 +438,23 @@ async function openLogDetails(log: any) {
     snackbar.value = true;
   } finally {
     loadingDetails.value = false;
+  }
+}
+
+async function deleteEmailLog(logId: string) {
+  if (!confirm('Are you sure you want to delete this email campaign log?')) return;
+  
+  try {
+    await api.delete(`/admin/public-exams/${route.params.id}/email-logs/${logId}`);
+    emailLogs.value = emailLogs.value.filter((log: any) => log.id !== logId);
+    snackbarText.value = 'Email log deleted successfully';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err) {
+    console.error('Failed to delete email log:', err);
+    snackbarText.value = 'Failed to delete email log';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
   }
 }
 
