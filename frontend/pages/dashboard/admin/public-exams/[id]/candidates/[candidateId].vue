@@ -11,6 +11,15 @@
           <p class="text-subtitle-2 text-secondary">Review profile and exam attempt information.</p>
         </div>
         <div class="d-flex gap-2">
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            rounded="lg"
+            prepend-icon="mdi-lock-reset"
+            @click="showResetPasswordModal = true"
+          >
+            Reset Password
+          </v-btn>
           <v-btn 
             v-if="attempt?.passed"
             color="primary" 
@@ -228,6 +237,29 @@
     <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
       {{ snackbarText }}
     </v-snackbar>
+
+    <!-- Reset Password Dialog -->
+    <v-dialog v-model="showResetPasswordModal" max-width="400">
+      <v-card class="rounded-xl pa-2">
+        <v-card-title class="font-weight-bold pt-4 px-4">Reset Password</v-card-title>
+        <v-card-text class="px-4 pb-4">
+          <p class="text-body-2 text-secondary mb-4">Enter a new password for {{ candidate?.name }}.</p>
+          <v-text-field
+            v-model="newPassword"
+            label="New Password"
+            variant="outlined"
+            density="comfortable"
+            type="text"
+            :rules="[v => !!v || 'Password is required', v => v.length >= 6 || 'Minimum 6 characters']"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showResetPasswordModal = false; newPassword = ''" class="text-capitalize">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" rounded="lg" class="text-capitalize px-6" :loading="resettingPassword" @click="resetPassword" :disabled="!newPassword || newPassword.length < 6">Reset</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -268,6 +300,10 @@ const generatingCert = ref(false);
 const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
+
+const showResetPasswordModal = ref(false);
+const newPassword = ref('');
+const resettingPassword = ref(false);
 
 async function loadData() {
   loading.value = true;
@@ -318,6 +354,27 @@ function getStatusColor(status: string) {
   if (status === 'submitted') return 'success';
   if (status === 'in_progress') return 'warning';
   return 'grey';
+}
+
+async function resetPassword() {
+  if (!newPassword.value || newPassword.value.length < 6) return;
+  resettingPassword.value = true;
+  try {
+    await api.post(`/admin/public-exams/candidates/${route.params.candidateId}/reset-password`, {
+      new_password: newPassword.value
+    });
+    showResetPasswordModal.value = false;
+    newPassword.value = '';
+    snackbarText.value = 'Password reset successfully';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to reset password';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    resettingPassword.value = false;
+  }
 }
 
 function getResultColor(passed: number) {

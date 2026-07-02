@@ -6,6 +6,7 @@ import path from 'path';
 import { pool } from '../db/connection.js';
 import { authenticateJWT, authorizeRoles, requirePermission } from '../middleware/auth.js';
 import EmailService from '../services/email.service.js';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -1038,6 +1039,31 @@ router.get('/candidates/:id', async (req, res) => {
     res.json({ candidate: candidates[0], attempt: attempts[0] || null });
   } catch (error) {
     console.error('Fetch candidate detail error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/candidates/:id/reset-password
+router.post('/candidates/:id/reset-password', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const { new_password } = req.body;
+
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(new_password, salt);
+
+    await pool.query(
+      'UPDATE public_exam_candidates SET password_hash = ? WHERE id = ?',
+      [password_hash, candidateId]
+    );
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

@@ -178,13 +178,25 @@ router.post('/candidates/login', async (req, res) => {
 
     // Find exam by slug
     const [exams] = await pool.query(
-      'SELECT id, name, slug, status FROM public_exams WHERE slug = ?',
+      'SELECT id, name, slug, status, exam_start_date FROM public_exams WHERE slug = ?',
       [exam_slug]
     );
     if (exams.length === 0) {
       return res.status(404).json({ message: 'Exam not found.' });
     }
     const exam = exams[0];
+
+    // Check exam start date
+    if (exam.exam_start_date && new Date() < new Date(exam.exam_start_date)) {
+      const formattedDate = new Date(exam.exam_start_date).toLocaleString('en-US', {
+        dateStyle: 'full',
+        timeStyle: 'short'
+      });
+      return res.status(403).json({ 
+        message: `This exam has not started yet. It is scheduled to begin on ${formattedDate}. Please come back then.`,
+        code: 'EXAM_NOT_STARTED'
+      });
+    }
 
     // Find candidate for this exam
     const [candidates] = await pool.query(
@@ -209,7 +221,7 @@ router.post('/candidates/login', async (req, res) => {
 
     // Update login stats
     await pool.query(
-      'UPDATE public_exam_candidates SET login_count = login_count + 1, last_login_at = NOW() WHERE id = ?',
+      'UPDATE public_exam_candidates SET login_count = IFNULL(login_count, 0) + 1, last_login_at = NOW() WHERE id = ?',
       [candidate.id]
     );
 
