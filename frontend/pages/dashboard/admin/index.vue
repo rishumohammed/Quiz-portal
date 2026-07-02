@@ -32,9 +32,6 @@
           <p class="text-secondary">Comprehensive analytics and system health for your exam platform.</p>
         </div>
         <v-spacer></v-spacer>
-        <div class="d-flex gap-2">
-          <v-btn variant="outlined" prepend-icon="mdi-account-group-outline" to="/dashboard/admin/exams/candidates" rounded="lg">View Candidates</v-btn>
-        </div>
       </div>
 
       <v-row class="mb-8" v-if="data.kpis && data.kpis.row1">
