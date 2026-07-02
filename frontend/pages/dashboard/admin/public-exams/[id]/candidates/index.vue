@@ -478,6 +478,21 @@ function formatDate(dateStr: string) {
 function exportExcel() {
   const data = filteredCandidates.value;
   const examName = exam.value?.name || 'Candidates';
+  
+  // Extract dynamic metadata keys
+  const metadataKeys = new Set<string>();
+  const parsedData = data.map(item => {
+    let meta = {};
+    if (item.metadata) {
+      try { meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata; } 
+      catch (e) {}
+      Object.keys(meta).forEach(k => metadataKeys.add(k));
+    }
+    return { ...item, parsedMeta: meta };
+  });
+  
+  const metaHeaders = Array.from(metadataKeys);
+
   let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
   html += `<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Candidates</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--><meta charset="utf-8"></head><body>`;
   html += `<table border="1">`;
@@ -490,9 +505,12 @@ function exportExcel() {
   html += `<th>Score</th>`;
   html += `<th>Percentage</th>`;
   html += `<th>Result</th>`;
+  metaHeaders.forEach(h => {
+    html += `<th>${h}</th>`;
+  });
   html += `</tr>`;
   
-  data.forEach(item => {
+  parsedData.forEach(item => {
     html += `<tr>`;
     html += `<td>${item.name || ''}</td>`;
     html += `<td>${item.email || ''}</td>`;
@@ -502,6 +520,9 @@ function exportExcel() {
     html += `<td>${item.score || ''}</td>`;
     html += `<td>${item.percentage || '0'}%</td>`;
     html += `<td>${item.result || ''}</td>`;
+    metaHeaders.forEach(h => {
+      html += `<td>${item.parsedMeta[h] || ''}</td>`;
+    });
     html += `</tr>`;
   });
   html += `</table></body></html>`;
@@ -522,8 +543,27 @@ function exportPDF() {
   const data = filteredCandidates.value;
   const examName = exam.value?.name || 'Public Exam';
 
+  // Extract dynamic metadata keys
+  const metadataKeys = new Set<string>();
+  const parsedData = data.map(item => {
+    let meta = {};
+    if (item.metadata) {
+      try { meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata; } 
+      catch (e) {}
+      Object.keys(meta).forEach(k => metadataKeys.add(k));
+    }
+    return { ...item, parsedMeta: meta };
+  });
+  
+  const metaHeaders = Array.from(metadataKeys);
+
   let rowsHtml = '';
-  data.forEach(item => {
+  parsedData.forEach(item => {
+    let metaCells = '';
+    metaHeaders.forEach(h => {
+      metaCells += `<td>${item.parsedMeta[h] || ''}</td>`;
+    });
+
     rowsHtml += `
       <tr>
         <td>${item.name || ''}</td>
@@ -533,6 +573,7 @@ function exportPDF() {
         <td style="text-align: center;">${item.exam_status || ''}</td>
         <td style="text-align: center;">${item.score || ''} (${item.percentage || '0'}%)</td>
         <td style="text-align: center;">${item.result || ''}</td>
+        ${metaCells}
       </tr>
     `;
   });
@@ -601,6 +642,7 @@ function exportPDF() {
               <th style="text-align: center;">Status</th>
               <th style="text-align: center;">Score</th>
               <th style="text-align: center;">Result</th>
+              ${metaHeaders.map(h => `<th>${h}</th>`).join('')}
             </tr>
           </thead>
           <tbody>

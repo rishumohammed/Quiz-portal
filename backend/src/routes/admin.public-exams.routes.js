@@ -931,7 +931,7 @@ router.get('/:id/candidates', async (req, res) => {
     const [candidates] = await pool.query(`
       SELECT 
         c.id as candidate_id, c.name, c.email, c.phone, c.created_at as registered_at,
-        c.registration_status,
+        c.registration_status, c.metadata,
         a.id as attempt_id, a.status as exam_status, a.started_at, a.submitted_at,
         r.score, r.percentage, r.passed
       FROM public_exam_candidates c
@@ -971,7 +971,8 @@ router.get('/:id/candidates', async (req, res) => {
         exam_status: status,
         score: c.score || 0,
         percentage: c.percentage || 0,
-        result: result
+        result: result,
+        metadata: c.metadata
       };
     });
 
