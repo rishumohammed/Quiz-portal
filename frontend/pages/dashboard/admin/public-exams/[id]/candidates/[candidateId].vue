@@ -77,8 +77,79 @@
           </v-card>
         </v-col>
 
+        <!-- Talent Hunt / Additional Details -->
+        <v-col cols="12" md="8" v-if="metadata && Object.keys(metadata).length > 0">
+          <v-card variant="outlined" class="rounded-xl bg-white border-0 shadow-sm pa-6 mb-6">
+            <h3 class="text-h6 font-weight-bold text-dark mb-4">Registration Details (Talent Hunt)</h3>
+            <v-divider class="mb-4 opacity-10"></v-divider>
+            
+            <v-row>
+              <v-col cols="12" sm="6" v-if="metadata.category">
+                <div class="text-caption text-secondary">Category</div>
+                <div class="font-weight-bold text-primary">{{ metadata.category }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.whatsappNumber">
+                <div class="text-caption text-secondary">WhatsApp Number</div>
+                <div class="font-weight-bold text-dark">{{ metadata.whatsappNumber }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.parentName">
+                <div class="text-caption text-secondary">Parent / Guardian Name</div>
+                <div class="font-weight-bold text-dark">{{ metadata.parentName }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.parentContact">
+                <div class="text-caption text-secondary">Parent / Guardian Contact</div>
+                <div class="font-weight-bold text-dark">{{ metadata.parentContact }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.schoolName">
+                <div class="text-caption text-secondary">School Name</div>
+                <div class="font-weight-bold text-dark">{{ metadata.schoolName }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.levelOfStudy1">
+                <div class="text-caption text-secondary">Level of Study (Higher Secondary)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.levelOfStudy1 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.collegeName2">
+                <div class="text-caption text-secondary">College Name (Degree)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.collegeName2 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.degreeYear">
+                <div class="text-caption text-secondary">Degree Year</div>
+                <div class="font-weight-bold text-dark">{{ metadata.degreeYear }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.courseName2">
+                <div class="text-caption text-secondary">Course Name (Degree)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.courseName2 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.collegeName3">
+                <div class="text-caption text-secondary">College / University Name (Masters/PhD)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.collegeName3 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.studyLevel3">
+                <div class="text-caption text-secondary">Study Level (Masters/PhD)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.studyLevel3 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.courseName3">
+                <div class="text-caption text-secondary">Course Name (Masters/PhD)</div>
+                <div class="font-weight-bold text-dark">{{ metadata.courseName3 }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.industryName">
+                <div class="text-caption text-secondary">Industry Name</div>
+                <div class="font-weight-bold text-dark">{{ metadata.industryName }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.currentRole">
+                <div class="text-caption text-secondary">Current Role / Designation</div>
+                <div class="font-weight-bold text-dark">{{ metadata.currentRole }}</div>
+              </v-col>
+              <v-col cols="12" sm="6" v-if="metadata.competitiveLevel">
+                <div class="text-caption text-secondary">Competitive Level</div>
+                <div class="font-weight-bold text-dark">{{ metadata.competitiveLevel }}</div>
+              </v-col>
+            </v-row>
+          </v-card>
+        </v-col>
+
         <!-- Exam Information -->
-        <v-col cols="12" md="8">
+        <v-col cols="12" :md="metadata && Object.keys(metadata).length > 0 ? 12 : 8">
           <v-card variant="outlined" class="rounded-xl bg-white border-0 shadow-sm pa-6 mb-6">
             <h3 class="text-h6 font-weight-bold text-dark mb-4">Exam Information</h3>
             <v-divider class="mb-4 opacity-10"></v-divider>
@@ -161,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 
@@ -177,6 +248,18 @@ const api = useApi();
 const loading = ref(true);
 const candidate = ref<any>(null);
 const attempt = ref<any>(null);
+
+const metadata = computed(() => {
+  if (!candidate.value?.metadata) return null;
+  if (typeof candidate.value.metadata === 'string') {
+    try {
+      return JSON.parse(candidate.value.metadata);
+    } catch (e) {
+      return null;
+    }
+  }
+  return candidate.value.metadata;
+});
 
 const loadingAttempt = ref(false);
 const questions = ref<any[]>([]);
