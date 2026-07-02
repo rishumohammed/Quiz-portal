@@ -333,6 +333,11 @@
             <EmailTemplatesTab />
           </div>
 
+          <!-- Talent Hunt Tab -->
+          <div v-if="activeTab[0] === 'talent_hunt'" class="fade-in">
+            <TalentHuntSettingsTab />
+          </div>
+
           <div class="d-flex justify-end gap-3 mt-12 pt-6 border-t" v-if="activeTab[0] !== 'social' && activeTab[0] !== 'currencies' && activeTab[0] !== 'homepage' && activeTab[0] !== 'certifications' && activeTab[0] !== 'email_templates'">
             <AppButton variant="g" size="lg" icon="mdi-refresh" @click="fetchData">
               Reset Changes
@@ -359,6 +364,8 @@ import SocialPlatformsTab from '@/components/admin/settings/SocialPlatformsTab.v
 import CurrenciesTab from '@/components/admin/settings/CurrenciesTab.vue';
 import CertificationsTab from '@/components/admin/settings/CertificationsTab.vue';
 import EmailTemplatesTab from '@/components/admin/settings/EmailTemplatesTab.vue';
+import TalentHuntSettingsTab from '@/components/admin/settings/TalentHuntSettingsTab.vue';
+import { provide } from 'vue';
 
 definePageMeta({
   layout: 'dashboard',
@@ -374,6 +381,8 @@ const activeTab = ref(['branding']);
 const saving = ref(false);
 const regenerating = ref(false);
 const form = ref<any>({});
+provide('configForm', form); // Provide the form so child tabs can mutate it directly
+
 const logoFile = ref(null);
 const faviconFile = ref(null);
 const heroImageFile = ref(null);
@@ -390,7 +399,8 @@ const tabs = [
   { label: 'Contact Info', value: 'contact', icon: 'mdi-map-marker-outline' },
   { label: 'Email (SMTP)', value: 'email', icon: 'mdi-email-outline' },
   { label: 'Email Templates', value: 'email_templates', icon: 'mdi-email-edit-outline' },
-  { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' }
+  { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' },
+  { label: 'Talent Hunt', value: 'talent_hunt', icon: 'mdi-account-star-outline' }
 ];
 
 
@@ -404,8 +414,19 @@ const fetchData = async () => {
     if (configMap.course_languages && typeof configMap.course_languages === 'string') {
       configMap.course_languages = configMap.course_languages.split(',').map((s: string) => s.trim()).filter(Boolean);
     } else {
-      configMap.course_languages = [];
+      configMap.course_languages = configMap.course_languages || [];
     }
+
+    const parseArray = (key: string) => {
+      if (configMap[key] && typeof configMap[key] === 'string') {
+        try { configMap[key] = JSON.parse(configMap[key]); }
+        catch (e) { configMap[key] = configMap[key].split(',').map((s: string) => s.trim()).filter(Boolean); }
+      } else {
+        configMap[key] = configMap[key] || [];
+      }
+    };
+    ['talent_hunt_categories', 'talent_hunt_levels_1', 'talent_hunt_degrees', 'talent_hunt_levels_3', 'talent_hunt_courses', 'talent_hunt_competitive'].forEach(parseArray);
+
     form.value = configMap;
   } catch (err) {
     console.error('Failed to fetch config');
@@ -487,6 +508,12 @@ const save = async () => {
     if (Array.isArray(payload.course_languages)) {
       payload.course_languages = payload.course_languages.join(',');
     }
+    ['talent_hunt_categories', 'talent_hunt_levels_1', 'talent_hunt_degrees', 'talent_hunt_levels_3', 'talent_hunt_courses', 'talent_hunt_competitive'].forEach(key => {
+      if (Array.isArray(payload[key])) {
+        payload[key] = JSON.stringify(payload[key]);
+      }
+    });
+
     await api.put('/admin/config', payload);
     snackbarMessage.value = 'Settings saved successfully. Reloading to apply changes...';
     snackbarColor.value = 'success';

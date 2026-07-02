@@ -113,16 +113,31 @@ router.get('/', async (req, res) => {
 // GET /api/public/exams/terms-privacy
 router.get('/terms-privacy', async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM system_config WHERE `key` IN ('terms_content', 'terms_version', 'privacy_content', 'privacy_version')");
+    const [rows] = await pool.query("SELECT * FROM system_config WHERE `key` IN ('terms_content', 'terms_version', 'privacy_content', 'privacy_version', 'talent_hunt_categories', 'talent_hunt_levels_1', 'talent_hunt_degrees', 'talent_hunt_courses', 'talent_hunt_levels_3', 'talent_hunt_competitive')");
     const config = {};
     rows.forEach(r => {
       config[r.key] = r.value;
     });
+
+    const parseArray = (str, fallback) => {
+      if (!str) return fallback;
+      try { return JSON.parse(str); } catch (e) {
+        if (typeof str === 'string') return str.split(',').map(s => s.trim()).filter(Boolean);
+        return fallback;
+      }
+    };
+
     res.json({
       terms_content: config.terms_content || 'Default Terms & Conditions Content.',
       terms_version: config.terms_version || '1.0',
       privacy_content: config.privacy_content || 'Default Privacy Policy Content.',
-      privacy_version: config.privacy_version || '1.0'
+      privacy_version: config.privacy_version || '1.0',
+      talent_hunt_categories: parseArray(config.talent_hunt_categories, ['Level 1 – Higher Secondary', 'Level 2 – Degree Level', 'Level 3 – Masters / PhD', 'Level 4 – Industry Level']),
+      talent_hunt_levels_1: parseArray(config.talent_hunt_levels_1, ['Higher Secondary 1st Year', 'Higher Secondary 2nd Year']),
+      talent_hunt_degrees: parseArray(config.talent_hunt_degrees, ['Degree 1st Year', 'Degree 2nd Year', 'Degree 3rd Year', 'Degree 4th Year']),
+      talent_hunt_courses: parseArray(config.talent_hunt_courses, ['Food Technology', 'Biotechnology', 'Biochemistry', 'Microbiology', 'Chemistry', 'Fisheries Science', 'Dairy Science', 'Home Science', 'Nutrition and Related Programs']),
+      talent_hunt_levels_3: parseArray(config.talent_hunt_levels_3, ['Masters 1st Year', 'Masters 2nd Year', 'PhD']),
+      talent_hunt_competitive: parseArray(config.talent_hunt_competitive, ['CUET', 'NET', 'NEET', 'JEE', 'OTHERS'])
     });
   } catch (error) {
     console.error('Fetch terms-privacy error:', error);
@@ -269,7 +284,7 @@ router.post('/:slug/send-otp', async (req, res) => {
 router.post('/:slug/register', async (req, res) => {
   try {
     const { slug } = req.params;
-    const { name, email, phone, password, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, otp } = req.body;
+    const { name, email, phone, password, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, otp, ...metadata } = req.body;
 
     if (!agreed_to_terms) {
       return res.status(400).json({ message: 'You must agree to the Terms & Conditions and Privacy Policy to continue.' });
@@ -320,9 +335,9 @@ router.post('/:slug/register', async (req, res) => {
       await connection.beginTransaction();
       await connection.query(`
         INSERT INTO public_exam_candidates 
-        (id, exam_id, name, email, phone, password_hash, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, registration_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')
-      `, [candidateId, exam.id, name, email, phone, password_hash, country || null, state || null, city || null, qualification || null, college || null, course_stream || null, year_of_study || null, !!agreed_to_terms]);
+        (id, exam_id, name, email, phone, password_hash, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, metadata, registration_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')
+      `, [candidateId, exam.id, name, email, phone, password_hash, country || null, state || null, city || null, qualification || null, college || null, course_stream || null, year_of_study || null, !!agreed_to_terms, Object.keys(metadata).length ? JSON.stringify(metadata) : null]);
 
       await connection.query(`
         INSERT INTO terms_privacy_acceptances (id, candidate_id, accepted_terms_version, accepted_privacy_version, ip_address)

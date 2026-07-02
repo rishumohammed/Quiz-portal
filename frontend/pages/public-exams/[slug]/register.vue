@@ -1,5 +1,5 @@
 <template>
-  <v-container class="py-12 px-4" style="max-width: 800px;">
+  <v-container class="py-12 px-4" style="max-width: 900px;">
     <!-- Back button -->
     <div class="mb-6">
       <v-btn :to="`/public-exams/${route.params.slug}`" variant="text" color="primary" class="text-capitalize pl-0 font-weight-bold">
@@ -81,75 +81,116 @@
       </v-card>
 
       <!-- ── REGISTRATION FORM ── -->
-      <v-card v-else class="pa-8 border rounded-xl mb-6 shadow-sm" flat>
+      <v-card v-else class="pa-8 border rounded-xl mb-6 shadow-soft" flat>
         <div class="text-center mb-8">
-          <h1 class="text-h4 font-weight-black text-dark mb-2">Candidate Registration</h1>
+          <h1 class="text-h4 font-weight-black text-primary mb-2">Talent Hunt Registration</h1>
           <p class="text-body-1 text-secondary">Register to take the <strong>{{ exam.name }}</strong></p>
         </div>
 
-        <v-form @submit.prevent="submitForm" v-model="isFormValid" autocomplete="off">
+        <v-form @submit.prevent="openOtpModal" v-model="isFormValid" autocomplete="off">
+          <!-- Personal Information -->
+          <h3 class="text-h6 font-weight-bold mb-4 text-grey-darken-3">Personal Information</h3>
           <v-row>
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.name" label="Full Name *" variant="outlined" density="comfortable"
-                autocomplete="off" :rules="[v => !!v || 'Name is required']" required
-              />
+              <v-text-field v-model="form.name" label="Full Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-account-outline" :rules="[v => !!v || 'Name is required']" required></v-text-field>
             </v-col>
             <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.email" label="Email Address *" type="email" variant="outlined" density="comfortable"
-                autocomplete="new-email"
-                :rules="[v => !!v || 'Email is required', v => /.+@.+\..+/.test(v) || 'E-mail must be valid']" required
-              />
+              <v-text-field v-model="form.phone" label="Contact Number *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-phone-outline" :rules="[v => !!v || 'Contact Number is required', rules.phone]"></v-text-field>
             </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.whatsappNumber" label="WhatsApp Number *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-whatsapp" :rules="[v => !!v || 'WhatsApp Number is required', rules.phone]"></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.email" label="Email Address *" type="email" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-email-outline" :rules="[v => !!v || 'Email is required', rules.email]" autocomplete="off"></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.parentName" label="Father/Mother's Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-account-child-outline" :rules="[v => !!v || 'Parent Name is required']"></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.parentContact" label="Parent/Guardian Contact Number *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-phone-classic" :rules="[v => !!v || 'Parent Contact is required', rules.phone]"></v-text-field>
+            </v-col>
+          </v-row>
 
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.phone" label="Mobile Number *" variant="outlined" density="comfortable"
-                :rules="[v => !!v || 'Mobile Number is required']" required
-              />
-            </v-col>
-            <v-col cols="12" md="6" />
+          <v-divider class="my-6 opacity-20"></v-divider>
 
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.password" label="Create Password *" type="password" variant="outlined" density="comfortable"
-                autocomplete="new-password"
-                :rules="[v => !!v || 'Password is required', v => v.length >= 6 || 'Min 6 characters']" required
-              />
+          <!-- Category Selection -->
+          <h3 class="text-h6 font-weight-bold mb-4 text-grey-darken-3">Academic / Professional Details</h3>
+          <v-row>
+            <v-col cols="12">
+              <v-select v-model="form.category" :items="talentHuntCategories" label="Select Your Category *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-format-list-bulleted-type" :rules="[v => !!v || 'Category is required']"></v-select>
             </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.confirmPassword" label="Confirm Password *" type="password" variant="outlined" density="comfortable"
-                autocomplete="new-password"
-                :rules="[v => !!v || 'Confirm Password is required', v => v === form.password || 'Passwords do not match']" required
-              />
-            </v-col>
+          </v-row>
 
-            <!-- Optional Additional Details -->
-            <v-col cols="12"><div class="text-subtitle-1 font-weight-bold mt-4 mb-2 text-dark">Additional Details (Optional)</div></v-col>
+          <!-- Level 1 - Higher Secondary -->
+          <v-expand-transition>
+            <v-row v-if="form.category === 'Level 1 – Higher Secondary'">
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.schoolName" label="School Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-school-outline" :rules="[v => !!v || 'Required']"></v-text-field>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select v-model="form.levelOfStudy1" :items="talentHuntLevels1" label="Level of Study *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-book-education-outline" :rules="[v => !!v || 'Required']"></v-select>
+              </v-col>
+            </v-row>
+          </v-expand-transition>
 
-            <v-col cols="12" md="4">
-              <v-text-field v-model="form.country" label="Country" variant="outlined" density="comfortable" />
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field v-model="form.state" label="State" variant="outlined" density="comfortable" />
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field v-model="form.city" label="City" variant="outlined" density="comfortable" />
-            </v-col>
+          <!-- Level 2 - Degree Level -->
+          <v-expand-transition>
+            <v-row v-if="form.category === 'Level 2 – Degree Level'">
+              <v-col cols="12">
+                <v-text-field v-model="form.collegeName2" label="College Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-town-hall" :rules="[v => !!v || 'Required']"></v-text-field>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select v-model="form.degreeYear" :items="talentHuntDegrees" label="Degree Year *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-calendar-school" :rules="[v => !!v || 'Required']"></v-select>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select v-model="form.courseName2" :items="talentHuntCourses" label="Course Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-book-open-page-variant" :rules="[v => !!v || 'Required']"></v-select>
+              </v-col>
+            </v-row>
+          </v-expand-transition>
 
+          <!-- Level 3 - Masters / PhD -->
+          <v-expand-transition>
+            <v-row v-if="form.category === 'Level 3 – Masters / PhD'">
+              <v-col cols="12">
+                <v-text-field v-model="form.collegeName3" label="College / University Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-bank" :rules="[v => !!v || 'Required']"></v-text-field>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select v-model="form.studyLevel3" :items="talentHuntLevels3" label="Study Level *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-school" :rules="[v => !!v || 'Required']"></v-select>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select v-model="form.courseName3" :items="talentHuntCourses" label="Course Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-book-open-page-variant" :rules="[v => !!v || 'Required']"></v-select>
+              </v-col>
+            </v-row>
+          </v-expand-transition>
+
+          <!-- Level 4 - Industry Level -->
+          <v-expand-transition>
+            <v-row v-if="form.category === 'Level 4 – Industry Level'">
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.industryName" label="Industry Name *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-factory" :rules="[v => !!v || 'Required']"></v-text-field>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-text-field v-model="form.currentRole" label="Current Role / Designation *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-briefcase-outline" :rules="[v => !!v || 'Required']"></v-text-field>
+              </v-col>
+            </v-row>
+          </v-expand-transition>
+
+          <v-row class="mt-2">
             <v-col cols="12" md="6">
-              <v-text-field v-model="form.qualification" label="Highest Qualification" variant="outlined" density="comfortable" />
+              <v-select v-model="form.competitiveLevel" :items="talentHuntCompetitive" label="Academic Competitive Level *" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-podium" :rules="[v => !!v || 'Required']"></v-select>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-6 opacity-20"></v-divider>
+
+          <!-- Account Creation -->
+          <h3 class="text-h6 font-weight-bold mb-4 text-grey-darken-3">Account Creation</h3>
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.password" label="Create Password *" :type="showPassword ? 'text' : 'password'" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-lock-outline" :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="showPassword = !showPassword" :rules="[v => !!v || 'Password is required', v => v.length >= 6 || 'Min 6 characters']" autocomplete="new-password"></v-text-field>
             </v-col>
             <v-col cols="12" md="6">
-              <v-text-field v-model="form.college" label="College / Institution" variant="outlined" density="comfortable" />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field v-model="form.course_stream" label="Course / Stream" variant="outlined" density="comfortable" />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field v-model="form.year_of_study" label="Year of Study" variant="outlined" density="comfortable" />
+              <v-text-field v-model="form.confirmPassword" label="Confirm Password *" :type="showConfirmPassword ? 'text' : 'password'" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-lock-check-outline" :append-inner-icon="showConfirmPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="showConfirmPassword = !showConfirmPassword" :rules="[v => !!v || 'Confirm Password is required', v => v === form.password || 'Passwords do not match']" autocomplete="new-password"></v-text-field>
             </v-col>
 
             <v-col cols="12">
@@ -167,54 +208,54 @@
               </v-checkbox>
             </v-col>
 
-            <!-- Terms & Conditions Dialog -->
-            <v-dialog v-model="showTermsModal" max-width="700" scrollable>
-              <v-card rounded="xl" class="pa-4 bg-white">
-                <v-card-title class="d-flex justify-space-between align-center">
-                  <span class="text-h5 font-weight-bold">Terms &amp; Conditions</span>
-                  <v-btn icon="mdi-close" variant="text" @click="showTermsModal = false" />
-                </v-card-title>
-                <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
-                  <div style="white-space: pre-wrap; line-height: 1.6;">{{ termsContent }}</div>
-                </v-card-text>
-                <v-card-actions class="justify-space-between pt-4">
-                  <v-btn variant="text" color="primary" to="/terms-and-conditions" target="_blank" class="text-capitalize pl-0">
-                    View Full Terms <v-icon end size="14">mdi-open-in-new</v-icon>
-                  </v-btn>
-                  <v-btn    class="" @click="showTermsModal = false" variant="text">Close</v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog>
-
-            <!-- Privacy Policy Dialog -->
-            <v-dialog v-model="showPrivacyModal" max-width="700" scrollable>
-              <v-card rounded="xl" class="pa-4 bg-white">
-                <v-card-title class="d-flex justify-space-between align-center">
-                  <span class="text-h5 font-weight-bold">Privacy Policy</span>
-                  <v-btn icon="mdi-close" variant="text" @click="showPrivacyModal = false" />
-                </v-card-title>
-                <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
-                  <div style="white-space: pre-wrap; line-height: 1.6;">{{ privacyContent }}</div>
-                </v-card-text>
-                <v-card-actions class="justify-space-between pt-4">
-                  <v-btn variant="text" color="primary" to="/privacy-policy" target="_blank" class="text-capitalize pl-0">
-                    View Full Privacy Policy <v-icon end size="14">mdi-open-in-new</v-icon>
-                  </v-btn>
-                  <v-btn    class="" @click="showPrivacyModal = false" variant="text">Close</v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-dialog>
-
             <v-col cols="12" class="mt-4">
-              <v-btn type="button" color="primary" size="large" block rounded="lg" height="54"
+              <v-btn type="submit" color="primary" size="large" block rounded="lg" height="54"
                 class="text-capitalize font-weight-bold text-h6" elevation="0"
-                @click="openOtpModal" :disabled="!isFormValid" :loading="submitting">
+                :disabled="!isFormValid" :loading="submitting">
                 Register Now
               </v-btn>
             </v-col>
           </v-row>
         </v-form>
       </v-card>
+
+      <!-- Terms & Conditions Dialog -->
+      <v-dialog v-model="showTermsModal" max-width="700" scrollable>
+        <v-card rounded="xl" class="pa-4 bg-white">
+          <v-card-title class="d-flex justify-space-between align-center">
+            <span class="text-h5 font-weight-bold">Terms &amp; Conditions</span>
+            <v-btn icon="mdi-close" variant="text" @click="showTermsModal = false" />
+          </v-card-title>
+          <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
+            <div style="white-space: pre-wrap; line-height: 1.6;">{{ termsContent }}</div>
+          </v-card-text>
+          <v-card-actions class="justify-space-between pt-4">
+            <v-btn variant="text" color="primary" to="/terms-and-conditions" target="_blank" class="text-capitalize pl-0">
+              View Full Terms <v-icon end size="14">mdi-open-in-new</v-icon>
+            </v-btn>
+            <v-btn @click="showTermsModal = false" variant="text">Close</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Privacy Policy Dialog -->
+      <v-dialog v-model="showPrivacyModal" max-width="700" scrollable>
+        <v-card rounded="xl" class="pa-4 bg-white">
+          <v-card-title class="d-flex justify-space-between align-center">
+            <span class="text-h5 font-weight-bold">Privacy Policy</span>
+            <v-btn icon="mdi-close" variant="text" @click="showPrivacyModal = false" />
+          </v-card-title>
+          <v-card-text style="max-height: 450px;" class="text-body-1 text-secondary pt-2">
+            <div style="white-space: pre-wrap; line-height: 1.6;">{{ privacyContent }}</div>
+          </v-card-text>
+          <v-card-actions class="justify-space-between pt-4">
+            <v-btn variant="text" color="primary" to="/privacy-policy" target="_blank" class="text-capitalize pl-0">
+              View Full Privacy Policy <v-icon end size="14">mdi-open-in-new</v-icon>
+            </v-btn>
+            <v-btn @click="showPrivacyModal = false" variant="text">Close</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
       
       <!-- OTP Verification Dialog -->
       <v-dialog v-model="showOtpModal" max-width="400" persistent>
@@ -272,12 +313,28 @@ const privacyContent = ref('');
 const showTermsModal = ref(false);
 const showPrivacyModal = ref(false);
 const showOtpModal = ref(false);
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
 
 const form = ref({
   name: '', email: '', phone: '', password: '', confirmPassword: '',
-  country: '', state: '', city: '', qualification: '', college: '',
-  course_stream: '', year_of_study: '', agreed_to_terms: false, otp: ''
+  whatsappNumber: '', parentName: '', parentContact: '', category: null,
+  schoolName: '', levelOfStudy1: null, collegeName2: '', degreeYear: null, courseName2: null,
+  collegeName3: '', studyLevel3: null, courseName3: null, industryName: '', currentRole: '',
+  competitiveLevel: null, agreed_to_terms: false, otp: ''
 });
+
+const talentHuntCategories = ref<string[]>([]);
+const talentHuntLevels1 = ref<string[]>([]);
+const talentHuntDegrees = ref<string[]>([]);
+const talentHuntLevels3 = ref<string[]>([]);
+const talentHuntCourses = ref<string[]>([]);
+const talentHuntCompetitive = ref<string[]>([]);
+
+const rules = {
+  phone: (v: string) => /^\+?[0-9\s-]{7,15}$/.test(v) || 'Must be a valid phone number',
+  email: (v: string) => /.+@.+\..+/.test(v) || 'E-mail must be valid'
+};
 
 const snackbar = ref(false);
 const snackbarText = ref('');
@@ -298,6 +355,12 @@ async function loadTermsPrivacy() {
     const { data } = await api.get('/public/exams/terms-privacy');
     termsContent.value = data.terms_content;
     privacyContent.value = data.privacy_content;
+    talentHuntCategories.value = data.talent_hunt_categories || [];
+    talentHuntLevels1.value = data.talent_hunt_levels_1 || [];
+    talentHuntDegrees.value = data.talent_hunt_degrees || [];
+    talentHuntLevels3.value = data.talent_hunt_levels_3 || [];
+    talentHuntCourses.value = data.talent_hunt_courses || [];
+    talentHuntCompetitive.value = data.talent_hunt_competitive || [];
   } catch (err) {
     console.error('Failed to load terms & privacy policy', err);
   }
@@ -350,7 +413,14 @@ async function submitForm() {
   if (form.value.otp.length !== 6) return;
   submitting.value = true;
   try {
-    const { data } = await api.post(`/public/exams/${route.params.slug}/register`, form.value);
+    // Map dynamic fields into a JSON payload if necessary, or pass directly
+    const payload = {
+      ...form.value,
+      // Pass category as qualification to map to existing backend
+      qualification: form.value.category,
+      // We pass everything so backend can choose to store it or ignore it
+    };
+    const { data } = await api.post(`/public/exams/${route.params.slug}/register`, payload);
     registeredCandidate.value = data.candidate;
     success.value = true;
     showOtpModal.value = false;
@@ -369,14 +439,14 @@ onMounted(() => {
   loadTermsPrivacy();
 });
 
-useSeoMeta({ title: 'Register for Exam - AEMS' });
+useSeoMeta({ title: 'Talent Hunt Registration' });
 </script>
 
 <style scoped>
 .text-dark { color: #1e293b; }
-.shadow-sm {
-  border: 1px solid var(--border);
-  
+.shadow-soft {
+  border: 1px solid var(--border, #e2e8f0);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 .success-icon-wrap {
   width: 80px; height: 80px; border-radius: 50%;
