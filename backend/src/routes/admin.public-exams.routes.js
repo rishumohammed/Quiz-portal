@@ -932,6 +932,7 @@ router.get('/:id/candidates', async (req, res) => {
       SELECT 
         c.id as candidate_id, c.name, c.email, c.phone, c.created_at as registered_at,
         c.registration_status, c.metadata,
+        c.country, c.state, c.city, c.qualification, c.college, c.course_stream, c.year_of_study,
         a.id as attempt_id, a.status as exam_status, a.started_at, a.submitted_at,
         r.score, r.percentage, r.passed
       FROM public_exam_candidates c
@@ -960,6 +961,22 @@ router.get('/:id/candidates', async (req, res) => {
       if (c.passed === 1) result = 'Pass';
       if (c.passed === 0) result = 'Fail';
 
+      let parsedMeta = {};
+      try {
+        if (c.metadata) {
+          parsedMeta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+        }
+      } catch(e) {}
+
+      // Merge standard columns into metadata for easy export
+      if (c.country) parsedMeta.Country = c.country;
+      if (c.state) parsedMeta.State = c.state;
+      if (c.city) parsedMeta.City = c.city;
+      if (c.qualification) parsedMeta.Qualification = c.qualification;
+      if (c.college) parsedMeta.College = c.college;
+      if (c.course_stream) parsedMeta.CourseStream = c.course_stream;
+      if (c.year_of_study) parsedMeta.YearOfStudy = c.year_of_study;
+
       return {
         id: c.candidate_id,
         name: c.name,
@@ -972,7 +989,7 @@ router.get('/:id/candidates', async (req, res) => {
         score: c.score || 0,
         percentage: c.percentage || 0,
         result: result,
-        metadata: c.metadata
+        metadata: parsedMeta
       };
     });
 
