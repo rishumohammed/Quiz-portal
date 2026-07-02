@@ -220,10 +220,14 @@ router.post('/candidates/login', async (req, res) => {
     }
 
     // Update login stats
-    await pool.query(
-      'UPDATE public_exam_candidates SET login_count = IFNULL(login_count, 0) + 1, last_login_at = NOW() WHERE id = ?',
-      [candidate.id]
-    );
+    try {
+      await pool.query(
+        'UPDATE public_exam_candidates SET login_count = IFNULL(login_count, 0) + 1, last_login_at = NOW() WHERE id = ?',
+        [candidate.id]
+      );
+    } catch (e) {
+      console.warn('Login stats update failed (missing columns?):', e.message);
+    }
 
     // Issue JWT
     const token = jwt.sign(

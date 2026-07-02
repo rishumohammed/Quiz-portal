@@ -30,6 +30,23 @@ async function migrate() {
       }
     }
 
+    // Create proctoring_events table if not exists
+    try {
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS proctoring_events (
+          id VARCHAR(36) PRIMARY KEY,
+          attempt_id VARCHAR(36) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          metadata_json JSON,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (attempt_id) REFERENCES public_exam_attempts(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('✅ Checked/Created proctoring_events table');
+    } catch (err) {
+      console.error('❌ Failed to create proctoring_events table:', err.message);
+    }
+
     console.log('🎉 Migration completed successfully!');
   } catch (error) {
     console.error('❌ Migration failed:', error);
