@@ -187,6 +187,8 @@ router.post('/candidates/login', async (req, res) => {
     const exam = exams[0];
 
     // Check exam start date
+    // TEMPORARILY DISABLED due to server UTC timezone mismatch blocking IST candidates
+    /*
     if (exam.exam_start_date && new Date() < new Date(exam.exam_start_date)) {
       const formattedDate = new Date(exam.exam_start_date).toLocaleString('en-US', {
         dateStyle: 'full',
@@ -197,6 +199,7 @@ router.post('/candidates/login', async (req, res) => {
         code: 'EXAM_NOT_STARTED'
       });
     }
+    */
 
     // Find candidate for this exam
     const [candidates] = await pool.query(
