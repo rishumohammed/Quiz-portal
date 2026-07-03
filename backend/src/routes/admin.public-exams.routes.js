@@ -941,11 +941,11 @@ router.get('/:id/candidates', async (req, res) => {
         SELECT a1.*
         FROM public_exam_attempts a1
         JOIN (
-          SELECT candidate_id, MAX(id) as max_id
+          SELECT candidate_id, MAX(started_at) as max_time
           FROM public_exam_attempts
           WHERE exam_id = ?
           GROUP BY candidate_id
-        ) a2 ON a1.id = a2.max_id
+        ) a2 ON a1.candidate_id = a2.candidate_id AND a1.started_at = a2.max_time
       ) a ON c.id = a.candidate_id
       LEFT JOIN public_exam_results r ON a.id = r.attempt_id
       WHERE c.exam_id = ?
