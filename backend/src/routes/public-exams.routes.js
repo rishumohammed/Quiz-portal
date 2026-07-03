@@ -147,7 +147,7 @@ router.post('/candidates/login', async (req, res) => {
 
     // Find exam by slug
     const [exams] = await pool.query(
-      'SELECT id, name, slug, status, exam_start_date FROM public_exams WHERE slug = ?',
+      'SELECT id, name, slug, status, exam_start_date, exam_end_date FROM public_exams WHERE slug = ?',
       [exam_slug]
     );
     if (exams.length === 0) {
@@ -164,6 +164,18 @@ router.post('/candidates/login', async (req, res) => {
       return res.status(403).json({ 
         message: `This exam has not started yet. It is scheduled to begin on ${formattedDate}. Please come back then.`,
         code: 'EXAM_NOT_STARTED'
+      });
+    }
+
+    // Check exam end date
+    if (exam.exam_end_date && new Date() > new Date(exam.exam_end_date)) {
+      const formattedDate = new Date(exam.exam_end_date).toLocaleString('en-US', {
+        dateStyle: 'full',
+        timeStyle: 'short'
+      });
+      return res.status(403).json({ 
+        message: `This exam has already ended on ${formattedDate}. You can no longer take this exam.`,
+        code: 'EXAM_ENDED'
       });
     }
 
@@ -404,6 +416,14 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
       return res.status(404).json({ message: 'Exam not found or inactive' });
     }
     const exam = exams[0];
+
+    // Check exam start and end dates
+    if (exam.exam_start_date && new Date() < new Date(exam.exam_start_date)) {
+      return res.status(403).json({ message: 'This exam has not started yet.' });
+    }
+    if (exam.exam_end_date && new Date() > new Date(exam.exam_end_date)) {
+      return res.status(403).json({ message: 'This exam has already ended.' });
+    }
 
     // Check Anonymous access restrictions
     if (!exam.anonymous_access && is_anonymous) {
