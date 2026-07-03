@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import { createNotification } from '../services/notification.service.js';
 import { ConfigService } from '../services/config.service.js';
 import EmailService from '../services/email.service.js';
+import { gradeQuestion, submitExamAttempt } from '../services/exam-grading.service.js';
 
 const PUBLIC_EXAM_JWT_SECRET = process.env.PUBLIC_EXAM_JWT_SECRET || 'aems_public_exam_secret_key_2024';
 
@@ -31,39 +32,7 @@ function verifyCandidateToken(req, res, next) {
 
 const router = express.Router();
 
-// Helper to grade correct answers
-function gradeQuestion(type, correct, submitted) {
-  if (submitted === undefined || submitted === null) return false;
-  
-  const cleanStr = (val) => val.toString().trim().toLowerCase();
-  
-  if (type === 'mcq' || type === 'truefalse') {
-    return cleanStr(correct) === cleanStr(submitted);
-  }
-  if (type === 'fib') {
-    return cleanStr(correct) === cleanStr(submitted);
-  }
-  if (type === 'msq') {
-    try {
-      const correctArr = Array.isArray(correct) ? correct : JSON.parse(correct);
-      const submittedArr = Array.isArray(submitted) ? submitted : JSON.parse(submitted);
-      
-      if (!Array.isArray(correctArr) || !Array.isArray(submittedArr)) {
-        return cleanStr(correct) === cleanStr(submitted);
-      }
-      if (correctArr.length !== submittedArr.length) return false;
-      
-      const cleanAndSort = (arr) => arr.map(x => cleanStr(x)).sort();
-      const cSorted = cleanAndSort(correctArr);
-      const sSorted = cleanAndSort(submittedArr);
-      
-      return cSorted.every((val, idx) => val === sSorted[idx]);
-    } catch (e) {
-      return cleanStr(correct) === cleanStr(submitted);
-    }
-  }
-  return false;
-}
+// gradeQuestion moved to exam-grading.service.js
 
 // 1. GET /api/public/exams/categories
 router.get('/categories', async (req, res) => {
@@ -554,120 +523,21 @@ router.post('/attempts/:id/save', async (req, res) => {
 
 // 6. POST /api/public/exams/attempts/:id/submit
 router.post('/attempts/:id/submit', async (req, res) => {
-  const connection = await pool.getConnection();
   try {
     const attemptId = req.params.id;
     const { answers } = req.body; // Array of { question_id, answer }
 
-    await connection.beginTransaction();
-
-    const [attempts] = await connection.query(`
-      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage
-      FROM public_exam_attempts a
-      JOIN public_exams e ON a.exam_id = e.id
-      WHERE a.id = ?
-    `, [attemptId]);
-
-    if (attempts.length === 0) {
-      connection.release();
-      return res.status(404).json({ message: 'Attempt not found' });
-    }
-
-    const attempt = attempts[0];
-    if (attempt.status !== 'in_progress') {
-      connection.release();
-      return res.status(400).json({ message: 'Attempt already submitted' });
-    }
-
-    // Fetch all questions with correct answers to grade
-    const [questions] = await connection.query(
-      'SELECT id, type, correct_answer, marks FROM public_exam_questions WHERE exam_id = ?',
-      [attempt.exam_id]
-    );
-
-    const guestAnswers = answers || [];
-    let correctAnswersCount = 0;
-    let wrongAnswersCount = 0;
-    let calculatedScore = 0;
-
-    for (const q of questions) {
-      const gAns = guestAnswers.find(ga => ga.question_id === q.id);
-      
-      if (gAns && gAns.answer !== undefined && gAns.answer !== null && gAns.answer !== '') {
-        const isCorrect = gradeQuestion(q.type, q.correct_answer, gAns.answer);
-        if (isCorrect) {
-          correctAnswersCount++;
-          calculatedScore += q.marks;
-        } else {
-          wrongAnswersCount++;
-          // Apply negative marking if configured
-          if (attempt.negative_marking > 0) {
-            calculatedScore -= parseFloat(attempt.negative_marking);
-          }
-        }
-      } else {
-        // Unanswered questions do not incur negative marking in standard exams
-        wrongAnswersCount++;
-      }
-    }
-
-    // Capping score to 0 to avoid negative totals
-    calculatedScore = Math.max(0, calculatedScore);
-
-    const totalMarks = attempt.total_marks || 1;
-    const percentage = parseFloat(((calculatedScore / totalMarks) * 100).toFixed(2));
-    
-    // Evaluate pass status based on score or pass percentage
-    let passed = false;
-    if (attempt.pass_percentage > 0) {
-      passed = percentage >= attempt.pass_percentage;
-    } else {
-      passed = calculatedScore >= attempt.passing_marks;
-    }
-
-    // Time Taken calculation
-    const startedAt = new Date(attempt.started_at);
-    const submittedAt = new Date();
-    const timeTakenSec = Math.max(0, Math.floor((submittedAt - startedAt) / 1000));
-
-    // Update attempt
-    await connection.query(`
-      UPDATE public_exam_attempts 
-      SET status = 'submitted', submitted_at = ?, answers_json = ?
-      WHERE id = ?
-    `, [submittedAt, JSON.stringify(guestAnswers), attemptId]);
-
-    // Create result
-    const resultId = uuidv4();
-    await connection.query(`
-      INSERT INTO public_exam_results (id, attempt_id, exam_id, score, percentage, correct_answers, wrong_answers, time_taken_seconds, passed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      resultId,
-      attemptId,
-      attempt.exam_id,
-      calculatedScore,
-      percentage,
-      correctAnswersCount,
-      wrongAnswersCount,
-      timeTakenSec,
-      passed
-    ]);
-
-    await connection.commit();
-    connection.release();
+    const result = await submitExamAttempt(attemptId, answers || []);
 
     res.json({
       message: 'Exam submitted successfully',
-      result_id: resultId,
-      score: calculatedScore,
-      percentage,
-      passed
+      ...result
     });
   } catch (error) {
-    await connection.rollback();
-    connection.release();
     console.error('Submit exam error:', error);
+    if (error.message === 'Attempt not found' || error.message === 'Attempt already submitted') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Internal server error' });
   }
 });

@@ -7,6 +7,7 @@ import { pool } from '../db/connection.js';
 import { authenticateJWT, authorizeRoles, requirePermission } from '../middleware/auth.js';
 import EmailService from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
+import { gradeQuestion } from '../services/exam-grading.service.js';
 
 const router = express.Router();
 
@@ -28,38 +29,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Helper to grade correct answers
-function gradeQuestion(type, correct, submitted) {
-  if (submitted === undefined || submitted === null) return false;
-  const cleanStr = (val) => val.toString().trim().toLowerCase();
-  
-  if (type === 'mcq' || type === 'truefalse') {
-    return cleanStr(correct) === cleanStr(submitted);
-  }
-  if (type === 'fib') {
-    return cleanStr(correct) === cleanStr(submitted);
-  }
-  if (type === 'msq') {
-    try {
-      const correctArr = Array.isArray(correct) ? correct : JSON.parse(correct);
-      const submittedArr = Array.isArray(submitted) ? submitted : JSON.parse(submitted);
-      
-      if (!Array.isArray(correctArr) || !Array.isArray(submittedArr)) {
-        return cleanStr(correct) === cleanStr(submitted);
-      }
-      if (correctArr.length !== submittedArr.length) return false;
-      
-      const cleanAndSort = (arr) => arr.map(x => cleanStr(x)).sort();
-      const cSorted = cleanAndSort(correctArr);
-      const sSorted = cleanAndSort(submittedArr);
-      
-      return cSorted.every((val, idx) => val === sSorted[idx]);
-    } catch (e) {
-      return cleanStr(correct) === cleanStr(submitted);
-    }
-  }
-  return false;
-}
+// gradeQuestion imported from exam-grading.service.js
 
 // Apply admin protection to all routes in this file
 router.use(authenticateJWT, requirePermission('exams'));
