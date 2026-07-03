@@ -21,15 +21,16 @@
             Reset Password
           </v-btn>
           <v-btn 
-            v-if="attempt?.passed"
+            v-if="attempt?.status === 'submitted'"
             color="primary" 
             rounded="lg" 
-            prepend-icon="mdi-certificate-outline"
-            :loading="generatingCert"
-            @click="generateCertificate"
+            prepend-icon="mdi-chart-box-outline"
+            :to="`/public-exams/${candidate?.exam_slug}/result/${attempt?.attempt_id}`"
+            target="_blank"
           >
-            Generate Certificate
+            View Result
           </v-btn>
+
         </div>
       </div>
     </div>

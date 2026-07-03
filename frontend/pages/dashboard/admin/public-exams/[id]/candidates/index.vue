@@ -112,12 +112,7 @@
             </v-chip>
           </template>
 
-          <!-- Result -->
-          <template v-slot:item.result="{ item }">
-            <v-chip size="small" :color="getResultColor(item.result)" variant="tonal" class="font-weight-bold">
-              {{ item.result }}
-            </v-chip>
-          </template>
+
 
           <!-- Date Format -->
           <template v-slot:item.registered_at="{ item }">
@@ -145,15 +140,12 @@
             </v-chip>
           </template>
 
-          <!-- Score -->
-          <template v-slot:item.score="{ item }">
-            <span class="font-weight-bold">{{ item.score }} <span class="text-caption text-secondary">({{ item.percentage }}%)</span></span>
-          </template>
+
 
           <!-- Actions -->
           <template v-slot:item.actions="{ item }">
             <div class="d-flex justify-end gap-1 px-2">
-              <v-btn icon="mdi-eye-outline" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${route.params.id}/candidates/${item.id}`" title="View Details & Attempt"></v-btn>
+              <v-btn icon="mdi-eye-outline" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${route.params.id}/candidates/${item.id}`" title="View Details"></v-btn>
             </div>
           </template>
         </v-data-table>
@@ -356,8 +348,7 @@ const headers = [
   { title: 'Login Status', key: 'last_login_at' },
   { title: 'Reg. Status', key: 'registration_status', align: 'center' as const },
   { title: 'Exam Status', key: 'exam_status', align: 'center' as const },
-  { title: 'Score', key: 'score', align: 'center' as const },
-  { title: 'Result', key: 'result', align: 'center' as const },
+
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ];
 

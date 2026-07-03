@@ -989,7 +989,7 @@ router.get('/candidates/:id', async (req, res) => {
   try {
     const candidateId = req.params.id;
     const [candidates] = await pool.query(`
-      SELECT c.*, e.name as exam_name
+      SELECT c.*, e.name as exam_name, e.slug as exam_slug
       FROM public_exam_candidates c
       JOIN public_exams e ON c.exam_id = e.id
       WHERE c.id = ?
