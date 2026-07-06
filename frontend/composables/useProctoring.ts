@@ -184,6 +184,9 @@ export const useProctoring = () => {
 
   const dismissWarning = () => {
     violationWarning.value.show = false;
+    if (!isFullscreen.value) {
+      requestFullscreen().catch(e => console.warn('Could not re-enter fullscreen:', e));
+    }
   };
 
   return {
