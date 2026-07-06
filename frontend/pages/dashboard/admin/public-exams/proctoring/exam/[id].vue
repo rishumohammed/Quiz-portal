@@ -103,19 +103,19 @@
           <div class="d-flex gap-2 justify-end">
             <v-btn
               variant="tonal"
+              color="primary"
+              size="small"
+              icon="mdi-eye-outline"
+              title="Review Attempts"
+              :to="`/dashboard/admin/public-exams/proctoring/candidate/${examId}_${item.id}`"
+            ></v-btn>
+            <v-btn
+              variant="tonal"
               color="error"
               size="small"
               icon="mdi-delete-outline"
               title="Delete Proctoring Logs for Candidate"
               @click="deleteCandidateLogs(item)"
-            ></v-btn>
-            <v-btn
-              variant="tonal"
-              color="primary"
-              size="small"
-              icon="mdi-chevron-right"
-              title="Review Attempts"
-              :to="`/dashboard/admin/public-exams/proctoring/candidate/${examId}_${item.id}`"
             ></v-btn>
           </div>
         </template>

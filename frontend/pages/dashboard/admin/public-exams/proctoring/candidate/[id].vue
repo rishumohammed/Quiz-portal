@@ -78,7 +78,7 @@
             variant="tonal"
             color="primary"
             size="small"
-            icon="mdi-chevron-right"
+            icon="mdi-eye-outline"
             title="View Logs"
             :to="`/dashboard/admin/public-exams/proctoring/${item.attempt_id}`"
           ></v-btn>
