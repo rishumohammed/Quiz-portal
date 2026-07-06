@@ -7,7 +7,7 @@
       <h2 class="text-h4 font-weight-black text-white mb-4">Exam Violation Warning</h2>
       <p class="text-h6 text-error mb-8">{{ message }}</p>
       
-      <p class="text-blue-grey-200 mb-8 max-w-500 mx-auto">
+      <p class="text-grey-lighten-2 mb-8 max-w-500 mx-auto">
         Your actions have been logged. Please adhere strictly to the exam rules. 
         Further violations may result in the immediate auto-submission of your exam and potential disciplinary action.
       </p>

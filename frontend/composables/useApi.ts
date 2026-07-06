@@ -31,12 +31,13 @@ export const useApi = () => {
     async (error) => {
       const originalRequest = error.config;
 
-      // Retry on 401 or 403, but NOT for auth endpoints
+      // Retry on 401 or 403, but NOT for auth endpoints or public endpoints
       const isAuthRequest = originalRequest.url?.includes('/auth/login') || 
                            originalRequest.url?.includes('/auth/register') ||
                            originalRequest.url?.includes('/auth/refresh');
+      const isPublicRequest = originalRequest.url?.includes('/public/');
 
-      if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
+      if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest && !isPublicRequest) {
         originalRequest._retry = true;
         
         try {

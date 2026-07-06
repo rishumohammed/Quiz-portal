@@ -387,6 +387,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 import { useProctoring } from '@/composables/useProctoring';
 import { useFaceDetection } from '@/composables/useFaceDetection';
+import { useObjectDetection } from '@/composables/useObjectDetection';
 import { useWebcamRecorder } from '@/composables/useWebcamRecorder';
 import ProctoringOverlay from '@/components/exam/ProctoringOverlay.vue';
 import WebcamThumbnail from '@/components/exam/WebcamThumbnail.vue';
@@ -400,6 +401,7 @@ const router = useRouter();
 const api = useApi();
 const proctoring = useProctoring();
 const faceDetection = useFaceDetection();
+const objectDetection = useObjectDetection();
 const recorder = useWebcamRecorder();
 
 const examSlug = computed(() => route.params.slug as string);
@@ -573,7 +575,8 @@ async function setupCamera() {
   const granted = await recorder.requestCamera();
   if (granted) {
     await faceDetection.loadModel();
-    if (!faceDetection.faceDetectionError.value) {
+    await objectDetection.loadModel();
+    if (!faceDetection.faceDetectionError.value && !objectDetection.objectDetectionError.value) {
       cameraReady.value = true;
       initAdvancedProctoring();
     }
@@ -589,6 +592,14 @@ function onVideoReady(videoEl: HTMLVideoElement) {
       proctoring.speakWarning(msg);
     },
     proctoringConfig.value
+  );
+  objectDetection.startDetection(
+    videoEl, 
+    proctoring.logEvent, 
+    (msg) => {
+      proctoring.violationWarning.value = { show: true, message: msg };
+      proctoring.speakWarning(msg);
+    }
   );
 }
 
@@ -831,6 +842,7 @@ function cleanupProctoring() {
   if (examConfig.value?.enable_proctoring) {
     proctoring.cleanupProctoring();
     faceDetection.stopDetection();
+    objectDetection.stopDetection();
     recorder.stopRecording();
     recorder.releaseCamera();
   }

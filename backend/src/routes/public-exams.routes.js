@@ -18,7 +18,8 @@ const PUBLIC_EXAM_JWT_SECRET = process.env.PUBLIC_EXAM_JWT_SECRET || 'aems_publi
 function verifyCandidateToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authentication required. Please login to access this exam.' });
+    req.candidate = null;
+    return next();
   }
   const token = authHeader.split(' ')[1];
   try {
@@ -406,9 +407,14 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
     const examId = req.params.id;
     const { guest_name, guest_email, guest_phone, is_anonymous, candidate_id } = req.body;
 
-    // Ensure the candidate token matches this exam
-    if (candidateFromToken.examId !== examId) {
-      return res.status(403).json({ message: 'You are not authorised to access this exam. Please login with the correct credentials.' });
+    // If not anonymous, require valid candidate token
+    if (!is_anonymous) {
+      if (!candidateFromToken) {
+        return res.status(401).json({ message: 'Authentication required. Please login to access this exam.' });
+      }
+      if (candidateFromToken.examId !== examId) {
+        return res.status(403).json({ message: 'You are not authorised to access this exam. Please login with the correct credentials.' });
+      }
     }
 
     const [exams] = await pool.query('SELECT * FROM public_exams WHERE id = ? AND status = ?', [examId, 'published']);
