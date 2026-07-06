@@ -162,6 +162,11 @@ function getDifficultyColor(diff: string) {
 
 async function startExamInstance() {
   if (!exam.value) return;
+
+  if (!exam.value.anonymous_access) {
+    router.push(`/public-exams/${exam.value.slug}/login`);
+    return;
+  }
   
   startingExam.value = true;
   try {
