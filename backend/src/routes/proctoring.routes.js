@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { authenticateJWT, authorizeRoles } from '../middleware/auth.js';
+import { authenticateJWT, authenticateAnyJWT, authorizeRoles } from '../middleware/auth.js';
 import proctoringService from '../services/proctoring.service.js';
 
 const router = express.Router();
@@ -46,7 +46,7 @@ const screenshotStorage = multer.diskStorage({
 const uploadScreenshot = multer({ storage: screenshotStorage });
 
 // POST /api/proctoring/events
-router.post('/events', authenticateJWT, async (req, res) => {
+router.post('/events', authenticateAnyJWT, async (req, res) => {
   try {
     const { attempt_id, type, ...metadata } = req.body;
     if (!attempt_id || !type) {
@@ -60,7 +60,7 @@ router.post('/events', authenticateJWT, async (req, res) => {
 });
 
 // POST /api/proctoring/recording-chunk
-router.post('/recording-chunk', authenticateJWT, upload.single('video'), (req, res) => {
+router.post('/recording-chunk', authenticateAnyJWT, upload.single('video'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No video file provided' });
@@ -72,7 +72,7 @@ router.post('/recording-chunk', authenticateJWT, upload.single('video'), (req, r
 });
 
 // POST /api/proctoring/violation-screenshot
-router.post('/violation-screenshot', authenticateJWT, uploadScreenshot.single('image'), (req, res) => {
+router.post('/violation-screenshot', authenticateAnyJWT, uploadScreenshot.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No image file provided' });

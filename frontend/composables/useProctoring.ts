@@ -17,13 +17,17 @@ export const useProctoring = () => {
   let captureScreenshotCallback: (() => Promise<string | null>) | null = null;
   let submitCallback: ((reason: string) => void) | null = null;
   let devToolsInterval: NodeJS.Timeout;
+  let authHeaders: any = {};
 
-  const initProctoring = (id: string, onSubmit: (reason: string) => void, config: any = {}, captureScreenshotFn?: () => Promise<string | null>) => {
+  const initProctoring = (id: string, onSubmit: (reason: string) => void, config: any = {}, captureScreenshotFn?: () => Promise<string | null>, customHeaders?: any) => {
     attemptId.value = id;
     submitCallback = onSubmit;
     proctoringConfig.value = config;
     if (captureScreenshotFn) {
       captureScreenshotCallback = captureScreenshotFn;
+    }
+    if (customHeaders) {
+      authHeaders = customHeaders;
     }
 
     // Listeners
@@ -75,7 +79,7 @@ export const useProctoring = () => {
         type,
         timestamp: new Date().toISOString(),
         ...metadata
-      });
+      }, { headers: authHeaders });
     } catch (e) {
       console.error('Failed to log proctoring event', e);
     }

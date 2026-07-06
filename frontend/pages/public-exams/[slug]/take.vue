@@ -2,9 +2,9 @@
   <v-app class="take-exam-app bg-background">
     <!-- OVERLAYS -->
     <ProctoringOverlay 
-      v-if="examConfig?.enable_proctoring && proctoring.violationWarning.value.show"
-      :show="proctoring.violationWarning.value.show" 
-      :message="proctoring.violationWarning.value.message" 
+      v-if="examConfig?.enable_proctoring && violationWarning.show"
+      :show="violationWarning.show" 
+      :message="violationWarning.message" 
       :is-auto-submitting="submittingExam"
       @dismiss="proctoring.dismissWarning()" 
     />
@@ -449,6 +449,9 @@ const exitDialog = ref(false);
 const confirmSubmitDialog = ref(false);
 const submittingExam = ref(false);
 
+const violationWarning = proctoring.violationWarning;
+
+
 const requiresFullscreen = computed(() => {
   return examConfig.value?.enforce_fullscreen && !isFullScreen.value && attemptId.value !== '';
 });
@@ -603,7 +606,7 @@ function onVideoReady(videoEl: HTMLVideoElement) {
 }
 
 function initAdvancedProctoring() {
-  proctoring.initProctoring(attemptId.value, submitOnTimeout, proctoringConfig.value, () => recorder.captureScreenshot(attemptId.value));
+  proctoring.initProctoring(attemptId.value, submitOnTimeout, proctoringConfig.value, () => recorder.captureScreenshot(attemptId.value, authHeaders()), authHeaders());
   if (!recorder.isRecording.value) {
     recorder.startRecording(attemptId.value, proctoringConfig.value.record_full_video);
   }

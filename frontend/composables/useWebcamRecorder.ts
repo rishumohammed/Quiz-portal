@@ -81,7 +81,7 @@ export const useWebcamRecorder = () => {
     }
   };
 
-  const captureScreenshot = async (attemptId: string): Promise<string | null> => {
+  const captureScreenshot = async (attemptId: string, customHeaders?: any): Promise<string | null> => {
     if (!stream.value) return null;
     const videoEl = document.querySelector('video');
     if (!videoEl) return null;
@@ -105,8 +105,9 @@ export const useWebcamRecorder = () => {
           formData.append('image', blob, 'screenshot.jpg');
 
           try {
+            const requestHeaders = customHeaders ? { 'Content-Type': 'multipart/form-data', ...customHeaders } : { 'Content-Type': 'multipart/form-data' };
             const res = await api.post('/proctoring/violation-screenshot', formData, {
-              headers: { 'Content-Type': 'multipart/form-data' }
+              headers: requestHeaders
             });
             resolve(res.data?.url || null);
           } catch (err) {
