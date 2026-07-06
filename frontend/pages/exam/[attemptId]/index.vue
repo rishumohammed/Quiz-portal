@@ -118,6 +118,7 @@
       </div>
       <div class="header-right">
         <v-btn
+          v-if="examStore.currentIndex === examStore.totalQuestions - 1"
           color="success"
           variant="flat"
           size="small"
@@ -184,11 +185,11 @@
           </v-btn>
           <v-btn
             v-else
-            color="success"
+            color="primary"
             :disabled="!examStore.canSubmit || examStore.isSubmitting"
             @click="confirmSubmit = true"
           >
-            Submit Exam <v-icon right>mdi-check-all</v-icon>
+            Next <v-icon right>mdi-arrow-right</v-icon>
           </v-btn>
         </div>
       </div>
