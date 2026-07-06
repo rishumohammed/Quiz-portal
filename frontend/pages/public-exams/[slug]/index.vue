@@ -81,7 +81,8 @@
           <h3 class="text-h6 font-weight-bold text-dark mb-3">
             <v-icon start color="primary" class="mr-2">mdi-alert-circle-outline</v-icon> Instructions
           </h3>
-          <ul class="text-body-2 text-secondary pl-5 leading-relaxed">
+          <div v-if="exam.instructions" class="text-body-2 text-secondary leading-relaxed white-space-pre" v-html="exam.instructions"></div>
+          <ul v-else class="text-body-2 text-secondary pl-5 leading-relaxed">
             <li class="mb-2">This exam requires registration. Only registered candidates can access the exam.</li>
             <li class="mb-2">Once launched, the timer cannot be paused. Closing the tab will automatically submit your answers when the timer ends.</li>
             <li class="mb-2">We support MCQs, MSQs (Multiple Select), True/False, and Fill in the Blanks.</li>
