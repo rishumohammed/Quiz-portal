@@ -533,7 +533,6 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ message: `Exam start date (${dStart.toLocaleString()}) cannot be before registration end date (${dRegEnd.toLocaleString()})` });
       }
     }
-    }
 
     const id = uuidv4();
     await pool.query(`
