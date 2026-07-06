@@ -34,6 +34,11 @@ const upload = multer({ storage });
 // Helper to format date safely for MySQL in local timezone
 function formatMySQL(dateStr) {
   if (!dateStr || dateStr === 'null' || dateStr === '') return null;
+  if (typeof dateStr === 'string' && dateStr.includes('T')) {
+    let s = dateStr.replace('T', ' ');
+    if (s.length === 16) s += ':00';
+    return s.substring(0, 19);
+  }
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
   const yyyy = d.getFullYear();
@@ -577,7 +582,6 @@ router.put('/:id', async (req, res) => {
     const fields = [
       'name', 'category_id', 'description', 'syllabus', 'duration_minutes',
       'total_questions', 'total_marks', 'passing_marks', 'difficulty_level', 'status', 'slug',
-      'instructions', 'pass_percentage', 'negative_marking', 'randomize_questions', 'randomize_options',
       'instructions', 'pass_percentage', 'negative_marking', 'randomize_questions', 'randomize_options',
       'show_correct_answers', 'show_explanations', 'allow_retake', 'max_retakes', 'enable_certificate', 'anonymous_access',
       'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'max_proctoring_warnings', 'enforce_fullscreen',
