@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watchEffect, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps<{
   stream: MediaStream | null;
@@ -28,16 +28,16 @@ const position = ref({ x: window.innerWidth - 180, y: 20 });
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 
-watch(() => props.stream, (newStream) => {
-  if (videoEl.value && newStream) {
-    videoEl.value.srcObject = newStream;
+watchEffect(() => {
+  if (videoEl.value && props.stream) {
+    videoEl.value.srcObject = props.stream;
     // Wait for video to be playing before emitting ready (for TFjs)
     videoEl.value.onloadedmetadata = () => {
       videoEl.value?.play();
       emit('video-ready', videoEl.value);
     };
   }
-}, { immediate: true });
+});
 
 const startDrag = (e: MouseEvent) => {
   isDragging.value = true;

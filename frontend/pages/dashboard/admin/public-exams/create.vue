@@ -208,7 +208,10 @@
                 <v-checkbox v-model="fields.show_explanations" label="Show Explanations Post-Exam" color="primary" hide-details></v-checkbox>
               </v-col>
               <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.allow_retake" label="Allow Retakes" color="primary" hide-details></v-checkbox>
+                <div class="d-flex align-center">
+                  <v-checkbox v-model="fields.allow_retake" label="Allow Retakes" color="primary" hide-details class="flex-grow-0 mr-4"></v-checkbox>
+                  <v-text-field v-if="fields.allow_retake" v-model.number="fields.max_retakes" label="Max Retakes (0 = unlimited)" type="number" density="compact" hide-details style="max-width: 200px;"></v-text-field>
+                </div>
               </v-col>
               <v-col cols="12" sm="6" class="py-1">
                 <v-checkbox v-model="fields.enable_certificate" label="Enable PDF Certificate Download" color="primary" hide-details></v-checkbox>
@@ -407,6 +410,7 @@ const fields = ref<any>({
   show_correct_answers: true,
   show_explanations: true,
   allow_retake: true,
+  max_retakes: 0,
   enable_certificate: true,
   anonymous_access: true,
   require_name: true,
@@ -500,6 +504,7 @@ async function fetchExamDetails() {
         show_correct_answers: !!examMatch.show_correct_answers,
         show_explanations: !!examMatch.show_explanations,
         allow_retake: !!examMatch.allow_retake,
+        max_retakes: examMatch.max_retakes || 0,
         enable_certificate: !!examMatch.enable_certificate,
         anonymous_access: !!examMatch.anonymous_access,
         require_name: !!examMatch.require_name,
@@ -565,6 +570,13 @@ function onSignatureFileChange(e: any) {
 async function saveExam() {
   const { valid } = await examForm.value.validate();
   if (!valid) return;
+
+  if (fields.value.registration_end_date && fields.value.exam_start_date) {
+    if (new Date(fields.value.exam_start_date) <= new Date(fields.value.registration_end_date)) {
+      alert('Exam start date must be after registration end date');
+      return;
+    }
+  }
 
   saving.value = true;
   try {

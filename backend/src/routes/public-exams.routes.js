@@ -430,6 +430,19 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
       return res.status(400).json({ message: 'Anonymous access is disabled for this exam. Please provide registration details.' });
     }
 
+    // Check attempts limit for registered candidates
+    if (!is_anonymous && candidateFromToken?.candidateId) {
+      const [existingAttempts] = await pool.query('SELECT COUNT(*) as count FROM public_exam_attempts WHERE exam_id = ? AND candidate_id = ?', [examId, candidateFromToken.candidateId]);
+      if (existingAttempts[0].count > 0) {
+        if (!exam.allow_retake) {
+          return res.status(403).json({ message: 'You have already attempted this exam. Retakes are not allowed.' });
+        }
+        if (exam.max_retakes > 0 && existingAttempts[0].count >= exam.max_retakes) {
+          return res.status(403).json({ message: `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.` });
+        }
+      }
+    }
+
     // Input fields constraints checking
     if (!is_anonymous) {
       if (exam.require_name && !guest_name) {

@@ -520,24 +520,30 @@ router.get('/', async (req, res) => {
 // POST /api/admin/public-exams
 router.post('/', async (req, res) => {
   try {
-    const { name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url } = req.body;
+    const { name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, max_retakes, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url } = req.body;
 
     if (!name || !category_id || !slug) {
       return res.status(400).json({ message: 'Name, Category, and SEO Slug are required' });
     }
 
+    if (registration_end_date && exam_start_date) {
+      if (new Date(exam_start_date) <= new Date(registration_end_date)) {
+        return res.status(400).json({ message: 'Exam start date must be after registration end date' });
+      }
+    }
+
     const id = uuidv4();
     await pool.query(`
       INSERT INTO public_exams (
-        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, max_retakes, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen, registration_start_date, registration_end_date, exam_start_date, exam_end_date, image_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id, name, category_id, description || null, syllabus || null,
       duration_minutes || 60, total_questions || 0, total_marks || 0,
       passing_marks || 0, difficulty_level || 'Medium', status || 'draft', slug,
       instructions || null, pass_percentage || 50, negative_marking || 0.00,
       !!randomize_questions, !!randomize_options, show_correct_answers !== false, show_explanations !== false,
-      allow_retake !== false, enable_certificate !== false, anonymous_access !== false,
+      allow_retake !== false, max_retakes || 0, enable_certificate !== false, anonymous_access !== false,
       require_name !== false, !!require_email, !!require_mobile,
       !!enable_proctoring, max_proctoring_warnings !== undefined ? max_proctoring_warnings : 3, !!enforce_fullscreen,
       registration_start_date || null, registration_end_date || null, exam_start_date || null, exam_end_date || null, image_url || null
@@ -557,7 +563,8 @@ router.put('/:id', async (req, res) => {
       'name', 'category_id', 'description', 'syllabus', 'duration_minutes',
       'total_questions', 'total_marks', 'passing_marks', 'difficulty_level', 'status', 'slug',
       'instructions', 'pass_percentage', 'negative_marking', 'randomize_questions', 'randomize_options',
-      'show_correct_answers', 'show_explanations', 'allow_retake', 'enable_certificate', 'anonymous_access',
+      'instructions', 'pass_percentage', 'negative_marking', 'randomize_questions', 'randomize_options',
+      'show_correct_answers', 'show_explanations', 'allow_retake', 'max_retakes', 'enable_certificate', 'anonymous_access',
       'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'max_proctoring_warnings', 'enforce_fullscreen',
       'registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date', 'image_url'
     ];
@@ -565,6 +572,20 @@ router.put('/:id', async (req, res) => {
     
     if (updates.length === 0) {
       return res.json({ message: 'Nothing to update' });
+    }
+
+    const [existing] = await pool.query('SELECT registration_end_date, exam_start_date FROM public_exams WHERE id = ?', [req.params.id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    const newRegEnd = req.body.registration_end_date !== undefined ? (req.body.registration_end_date || null) : existing[0].registration_end_date;
+    const newExamStart = req.body.exam_start_date !== undefined ? (req.body.exam_start_date || null) : existing[0].exam_start_date;
+    
+    if (newRegEnd && newExamStart) {
+      if (new Date(newExamStart) <= new Date(newRegEnd)) {
+        return res.status(400).json({ message: 'Exam start date must be after registration end date' });
+      }
     }
 
     const setClause = updates.map(f => `${f} = ?`).join(', ');
