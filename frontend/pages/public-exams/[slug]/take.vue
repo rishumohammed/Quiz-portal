@@ -189,25 +189,24 @@
 
               <div class="d-flex gap-2">
                 <v-btn
+                  v-if="currentQuestionIndex < questions.length - 1"
                   color="primary"
                   rounded="lg"
                   class="text-capitalize font-weight-bold"
                   height="44"
-                  v-if="currentQuestionIndex < questions.length - 1"
                   @click="nextQuestion"
                 >
                   Next <v-icon end>mdi-chevron-right</v-icon>
                 </v-btn>
-
                 <v-btn
-                  color="success"
+                  v-else
+                  color="primary"
                   rounded="lg"
-                  class="text-capitalize font-weight-bold text-white px-6"
+                  class="text-capitalize font-weight-bold"
                   height="44"
-                  elevation="0"
                   @click="confirmSubmitDialog = true"
                 >
-                  Submit Exam
+                  Next <v-icon end>mdi-chevron-right</v-icon>
                 </v-btn>
               </div>
             </div>
