@@ -31,6 +31,19 @@ const upload = multer({ storage });
 
 // gradeQuestion imported from exam-grading.service.js
 
+// Helper to format date safely for MySQL in local timezone
+function formatMySQL(dateStr) {
+  if (!dateStr || dateStr === 'null' || dateStr === '') return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+}
 // Apply admin protection to all routes in this file
 router.use(authenticateJWT, requirePermission('exams'));
 
@@ -597,8 +610,8 @@ router.put('/:id', async (req, res) => {
       if (['randomize_questions', 'randomize_options', 'show_correct_answers', 'show_explanations', 'allow_retake', 'enable_certificate', 'anonymous_access', 'require_name', 'require_email', 'require_mobile', 'enable_proctoring', 'enforce_fullscreen'].includes(f)) {
         return !!req.body[f];
       }
-      if (['registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date'].includes(f) && req.body[f] === '') {
-        return null;
+      if (['registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date'].includes(f)) {
+        return formatMySQL(req.body[f]);
       }
       return req.body[f];
     });
