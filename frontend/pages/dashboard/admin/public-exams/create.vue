@@ -572,8 +572,8 @@ async function saveExam() {
   if (!valid) return;
 
   if (fields.value.registration_end_date && fields.value.exam_start_date) {
-    if (new Date(fields.value.exam_start_date) <= new Date(fields.value.registration_end_date)) {
-      alert('Exam start date must be after registration end date');
+    if (new Date(fields.value.exam_start_date) < new Date(fields.value.registration_end_date)) {
+      alert('Exam start date cannot be before registration end date');
       return;
     }
   }
