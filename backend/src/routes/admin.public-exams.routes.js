@@ -526,10 +526,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Name, Category, and SEO Slug are required' });
     }
 
-    if (registration_end_date && exam_start_date) {
-      if (new Date(exam_start_date) <= new Date(registration_end_date)) {
-        return res.status(400).json({ message: 'Exam start date must be after registration end date' });
+    if (registration_end_date && exam_start_date && registration_end_date !== 'null' && exam_start_date !== 'null') {
+      const dStart = new Date(exam_start_date);
+      const dRegEnd = new Date(registration_end_date);
+      if (!isNaN(dStart) && !isNaN(dRegEnd) && dStart < dRegEnd) {
+        return res.status(400).json({ message: `Exam start date (${dStart.toLocaleString()}) cannot be before registration end date (${dRegEnd.toLocaleString()})` });
       }
+    }
     }
 
     const id = uuidv4();
@@ -582,9 +585,11 @@ router.put('/:id', async (req, res) => {
     const newRegEnd = req.body.registration_end_date !== undefined ? (req.body.registration_end_date || null) : existing[0].registration_end_date;
     const newExamStart = req.body.exam_start_date !== undefined ? (req.body.exam_start_date || null) : existing[0].exam_start_date;
     
-    if (newRegEnd && newExamStart) {
-      if (new Date(newExamStart) <= new Date(newRegEnd)) {
-        return res.status(400).json({ message: 'Exam start date must be after registration end date' });
+    if (newRegEnd && newExamStart && newRegEnd !== 'null' && newExamStart !== 'null') {
+      const dStart = new Date(newExamStart);
+      const dRegEnd = new Date(newRegEnd);
+      if (!isNaN(dStart) && !isNaN(dRegEnd) && dStart < dRegEnd) {
+        return res.status(400).json({ message: `Exam start date (${dStart.toLocaleString()}) cannot be before registration end date (${dRegEnd.toLocaleString()})` });
       }
     }
 
