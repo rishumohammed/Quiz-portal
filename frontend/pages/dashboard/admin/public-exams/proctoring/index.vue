@@ -139,11 +139,10 @@
               variant="tonal"
               color="primary"
               size="small"
-              append-icon="mdi-chevron-right"
+              icon="mdi-chevron-right"
+              title="View Candidates"
               :to="`/dashboard/admin/public-exams/proctoring/exam/${item.id}`"
-            >
-              View Candidates
-            </v-btn>
+            ></v-btn>
           </div>
         </template>
       </v-data-table>

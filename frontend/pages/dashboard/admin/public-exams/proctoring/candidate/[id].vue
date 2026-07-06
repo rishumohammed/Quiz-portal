@@ -78,11 +78,10 @@
             variant="tonal"
             color="primary"
             size="small"
-            append-icon="mdi-chevron-right"
+            icon="mdi-chevron-right"
+            title="View Logs"
             :to="`/dashboard/admin/public-exams/proctoring/${item.attempt_id}`"
-          >
-            View Logs
-          </v-btn>
+          ></v-btn>
         </template>
       </v-data-table>
     </v-card>

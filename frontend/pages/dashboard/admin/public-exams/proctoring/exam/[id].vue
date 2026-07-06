@@ -113,11 +113,10 @@
               variant="tonal"
               color="primary"
               size="small"
-              append-icon="mdi-chevron-right"
+              icon="mdi-chevron-right"
+              title="Review Attempts"
               :to="`/dashboard/admin/public-exams/proctoring/candidate/${examId}_${item.id}`"
-            >
-              Review Attempts
-            </v-btn>
+            ></v-btn>
           </div>
         </template>
       </v-data-table>
