@@ -11,6 +11,7 @@
       <div class="d-flex gap-2">
         <AppButton variant="danger" icon="mdi-flag-outline" @click="flagAttempt">Flag Attempt</AppButton>
         <AppButton variant="g" icon="mdi-check-all" @click="clearViolations">Clear Violations</AppButton>
+        <AppButton variant="danger" icon="mdi-delete-outline" @click="deleteLogs">Delete Data</AppButton>
       </div>
     </div>
 
@@ -184,6 +185,18 @@ const clearViolations = async () => {
 
 const flagAttempt = () => {
   alert('Flagging attempt for manual review...');
+};
+
+const deleteLogs = async () => {
+  if (!confirm('Are you sure you want to completely delete all proctoring events and video recordings for this attempt? This action cannot be undone and the videos will be permanently deleted from the server.')) return;
+  try {
+    await api.delete(`/proctoring/admin/attempt/${attemptId}`);
+    const router = useRouter();
+    router.back();
+  } catch (err) {
+    console.error(err);
+    alert('Failed to delete proctoring data');
+  }
 };
 </script>
 

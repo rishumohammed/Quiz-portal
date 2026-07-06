@@ -140,4 +140,34 @@ router.post('/admin/:attemptId/clear-violations', authenticateJWT, isAdminOrTuto
   }
 });
 
+// DELETE /api/proctoring/admin/attempt/:attemptId
+router.delete('/admin/attempt/:attemptId', authenticateJWT, isAdminOrTutor, async (req, res) => {
+  try {
+    await proctoringService.deleteAttemptLogs(req.params.attemptId);
+    res.json({ message: 'Attempt logs deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/proctoring/admin/candidate/:examId/:candidateId
+router.delete('/admin/candidate/:examId/:candidateId', authenticateJWT, isAdminOrTutor, async (req, res) => {
+  try {
+    await proctoringService.deleteCandidateLogs(req.params.examId, req.params.candidateId);
+    res.json({ message: 'Candidate logs deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/proctoring/admin/exam/:examId
+router.delete('/admin/exam/:examId', authenticateJWT, isAdminOrTutor, async (req, res) => {
+  try {
+    await proctoringService.deleteExamLogs(req.params.examId);
+    res.json({ message: 'Exam logs deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 export default router;

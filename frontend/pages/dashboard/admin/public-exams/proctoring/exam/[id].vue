@@ -100,15 +100,25 @@
         </template>
 
         <template v-slot:item.actions="{ item }">
-          <v-btn
-            variant="tonal"
-            color="primary"
-            size="small"
-            append-icon="mdi-chevron-right"
-            :to="`/dashboard/admin/public-exams/proctoring/candidate/${examId}_${item.id}`"
-          >
-            Review Attempts
-          </v-btn>
+          <div class="d-flex gap-2 justify-end">
+            <v-btn
+              variant="tonal"
+              color="error"
+              size="small"
+              icon="mdi-delete-outline"
+              title="Delete Proctoring Logs for Candidate"
+              @click="deleteCandidateLogs(item)"
+            ></v-btn>
+            <v-btn
+              variant="tonal"
+              color="primary"
+              size="small"
+              append-icon="mdi-chevron-right"
+              :to="`/dashboard/admin/public-exams/proctoring/candidate/${examId}_${item.id}`"
+            >
+              Review Attempts
+            </v-btn>
+          </div>
         </template>
       </v-data-table>
     </v-card>
@@ -199,6 +209,25 @@ const filteredCandidates = computed<any[]>(() => {
     return true;
   });
 });
+
+const deleteCandidateLogs = async (candidate: any) => {
+  if (!confirm(`Are you sure you want to delete all proctoring logs for candidate ${candidate.name}? This will permanently remove all video recordings for their attempts.`)) return;
+  try {
+    await api.delete(`/proctoring/admin/candidate/${examId}/${candidate.id}`);
+    alert('Candidate logs deleted successfully');
+    // Refresh data
+    const { data } = await api.get('/proctoring/admin/public-violations');
+    if (data && data.exams) {
+      const exam = data.exams.find((e: any) => e.id === examId);
+      if (exam) {
+        candidates.value = exam.candidates;
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Failed to delete candidate logs');
+  }
+};
 </script>
 
 <style scoped>

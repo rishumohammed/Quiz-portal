@@ -126,15 +126,25 @@
         </template>
 
         <template v-slot:item.actions="{ item }">
-          <v-btn
-            variant="tonal"
-            color="primary"
-            size="small"
-            append-icon="mdi-chevron-right"
-            :to="`/dashboard/admin/public-exams/proctoring/exam/${item.id}`"
-          >
-            View Candidates
-          </v-btn>
+          <div class="d-flex gap-2 justify-end">
+            <v-btn
+              variant="tonal"
+              color="error"
+              size="small"
+              icon="mdi-delete-outline"
+              title="Delete All Proctoring Logs for Exam"
+              @click="deleteExamLogs(item)"
+            ></v-btn>
+            <v-btn
+              variant="tonal"
+              color="primary"
+              size="small"
+              append-icon="mdi-chevron-right"
+              :to="`/dashboard/admin/public-exams/proctoring/exam/${item.id}`"
+            >
+              View Candidates
+            </v-btn>
+          </div>
         </template>
       </v-data-table>
     </v-card>
@@ -197,6 +207,26 @@ const getExamViolationsCount = (exam: any) => {
   return exam.candidates.reduce((acc: number, candidate: any) => {
     return acc + candidate.attempts.reduce((sum: number, attempt: any) => sum + attempt.violationCount, 0);
   }, 0);
+};
+
+const deleteExamLogs = async (exam: any) => {
+  if (!confirm(`Are you sure you want to delete ALL proctoring logs for the exam "${exam.title}"? This will permanently remove all video recordings for all candidates in this exam.`)) return;
+  try {
+    await api.delete(`/proctoring/admin/exam/${exam.id}`);
+    alert('Exam logs deleted successfully');
+    // Refresh data
+    loading.value = true;
+    const { data } = await api.get('/proctoring/admin/public-violations');
+    if (data) {
+      exams.value = data.exams || [];
+      stats.value = data.stats || { totalExamsMonitored: 0, totalViolations: 0, highSeverityViolations: 0, candidatesFlagged: 0 };
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Failed to delete exam logs');
+  } finally {
+    loading.value = false;
+  }
 };
 
 </script>

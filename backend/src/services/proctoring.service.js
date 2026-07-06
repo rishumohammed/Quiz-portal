@@ -370,6 +370,39 @@ class ProctoringService {
     // This allows admin to give them another chance, though more logic might be needed
     return { success: true };
   }
+
+  async deleteAttemptLogs(attemptId) {
+    await pool.query('DELETE FROM proctoring_events WHERE attempt_id = ?', [attemptId]);
+    const dir = path.join(process.cwd(), 'uploads', 'recordings', attemptId);
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+    } catch (err) {
+      console.error(`Failed to delete recording directory for attempt ${attemptId}:`, err.message);
+    }
+    return { success: true };
+  }
+
+  async deleteCandidateLogs(examId, candidateId) {
+    const [attempts] = await pool.query(
+      'SELECT id FROM public_exam_attempts WHERE exam_id = ? AND (candidate_id = ? OR id = ?)',
+      [examId, candidateId, candidateId]
+    );
+    for (const attempt of attempts) {
+      await this.deleteAttemptLogs(attempt.id);
+    }
+    return { success: true };
+  }
+
+  async deleteExamLogs(examId) {
+    const [attempts] = await pool.query(
+      'SELECT id FROM public_exam_attempts WHERE exam_id = ?',
+      [examId]
+    );
+    for (const attempt of attempts) {
+      await this.deleteAttemptLogs(attempt.id);
+    }
+    return { success: true };
+  }
 }
 
 export default new ProctoringService();
