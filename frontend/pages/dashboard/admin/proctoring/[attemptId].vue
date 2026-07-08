@@ -32,7 +32,16 @@
                 <div class="d-flex flex-column">
                   <strong class="text-body-2">{{ formatType(event.type) }}</strong>
                   <span class="text-caption text-secondary">{{ new Date(event.created_at).toLocaleTimeString() }}</span>
-                  <div v-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-2 rounded-lg">
+                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-2 cursor-pointer" @click="openPreview(event.metadata_json.screenshot)">
+                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="120" class="rounded-lg bg-grey-lighten-2 border" cover>
+                      <template v-slot:placeholder>
+                        <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
+                          <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                        </div>
+                      </template>
+                    </v-img>
+                  </div>
+                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-2 rounded-lg">
                     <pre style="margin:0; white-space: pre-wrap; font-family: monospace;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
                   </div>
                 </div>
@@ -93,6 +102,17 @@
     <div v-else class="d-flex justify-center align-center py-16">
       <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
     </div>
+
+    <!-- Image Preview Dialog -->
+    <v-dialog v-model="showPreviewDialog" max-width="800">
+      <v-card class="rounded-xl overflow-hidden bg-black">
+        <v-toolbar color="transparent" flat class="position-absolute w-100" style="z-index: 10;">
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" color="white" class="bg-black opacity-60 mr-2 mt-2" @click="showPreviewDialog = false"></v-btn>
+        </v-toolbar>
+        <v-img :src="previewImageUrl" class="w-100" contain></v-img>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -117,6 +137,14 @@ const events = ref<any[]>([]);
 const recordings = ref<any[]>([]);
 const currentChunkIndex = ref(0);
 const videoPlayer = ref<HTMLVideoElement | null>(null);
+
+const showPreviewDialog = ref(false);
+const previewImageUrl = ref('');
+
+const openPreview = (url: string) => {
+  previewImageUrl.value = backendUrl(url);
+  showPreviewDialog.value = true;
+};
 
 const backendUrl = (path: string) => {
   const config = useRuntimeConfig();
