@@ -10,6 +10,7 @@ export const useWebcamRecorder = () => {
   
   let chunkIndex = 0;
   let attemptIdRef = '';
+  let authHeadersRef: any = null;
 
   const requestCamera = async (): Promise<boolean> => {
     try {
@@ -26,10 +27,11 @@ export const useWebcamRecorder = () => {
     }
   };
 
-  const startRecording = (attemptId: string, recordFullVideo: boolean = false) => {
+  const startRecording = (attemptId: string, recordFullVideo: boolean = false, customHeaders?: any) => {
     if (!stream.value) return;
     
     attemptIdRef = attemptId;
+    authHeadersRef = customHeaders;
     chunkIndex = 0;
 
     if (!recordFullVideo) {
@@ -70,10 +72,9 @@ export const useWebcamRecorder = () => {
       chunkIndex++;
 
       try {
+        const requestHeaders = authHeadersRef ? { 'Content-Type': 'multipart/form-data', ...authHeadersRef } : { 'Content-Type': 'multipart/form-data' };
         await api.post('/proctoring/recording-chunk', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
+          headers: requestHeaders
         });
       } catch (err) {
         console.error('Failed to upload video chunk', err);

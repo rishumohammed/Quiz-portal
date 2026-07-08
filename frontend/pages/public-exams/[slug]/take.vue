@@ -608,7 +608,7 @@ function onVideoReady(videoEl: HTMLVideoElement) {
 function initAdvancedProctoring() {
   proctoring.initProctoring(attemptId.value, submitOnTimeout, proctoringConfig.value, () => recorder.captureScreenshot(attemptId.value, authHeaders()), authHeaders());
   if (!recorder.isRecording.value) {
-    recorder.startRecording(attemptId.value, proctoringConfig.value.record_full_video);
+    recorder.startRecording(attemptId.value, proctoringConfig.value.record_full_video, authHeaders());
   }
 }
 
