@@ -2,7 +2,7 @@
   <v-container fluid class="pa-6">
     <div class="d-flex align-center justify-space-between mb-8">
       <div class="d-flex align-center gap-4">
-        <v-btn icon="mdi-arrow-left" variant="text" @click="$router.back()"></v-btn>
+        <v-btn icon="mdi-arrow-left" variant="text" @click="router.back()"></v-btn>
         <div>
           <h1 class="text-h4 font-weight-bold mb-1">Proctoring Review</h1>
           <p class="text-subtitle-1 text-medium-emphasis mb-6">Attempt ID: {{ attemptId }}</p>
@@ -109,6 +109,7 @@ definePageMeta({
 });
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const attemptId = route.params.attemptId as string;
 
@@ -161,6 +162,7 @@ const playChunk = (index: number) => {
   currentChunkIndex.value = index;
   setTimeout(() => {
     if (videoPlayer.value) {
+      videoPlayer.value.load();
       videoPlayer.value.play();
     }
   }, 100);
