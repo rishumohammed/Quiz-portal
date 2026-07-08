@@ -549,8 +549,7 @@ router.post('/attempts/:id/save', async (req, res) => {
 
     await pool.query(
       'UPDATE public_exam_attempts SET answers_json = ? WHERE id = ?',
-      [JSON.stringify(answers || [])],
-      attemptId
+      [JSON.stringify(answers || []), attemptId]
     );
 
     res.json({ message: 'Answers saved successfully' });
