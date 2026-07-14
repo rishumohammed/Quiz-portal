@@ -559,11 +559,17 @@ router.post('/', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id, name, category_id, description || null, syllabus || null,
-      duration_minutes || 60, total_questions || 0, total_marks || 0,
-      passing_marks || 0, difficulty_level || 'Medium', status || 'draft', slug,
-      instructions || null, pass_percentage || 50, negative_marking || 0.00,
+      duration_minutes !== undefined && duration_minutes !== '' ? duration_minutes : 60,
+      total_questions !== undefined && total_questions !== '' ? total_questions : 0,
+      total_marks !== undefined && total_marks !== '' ? total_marks : 0,
+      passing_marks !== undefined && passing_marks !== '' ? passing_marks : 0,
+      difficulty_level || 'Medium', status || 'draft', slug,
+      instructions || null,
+      pass_percentage !== undefined && pass_percentage !== '' ? pass_percentage : 50,
+      negative_marking !== undefined && negative_marking !== '' ? negative_marking : 0.00,
       !!randomize_questions, !!randomize_options, show_correct_answers !== false, show_explanations !== false,
-      allow_retake !== false, max_retakes || 0, enable_certificate !== false, anonymous_access !== false,
+      allow_retake !== false, max_retakes !== undefined && max_retakes !== '' ? max_retakes : 0,
+      enable_certificate !== false, anonymous_access !== false,
       require_name !== false, !!require_email, !!require_mobile,
       !!enable_proctoring, max_proctoring_warnings !== undefined ? max_proctoring_warnings : 3, !!enforce_fullscreen,
       registration_start_date || null, registration_end_date || null, exam_start_date || null, exam_end_date || null, image_url || null
@@ -616,6 +622,9 @@ router.put('/:id', async (req, res) => {
       }
       if (['registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date'].includes(f)) {
         return formatMySQL(req.body[f]);
+      }
+      if (['duration_minutes', 'total_questions', 'total_marks', 'passing_marks', 'pass_percentage', 'negative_marking', 'max_retakes', 'max_proctoring_warnings'].includes(f)) {
+        return req.body[f] === '' ? 0 : req.body[f];
       }
       return req.body[f];
     });
