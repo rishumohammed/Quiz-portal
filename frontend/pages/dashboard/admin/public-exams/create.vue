@@ -213,28 +213,9 @@
                   <v-text-field v-if="fields.allow_retake" v-model.number="fields.max_retakes" label="Max Retakes (0 = unlimited)" type="number" density="compact" hide-details style="max-width: 200px;"></v-text-field>
                 </div>
               </v-col>
-              <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.enable_certificate" label="Enable PDF Certificate Download" color="primary" hide-details></v-checkbox>
-              </v-col>
             </v-row>
 
-            <v-divider class="my-6 opacity-10"></v-divider>
 
-            <h3 class="text-h6 font-weight-bold text-dark mb-4">Candidate Information Access</h3>
-            <v-row>
-              <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.anonymous_access" label="Allow Anonymous Mode (No details required)" color="primary" hide-details></v-checkbox>
-              </v-col>
-              <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.require_name" label="Require Candidate Name" color="primary" hide-details :disabled="fields.anonymous_access"></v-checkbox>
-              </v-col>
-              <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.require_email" label="Require Candidate Email" color="primary" hide-details :disabled="fields.anonymous_access"></v-checkbox>
-              </v-col>
-              <v-col cols="12" sm="6" class="py-1">
-                <v-checkbox v-model="fields.require_mobile" label="Require Candidate Phone" color="primary" hide-details :disabled="fields.anonymous_access"></v-checkbox>
-              </v-col>
-            </v-row>
           </v-card>
 
           <!-- 3. Proctoring & Integrity Settings -->
@@ -253,83 +234,7 @@
             </v-row>
           </v-card>
 
-          <!-- 3. Practice Certificate Customizer (Display conditionally) -->
-          <v-slide-y-transition>
-            <v-card class="pa-6 border rounded-xl mb-6" flat v-if="fields.enable_certificate">
-              <h3 class="text-h6 font-weight-bold text-dark mb-1">Certificate Styling</h3>
-              <p class="text-caption text-secondary mb-6">Customize the certificate generated when visitor clears this exam.</p>
 
-              <v-text-field
-                v-model="certFields.title"
-                label="Certificate Title"
-                placeholder="e.g. Practice Exam Completion Certificate"
-                class="mb-3"
-              ></v-text-field>
-
-              <v-row>
-                <!-- Logo File Uploader -->
-                <v-col cols="12" sm="6">
-                  <div class="text-caption font-weight-bold text-dark mb-2">Upload Logo Image</div>
-                  <v-file-input
-                    label="Choose Logo (PNG/JPG)"
-                    accept="image/*"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-image-outline"
-                    variant="outlined"
-                    density="comfortable"
-                    rounded="lg"
-                    @change="onLogoFileChange"
-                    class="mb-2"
-                  ></v-file-input>
-                  <!-- Preview -->
-                  <div v-if="certFields.logo_url" class="img-preview-box border rounded-lg pa-2 d-inline-block">
-                    <img :src="certFields.logo_url" alt="Logo Preview" style="max-height: 50px;" />
-                    <v-btn icon="mdi-close" variant="text" size="x-small" color="error" class="ml-2" @click="certFields.logo_url = ''"></v-btn>
-                  </div>
-                </v-col>
-
-                <!-- Signature File Uploader -->
-                <v-col cols="12" sm="6">
-                  <div class="text-caption font-weight-bold text-dark mb-2">Upload Signatory Signature</div>
-                  <v-file-input
-                    label="Choose Signature (PNG/JPG)"
-                    accept="image/*"
-                    prepend-icon=""
-                    prepend-inner-icon="mdi-draw"
-                    variant="outlined"
-                    density="comfortable"
-                    rounded="lg"
-                    @change="onSignatureFileChange"
-                    class="mb-2"
-                  ></v-file-input>
-                  <!-- Preview -->
-                  <div v-if="certFields.signature_url" class="img-preview-box border rounded-lg pa-2 d-inline-block">
-                    <img :src="certFields.signature_url" alt="Signature Preview" style="max-height: 50px;" />
-                    <v-btn icon="mdi-close" variant="text" size="x-small" color="error" class="ml-2" @click="certFields.signature_url = ''"></v-btn>
-                  </div>
-                </v-col>
-              </v-row>
-
-              <v-row class="mt-2">
-                <v-col cols="12" sm="6">
-                  <v-text-field
-                    v-model.number="certFields.passing_percentage"
-                    label="Signatory Passing Percentage"
-                    type="number"
-                    class="mb-3"
-                  ></v-text-field>
-                </v-col>
-                <v-col cols="12" sm="6">
-                  <v-text-field
-                    v-model="certFields.footer_text"
-                    label="Footer Signatory Text"
-                    placeholder="e.g. Authorized Practice Signatory"
-                    class="mb-3"
-                  ></v-text-field>
-                </v-col>
-              </v-row>
-            </v-card>
-          </v-slide-y-transition>
         </v-col>
 
         <!-- Right Column: Status & Publish Actions -->
