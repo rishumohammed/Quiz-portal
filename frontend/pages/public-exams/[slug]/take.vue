@@ -369,12 +369,19 @@
 
     <!-- Camera Enforcement Overlay -->
     <v-overlay v-model="requiresCamera" class="align-center justify-center" persistent>
-      <v-card class="pa-8 text-center rounded-xl border" max-width="400" flat>
-        <v-icon size="64" color="primary" class="mb-4">mdi-camera</v-icon>
-        <h3 class="text-h5 font-weight-bold mb-2">Camera Required</h3>
-        <p class="text-body-2 text-secondary mb-6">This exam is proctored. Please enable your camera to continue.</p>
-        <v-btn color="primary" rounded="lg" size="large" :loading="faceDetection.isModelLoading.value" @click="setupCamera">Enable Camera</v-btn>
-        <p v-if="recorder.cameraError.value" class="text-error text-caption mt-2">{{ recorder.cameraError.value }}</p>
+      <v-card class="pa-8 text-center rounded-xl border" max-width="400" min-width="320" flat>
+        <template v-if="isInitializingProctoring">
+          <v-progress-circular indeterminate color="primary" size="72" width="6" class="mb-6"></v-progress-circular>
+          <h3 class="text-h5 font-weight-bold mb-2">Initializing Security</h3>
+          <p class="text-body-2 text-secondary mb-0">Downloading AI proctoring models.<br>Please wait a moment...</p>
+        </template>
+        <template v-else>
+          <v-icon size="64" color="primary" class="mb-4">mdi-camera</v-icon>
+          <h3 class="text-h5 font-weight-bold mb-2">Camera Required</h3>
+          <p class="text-body-2 text-secondary mb-6">This exam is proctored. Please enable your camera to continue.</p>
+          <v-btn color="primary" rounded="lg" size="large" :loading="isRequestingCamera" @click="setupCamera">Enable Camera</v-btn>
+          <p v-if="recorder.cameraError.value" class="text-error text-caption mt-2">{{ recorder.cameraError.value }}</p>
+        </template>
       </v-card>
     </v-overlay>
   </v-app>
@@ -448,6 +455,9 @@ const isFullScreen = ref(false);
 const exitDialog = ref(false);
 const confirmSubmitDialog = ref(false);
 const submittingExam = ref(false);
+
+const isInitializingProctoring = ref(false);
+const isRequestingCamera = ref(false);
 
 const violationWarning = proctoring.violationWarning;
 
@@ -574,13 +584,21 @@ const proctoringConfig = computed(() => {
 });
 
 async function setupCamera() {
+  isRequestingCamera.value = true;
   const granted = await recorder.requestCamera();
+  isRequestingCamera.value = false;
+  
   if (granted) {
-    await faceDetection.loadModel();
-    await objectDetection.loadModel();
-    if (!faceDetection.faceDetectionError.value && !objectDetection.objectDetectionError.value) {
-      cameraReady.value = true;
-      initAdvancedProctoring();
+    isInitializingProctoring.value = true;
+    try {
+      await faceDetection.loadModel();
+      await objectDetection.loadModel();
+      if (!faceDetection.faceDetectionError.value && !objectDetection.objectDetectionError.value) {
+        cameraReady.value = true;
+        initAdvancedProctoring();
+      }
+    } finally {
+      isInitializingProctoring.value = false;
     }
   }
 }
