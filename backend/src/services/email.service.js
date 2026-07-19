@@ -3,12 +3,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ConfigService } from './config.service.js';
+import axios from 'axios';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class EmailService {
   constructor() {
     this.ready = false;
+    this.useGmailApi = false;
+    this.sendMail = this.sendEmail.bind(this);
     this.init();
   }
 
@@ -23,39 +26,92 @@ class EmailService {
         console.warn('Could not fetch config from DB, falling back to ENV');
       }
 
-      const smtpUser = configMap.smtp_user || process.env.SMTP_USER;
-      const smtpHost = configMap.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
-      const smtpPort = configMap.smtp_port || process.env.SMTP_PORT || 465;
+      this.smtpUser = configMap.smtp_user || process.env.SMTP_USER;
+      this.smtpHost = configMap.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
+      this.smtpPort = configMap.smtp_port || process.env.SMTP_PORT || 465;
       
-      const clientId = configMap.smtp_client_id || process.env.SMTP_CLIENT_ID;
-      const clientSecret = configMap.smtp_client_secret || process.env.SMTP_CLIENT_SECRET;
-      const refreshToken = configMap.smtp_refresh_token || process.env.SMTP_REFRESH_TOKEN;
+      this.clientId = configMap.smtp_client_id || process.env.SMTP_CLIENT_ID;
+      this.clientSecret = configMap.smtp_client_secret || process.env.SMTP_CLIENT_SECRET;
+      this.refreshToken = configMap.smtp_refresh_token || process.env.SMTP_REFRESH_TOKEN;
+      this.smtpPass = configMap.smtp_pass || process.env.SMTP_PASS;
       
       this.smtpFromEmail = configMap.smtp_from_email || process.env.SMTP_FROM || 'noreply@kefta.in';
       this.smtpFromName = configMap.smtp_from_name || 'Kefta Talent Hunt';
 
-      if (smtpUser && clientId && clientSecret && refreshToken) {
+      if (this.smtpUser && this.clientId && this.clientSecret && this.refreshToken) {
+        this.useGmailApi = true;
+        this.ready = true;
+      } else if (this.smtpUser && this.smtpPass) {
         this.transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: parseInt(smtpPort, 10),
-          secure: parseInt(smtpPort, 10) === 465, // true for 465, false for other ports
+          host: this.smtpHost,
+          port: parseInt(this.smtpPort, 10),
+          secure: parseInt(this.smtpPort, 10) === 465, // true for 465, false for other ports
           auth: {
-            type: 'OAuth2',
-            user: smtpUser,
-            clientId: clientId,
-            clientSecret: clientSecret,
-            refreshToken: refreshToken
+            user: this.smtpUser,
+            pass: this.smtpPass
           }
         });
+        this.useGmailApi = false;
         this.ready = true;
       } else {
         // Fallback to ethereal if no config provided
         this.ready = false;
+        this.useGmailApi = false;
         console.warn('No SMTP credentials found in DB or ENV. Emails will be logged to console.');
       }
     } catch (err) {
       console.error('EmailService init error:', err);
       this.ready = false;
+      this.useGmailApi = false;
+    }
+  }
+
+  async sendEmailViaGmailApi({ to, subject, html }) {
+    try {
+      // 1. Refresh Access Token
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        refresh_token: this.refreshToken,
+        grant_type: 'refresh_token'
+      });
+      const accessToken = tokenResponse.data.access_token;
+
+      // 2. Construct raw RFC 2822 message
+      const rawMessage = [
+        `From: "${this.smtpFromName}" <${this.smtpFromEmail}>`,
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        html
+      ].join('\r\n');
+
+      // 3. Base64url encode the message
+      const base64SafeString = Buffer.from(rawMessage, 'utf-8')
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      // 4. Send via Gmail REST API
+      const response = await axios.post(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+        { raw: base64SafeString },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('Email sent via Gmail API:', response.data.id);
+      return { messageId: response.data.id };
+    } catch (error) {
+      console.error('Gmail REST API send error:', error.response?.data || error.message);
+      throw error;
     }
   }
 
@@ -72,17 +128,21 @@ class EmailService {
     }
 
     try {
-      const info = await this.transporter.sendMail({
-        from: `"${this.smtpFromName}" <${this.smtpFromEmail}>`,
-        to,
-        subject,
-        html
-      });
-      console.log('Email sent: %s', info.messageId);
-      if (info.host === 'smtp.ethereal.email') {
-        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+      if (this.useGmailApi) {
+        return await this.sendEmailViaGmailApi({ to, subject, html });
+      } else {
+        const info = await this.transporter.sendMail({
+          from: `"${this.smtpFromName}" <${this.smtpFromEmail}>`,
+          to,
+          subject,
+          html
+        });
+        console.log('Email sent: %s', info.messageId);
+        if (info.host === 'smtp.ethereal.email') {
+          console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+        }
+        return info;
       }
-      return info;
     } catch (error) {
       console.error('Error sending email:', error);
       throw error;
