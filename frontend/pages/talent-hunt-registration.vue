@@ -97,11 +97,7 @@
                 </v-row>
               </v-expand-transition>
 
-              <v-row class="mt-2">
-                <v-col cols="12" md="6">
-                  <v-select v-model="formData.competitiveLevel" :items="['CUET', 'NET', 'NEET', 'JEE', 'OTHERS']" label="Academic Competitive Level *" variant="outlined" rounded="lg" prepend-inner-icon="mdi-podium" :rules="[rules.required]"></v-select>
-                </v-col>
-              </v-row>
+
 
               <v-divider class="my-6 opacity-20"></v-divider>
 

@@ -150,10 +150,7 @@
                 <div class="text-caption text-secondary">Current Role / Designation</div>
                 <div class="font-weight-bold text-dark">{{ metadata.currentRole }}</div>
               </v-col>
-              <v-col cols="12" sm="6" v-if="metadata.competitiveLevel">
-                <div class="text-caption text-secondary">Competitive Level</div>
-                <div class="font-weight-bold text-dark">{{ metadata.competitiveLevel }}</div>
-              </v-col>
+
             </v-row>
           </v-card>
         </v-col>

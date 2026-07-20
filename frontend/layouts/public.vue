@@ -60,12 +60,7 @@
                 <span class="text-h6 font-weight-bold text-dark">{{ instituteName }}</span>
               </template>
             </NuxtLink>
-            <p class="text-body-1 font-weight-bold text-dark mb-2 pr-md-10">
-              Education, Skills, Certification & Careers — All in One Platform.
-            </p>
-            <p class="text-body-2 text-secondary mb-6 pr-md-10">
-              Learn. Certify. Get Placed. Join our learning community to shape your future with {{ instituteName }}.
-            </p>
+
             <div class="d-flex gap-3">
               <v-btn icon variant="tonal" density="comfortable" color="primary" class="social-btn"><v-icon size="18">mdi-facebook</v-icon></v-btn>
               <v-btn icon variant="tonal" density="comfortable" color="primary" class="social-btn"><v-icon size="18">mdi-twitter</v-icon></v-btn>
@@ -109,10 +104,7 @@
           <div class="text-caption text-secondary">
             &copy; {{ new Date().getFullYear() }} {{ instituteName }}. All rights reserved.
           </div>
-          <div class="d-flex align-center gap-2 text-secondary opacity-60">
-            <v-icon size="16">mdi-shield-check</v-icon>
-            <span class="text-caption font-weight-medium">ISO 9001:2015 Certified</span>
-          </div>
+
         </div>
       </v-container>
     </v-footer>
