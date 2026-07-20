@@ -77,20 +77,7 @@
         class="mb-4"
       ></v-combobox>
       
-      <v-divider class="my-6"></v-divider>
-      
-      <h3 class="text-subtitle-1 font-weight-bold mb-4">Academic Competitive Levels</h3>
-      <v-combobox
-        v-model="form.talent_hunt_competitive"
-        label="Competitive Exams"
-        chips
-        multiple
-        clearable
-        variant="outlined"
-        hint="Type a competitive exam and press Enter to add it."
-        persistent-hint
-        class="mb-4"
-      ></v-combobox>
+
     </v-card>
   </div>
 </template>

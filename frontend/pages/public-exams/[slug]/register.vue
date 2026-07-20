@@ -180,7 +180,8 @@
           <v-divider class="my-6 opacity-20"></v-divider>
 
           <!-- Account Creation -->
-          <h3 class="text-h6 font-weight-bold mb-4 text-grey-darken-3">Account Creation</h3>
+          <h3 class="text-h6 font-weight-bold mb-1 text-grey-darken-3">Account Creation</h3>
+          <p class="text-body-2 font-weight-bold mb-4">Please remember your password, as it will be required to log in to the exam.</p>
           <v-row>
             <v-col cols="12" md="6">
               <v-text-field v-model="form.password" label="Create Password *" :type="showPassword ? 'text' : 'password'" variant="outlined" rounded="lg" density="comfortable" prepend-inner-icon="mdi-lock-outline" :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="showPassword = !showPassword" :rules="[v => !!v || 'Password is required', v => v.length >= 6 || 'Min 6 characters']" autocomplete="new-password"></v-text-field>
