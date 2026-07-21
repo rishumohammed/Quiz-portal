@@ -61,6 +61,10 @@
               </template>
             </NuxtLink>
 
+            <div class="text-subtitle-2 text-secondary mb-4 font-weight-medium">
+              Kerala Food Technologists Association
+            </div>
+
             <div class="d-flex gap-3">
               <v-btn icon variant="tonal" density="comfortable" color="primary" class="social-btn"><v-icon size="18">mdi-facebook</v-icon></v-btn>
               <v-btn icon variant="tonal" density="comfortable" color="primary" class="social-btn"><v-icon size="18">mdi-twitter</v-icon></v-btn>
