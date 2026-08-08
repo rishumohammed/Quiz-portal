@@ -83,8 +83,8 @@
       <!-- ── REGISTRATION FORM ── -->
       <v-card v-else class="pa-8 border rounded-xl mb-6 shadow-soft" flat>
         <div class="text-center mb-8">
-          <h1 class="text-h4 font-weight-black text-primary mb-2">Talent Hunt Registration</h1>
-          <p class="text-body-1 text-secondary">Register to take the <strong>{{ exam.name }}</strong></p>
+          <h1 class="text-h4 font-weight-black text-primary mb-2">{{ exam.name }}</h1>
+          <p class="text-body-1 text-secondary">Candidate Registration</p>
         </div>
 
         <v-form @submit.prevent="openOtpModal" v-model="isFormValid" autocomplete="off">
@@ -287,7 +287,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 
@@ -436,7 +436,9 @@ onMounted(() => {
   loadTermsPrivacy();
 });
 
-useSeoMeta({ title: 'Talent Hunt Registration' });
+useSeoMeta({
+  title: computed(() => exam.value?.name ? `${exam.value.name} - Registration` : 'Exam Registration')
+});
 </script>
 
 <style scoped>

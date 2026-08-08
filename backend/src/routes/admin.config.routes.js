@@ -64,23 +64,23 @@ router.post('/test-email', authenticateJWT, authorizeRoles('super_admin'), async
       const { email } = req.body || {};
       const targetEmail = email || req.user.email;
       
-      await EmailService.sendEmail({
+      const result = await EmailService.sendEmail({
         to: targetEmail,
-        subject: 'Kefta Talent Hunt - SMTP Test Successful',
+        subject: 'Kefta Talent Hunt - Resend API Test Successful',
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px;">
-            <h2 style="color: #4f46e5;">✅ SMTP Configuration Successful!</h2>
-            <p>If you are reading this email, it means your SMTP configuration in the Kefta Talent Hunt admin panel is working perfectly.</p>
-            <p>You can now send system notifications, password resets, and exam results to candidates.</p>
+            <h2 style="color: #4f46e5;">✅ Resend REST API Test Successful!</h2>
+            <p>If you are reading this email, your Resend REST API configuration in the Kefta Talent Hunt admin panel is active and working properly.</p>
+            <p>Your application can now send OTP verifications, registration credentials, exam reminders, and bulk notifications reliably via HTTPS without SMTP port restrictions.</p>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 12px; color: #999;">Sent dynamically from Kefta Talent Hunt</p>
+            <p style="font-size: 12px; color: #999;">Sent dynamically via Resend REST API from Kefta Talent Hunt</p>
           </div>
         `
       });
-      res.json({ message: `Test email successfully sent to ${targetEmail}` });
+      res.json({ message: `Test email successfully dispatched to ${targetEmail}`, result });
     } catch (error) {
       console.error('Test email failed:', error);
-      res.status(500).json({ message: 'Failed to send test email. Check your SMTP credentials and console logs.', error: error.message });
+      res.status(500).json({ message: error.message || 'Failed to send test email. Check your Resend API Key and verified domain.', error: error.message });
     }
 });
 

@@ -110,26 +110,65 @@
 
           <!-- Email Tab -->
           <div v-if="activeTab[0] === 'email'" class="fade-in">
-            <h2 class="text-h6 font-weight-bold mb-6">Email Settings (Google Workspace OAuth2)</h2>
-            <div class="fr2 mb-4" style="grid-template-columns: 2fr 1fr;">
-              <AppInput v-model="form.smtp_host" label="SMTP Host" placeholder="smtp.gmail.com" large />
-              <AppInput v-model="form.smtp_port" label="Port" placeholder="465" large />
-            </div>
+            <h2 class="text-h6 font-weight-bold mb-2">Email Settings (Resend REST API)</h2>
+            <p class="text-caption text-secondary mb-6">
+              Configure your Resend API credentials. Emails are dispatched via HTTPS REST API (Port 443), ensuring reliable delivery without SMTP port blocking.
+            </p>
+
+            <v-alert type="info" variant="tonal" class="mb-6 rounded-xl text-body-2" density="comfortable">
+              <div class="d-flex align-center gap-2 mb-1">
+                <strong>Resend Configuration Guide</strong>
+              </div>
+              <div>
+                • Get your API Key from your <a href="https://resend.com/api-keys" target="_blank" class="text-primary font-weight-bold" style="text-decoration: underline;">Resend Dashboard</a>.
+              </div>
+              <div class="mt-1">
+                • For testing, you can use <code>onboarding@resend.dev</code> as the From Email. For production, add and verify your custom domain in Resend.
+              </div>
+            </v-alert>
+
             <div class="mb-4">
-              <AppInput v-model="form.smtp_user" label="Google Workspace Email" placeholder="user@example.com" large />
+              <AppInput
+                v-model="form.resend_api_key"
+                label="Resend API Key"
+                type="password"
+                placeholder="re_123456789..."
+                hint="Your Resend secret API key (starts with re_)"
+                persistent-hint
+                large
+              />
             </div>
-            <div class="fr2 mb-4">
-              <AppInput v-model="form.smtp_client_id" label="OAuth Client ID" placeholder="client_id.apps.googleusercontent.com" large />
-              <AppInput v-model="form.smtp_client_secret" label="OAuth Client Secret" type="password" placeholder="••••••••" large />
-            </div>
-            <div class="mb-6">
-              <AppInput v-model="form.smtp_refresh_token" label="OAuth Refresh Token" type="password" placeholder="1//0..." large />
-            </div>
+
             <div class="fr2 mb-6">
-              <AppInput v-model="form.smtp_from_name" label="From Name" placeholder="AEMS Team" large />
-              <AppInput v-model="form.smtp_from_email" label="From Email" placeholder="noreply@aems.local" large />
+              <AppInput
+                v-model="form.smtp_from_name"
+                label="From Name"
+                placeholder="Kefta Talent Hunt"
+                hint="Sender display name shown in email inboxes"
+                persistent-hint
+                large
+              />
+              <AppInput
+                v-model="form.smtp_from_email"
+                label="From Email Address"
+                placeholder="noreply@kefta.in"
+                hint="Must be verified on Resend (or onboarding@resend.dev for test)"
+                persistent-hint
+                large
+              />
             </div>
-            <AppButton variant="g" icon="mdi-send-outline" @click="testEmail">Send Test Email</AppButton>
+
+            <v-divider class="my-6" />
+
+            <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+              <div>
+                <div class="text-subtitle-2 font-weight-bold">Test Email Delivery</div>
+                <div class="text-caption text-secondary">Send a test notification to verify your Resend credentials.</div>
+              </div>
+              <AppButton variant="g" icon="mdi-send-outline" :loading="testingEmail" @click="testEmail">
+                Send Test Email
+              </AppButton>
+            </div>
           </div>
 
           <!-- Contact Info Tab -->
@@ -379,6 +418,7 @@ const baseUrl = computed(() => config.public.apiBase.replace('/api', ''));
 
 const activeTab = ref(['branding']);
 const saving = ref(false);
+const testingEmail = ref(false);
 const regenerating = ref(false);
 const form = ref<any>({});
 provide('configForm', form); // Provide the form so child tabs can mutate it directly
@@ -397,7 +437,7 @@ const tabs = [
   { label: 'Branding', value: 'branding', icon: 'mdi-palette-outline' },
   { label: 'Homepage', value: 'homepage', icon: 'mdi-home-outline' },
   { label: 'Contact Info', value: 'contact', icon: 'mdi-map-marker-outline' },
-  { label: 'Email (SMTP)', value: 'email', icon: 'mdi-email-outline' },
+  { label: 'Email (Resend)', value: 'email', icon: 'mdi-email-fast-outline' },
   { label: 'Email Templates', value: 'email_templates', icon: 'mdi-email-edit-outline' },
   { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' },
   { label: 'Talent Hunt', value: 'talent_hunt', icon: 'mdi-account-star-outline' }
@@ -533,14 +573,17 @@ const save = async () => {
 
 const testEmail = async () => {
   try {
-    await api.post('/admin/config/test-email');
-    snackbarMessage.value = 'Test email sent successfully';
+    testingEmail.value = true;
+    const { data } = await api.post('/admin/config/test-email');
+    snackbarMessage.value = data?.message || 'Test email dispatched successfully via Resend!';
     snackbarColor.value = 'success';
     snackbar.value = true;
-  } catch (err) {
-    snackbarMessage.value = 'Failed to send test email';
+  } catch (err: any) {
+    snackbarMessage.value = err.response?.data?.message || 'Failed to send test email. Please check your Resend API Key and verified domain.';
     snackbarColor.value = 'error';
     snackbar.value = true;
+  } finally {
+    testingEmail.value = false;
   }
 };
 

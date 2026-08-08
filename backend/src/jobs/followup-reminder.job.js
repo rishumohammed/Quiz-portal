@@ -1,18 +1,6 @@
 import cron from 'node-cron';
-import nodemailer from 'nodemailer';
 import { pool } from '../db/connection.js';
-import dotenv from 'dotenv';
-
-dotenv.config({ path: '../../.env' });
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
+import emailService from '../services/email.service.js';
 
 export const initFollowupJob = () => {
   // Schedule to run every day at 8:00 AM
@@ -38,22 +26,34 @@ export const initFollowupJob = () => {
         `, [agent.id]);
 
         if (followups.length > 0) {
-          const followupList = followups.map(f => `
-            - ${f.lead_name} (${f.lead_phone}) at ${new Date(f.scheduled_at).toLocaleTimeString()}: ${f.note || 'No note'}
-          `).join('\n');
+          const followupItems = followups.map(f => `
+            <li style="margin-bottom: 8px;">
+              <strong>${f.lead_name}</strong> (${f.lead_phone}) at ${new Date(f.scheduled_at).toLocaleTimeString()}: 
+              <em>${f.note || 'No note'}</em>
+            </li>
+          `).join('');
 
-          const mailOptions = {
-            from: process.env.SMTP_FROM,
-            to: agent.email,
-            subject: `AEMS: Your Follow-up Reminders for Today`,
-            text: `Hello ${agent.name},\n\nYou have ${followups.length} follow-ups scheduled for today:\n\n${followupList}\n\nGood luck!\n- AEMS CRM System`
-          };
+          const html = `
+            <div style="font-family: sans-serif; padding: 20px; color: #333;">
+              <h2>Follow-up Reminders for Today</h2>
+              <p>Hello <strong>${agent.name}</strong>,</p>
+              <p>You have <strong>${followups.length}</strong> follow-ups scheduled for today:</p>
+              <ul>
+                ${followupItems}
+              </ul>
+              <p style="margin-top: 20px;">Good luck!<br>Kefta Talent Hunt CRM System</p>
+            </div>
+          `;
 
           try {
-            await transporter.sendMail(mailOptions);
+            await emailService.sendEmail({
+              to: agent.email,
+              subject: 'Kefta: Your Follow-up Reminders for Today',
+              html
+            });
             console.log(`Sent reminder email to ${agent.email}`);
           } catch (mailError) {
-            console.error(`Failed to send email to ${agent.email}:`, mailError);
+            console.error(`Failed to send email to ${agent.email}:`, mailError.message);
           }
         }
       }
