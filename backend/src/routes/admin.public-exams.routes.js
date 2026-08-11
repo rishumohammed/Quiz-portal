@@ -8,6 +8,7 @@ import { authenticateJWT, authorizeRoles, requirePermission } from '../middlewar
 import EmailService from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
 import { gradeQuestion } from '../services/exam-grading.service.js';
+import { CertificateService } from '../services/certificate.service.js';
 
 const router = express.Router();
 
@@ -1295,6 +1296,122 @@ router.delete('/:id/email-logs/:logId', async (req, res) => {
     res.json({ message: 'Email log deleted successfully' });
   } catch (error) {
     console.error('Delete email log error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ─── ISSUED CERTIFICATES MANAGEMENT ──────────────────────────────────────────
+
+// GET /api/admin/public-exams/:id/issued-certificates
+router.get('/:id/issued-certificates', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const [certificates] = await pool.query(
+      'SELECT c.*, e.name as exam_name FROM public_exam_issued_certificates c JOIN public_exams e ON c.exam_id = e.id WHERE c.exam_id = ? ORDER BY c.created_at DESC',
+      [examId]
+    );
+    res.json(certificates);
+  } catch (error) {
+    console.error('Fetch issued certificates error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/issued-certificates/:certId/resend
+router.post('/issued-certificates/:certId/resend', async (req, res) => {
+  try {
+    const [certs] = await pool.query(
+      'SELECT c.*, e.name as exam_name FROM public_exam_issued_certificates c JOIN public_exams e ON c.exam_id = e.id WHERE c.id = ?',
+      [req.params.certId]
+    );
+    if (certs.length === 0) return res.status(404).json({ message: 'Certificate not found' });
+    
+    const cert = certs[0];
+    
+    // Read the PDF from disk
+    const pdfPath = path.join(__dirname, '../../', cert.pdf_url);
+    if (!fs.existsSync(pdfPath)) {
+      return res.status(404).json({ message: 'PDF file not found on disk' });
+    }
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    
+    // Resend email
+    await EmailService.sendExamCertificateEmail(
+      { name: cert.candidate_name, email: cert.candidate_email },
+      { name: cert.exam_name },
+      pdfBuffer
+    );
+    
+    res.json({ message: 'Certificate email resent successfully' });
+  } catch (error) {
+    console.error('Resend certificate error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// PUT /api/admin/public-exams/issued-certificates/:certId
+router.put('/issued-certificates/:certId', async (req, res) => {
+  try {
+    const { candidate_name } = req.body;
+    if (!candidate_name) return res.status(400).json({ message: 'Candidate name is required' });
+
+    const [certs] = await pool.query(
+      'SELECT c.*, e.name as exam_name FROM public_exam_issued_certificates c JOIN public_exams e ON c.exam_id = e.id WHERE c.id = ?',
+      [req.params.certId]
+    );
+    if (certs.length === 0) return res.status(404).json({ message: 'Certificate not found' });
+    
+    const cert = certs[0];
+
+    // Resolve logo
+    let logoAbsPath = null;
+    try {
+      const [[logoRow]] = await pool.query("SELECT `value` FROM system_config WHERE `key` = 'certificate_logo'");
+      if (logoRow && logoRow.value) {
+        const absPath = path.join(__dirname, '../../', logoRow.value.startsWith('/') ? logoRow.value : '/' + logoRow.value);
+        if (fs.existsSync(absPath)) logoAbsPath = absPath;
+      }
+    } catch (_) {}
+    
+    // Generate new PDF
+    const { pdfUrl } = await CertificateService.generateParticipationCertificate(candidate_name, cert.exam_name, cert.created_at, logoAbsPath);
+    
+    // Delete old PDF
+    const oldPdfPath = path.join(__dirname, '../../', cert.pdf_url);
+    if (fs.existsSync(oldPdfPath)) {
+      fs.unlinkSync(oldPdfPath);
+    }
+    
+    // Update DB
+    await pool.query(
+      'UPDATE public_exam_issued_certificates SET candidate_name = ?, pdf_url = ? WHERE id = ?',
+      [candidate_name, pdfUrl, cert.id]
+    );
+    
+    res.json({ message: 'Certificate updated successfully' });
+  } catch (error) {
+    console.error('Edit certificate error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/public-exams/issued-certificates/:certId
+router.delete('/issued-certificates/:certId', async (req, res) => {
+  try {
+    const [certs] = await pool.query('SELECT * FROM public_exam_issued_certificates WHERE id = ?', [req.params.certId]);
+    if (certs.length === 0) return res.status(404).json({ message: 'Certificate not found' });
+    
+    const cert = certs[0];
+    const pdfPath = path.join(__dirname, '../../', cert.pdf_url);
+    
+    if (fs.existsSync(pdfPath)) {
+      fs.unlinkSync(pdfPath);
+    }
+    
+    await pool.query('DELETE FROM public_exam_issued_certificates WHERE id = ?', [cert.id]);
+    res.json({ message: 'Certificate deleted successfully' });
+  } catch (error) {
+    console.error('Delete certificate error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

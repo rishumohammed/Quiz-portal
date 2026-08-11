@@ -90,7 +90,8 @@ router.post('/branding/upload', authenticateJWT, authorizeRoles('super_admin'), 
   { name: 'favicon', maxCount: 1 },
   { name: 'hero_image', maxCount: 1 },
   { name: 'about_image', maxCount: 1 },
-  { name: 'aboutpage_who_image', maxCount: 1 }
+  { name: 'aboutpage_who_image', maxCount: 1 },
+  { name: 'certificate_logo', maxCount: 1 }
 ]), async (req, res) => {
   try {
     const updates = {};
@@ -108,6 +109,9 @@ router.post('/branding/upload', authenticateJWT, authorizeRoles('super_admin'), 
     }
     if (req.files['aboutpage_who_image']) {
       updates.aboutpage_who_image = `/uploads/branding/${req.files['aboutpage_who_image'][0].filename}`;
+    }
+    if (req.files['certificate_logo']) {
+      updates.certificate_logo = `/uploads/branding/${req.files['certificate_logo'][0].filename}`;
     }
     
     if (Object.keys(updates).length > 0) {

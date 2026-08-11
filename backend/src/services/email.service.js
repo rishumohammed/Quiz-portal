@@ -42,7 +42,7 @@ class EmailService {
     }
   }
 
-  async sendEmailViaResend({ to, subject, html }) {
+  async sendEmailViaResend({ to, subject, html, attachments }) {
     try {
       const recipientList = Array.isArray(to) ? to : [to];
       const fromField = this.fromName ? `"${this.fromName}" <${this.fromEmail}>` : this.fromEmail;
@@ -53,7 +53,8 @@ class EmailService {
           from: fromField,
           to: recipientList,
           subject: subject,
-          html: html
+          html: html,
+          ...(attachments && { attachments })
         },
         {
           headers: {
@@ -73,7 +74,7 @@ class EmailService {
     }
   }
 
-  async sendEmail({ to, subject, html }) {
+  async sendEmail({ to, subject, html, attachments }) {
     await this.init(); // Refresh config dynamically before sending
 
     if (!this.ready) {
@@ -87,7 +88,7 @@ class EmailService {
     }
 
     try {
-      return await this.sendEmailViaResend({ to, subject, html });
+      return await this.sendEmailViaResend({ to, subject, html, attachments });
     } catch (error) {
       console.error('Error sending email via Resend:', error.message);
       throw error;
@@ -217,6 +218,36 @@ class EmailService {
       });
     } catch (error) {
       console.error('Failed to send placement email:', error);
+    }
+  }
+
+  async sendExamCertificateEmail(candidate, exam, pdfBuffer) {
+    try {
+      const html = `
+        <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 12px;">
+          <h2 style="color: #4f46e5;">Congratulations! 🎉</h2>
+          <p>Dear ${candidate.name},</p>
+          <p>Thank you for participating in <strong>${exam.name}</strong>.</p>
+          <p>We have attached your Certificate of Participation to this email.</p>
+          <p style="font-size: 14px; color: #666;">If you have any questions, feel free to contact us.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 12px; color: #999;">Kefta Talent Hunt Team</p>
+        </div>
+      `;
+
+      await this.sendEmail({
+        to: candidate.email,
+        subject: `Your Certificate for ${exam.name}`,
+        html,
+        attachments: [
+          {
+            filename: `Certificate_${exam.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+            content: pdfBuffer.toString('base64'),
+          }
+        ]
+      });
+    } catch (error) {
+      console.error('Failed to send exam certificate email:', error);
     }
   }
 }

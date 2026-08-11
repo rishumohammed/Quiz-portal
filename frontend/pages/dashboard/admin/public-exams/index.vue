@@ -157,16 +157,18 @@
                 <v-btn icon="mdi-link-variant" variant="tonal" size="small" color="teal" :to="`/public-exams/${item.slug}/register`" target="_blank" title="Registration Form" />
                 <!-- Candidates -->
                 <v-btn icon="mdi-account-group-outline" variant="tonal" size="small" color="purple" :to="`/dashboard/admin/public-exams/${item.id}/candidates`" title="Candidates" />
+                <!-- Certificates -->
+                <v-btn icon="mdi-certificate-outline" variant="tonal" size="small" color="deep-purple" :to="`/dashboard/admin/public-exams/${item.id}/certificates`" title="Generated Certificates" />
                 <!-- Analytics -->
                 <v-btn icon="mdi-chart-bar" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${item.id}/analytics`" title="Results & Analytics" />
                 <!-- Share / Copy Link Modal -->
                 <v-btn icon="mdi-share-variant" variant="tonal" size="small" color="info" @click="openShareDialog(item)" title="Share Exam Link" />
-                <!-- Edit -->
-                <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="indigo" :to="`/dashboard/admin/public-exams/create?id=${item.id}`" title="Edit Exam Settings" />
               </div>
               
               <!-- Second Row of Actions -->
               <div class="d-flex gap-1">
+                <!-- Edit -->
+                <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="indigo" :to="`/dashboard/admin/public-exams/create?id=${item.id}`" title="Edit Exam Settings" />
                 <!-- Duplicate -->
                 <v-btn icon="mdi-content-copy" variant="tonal" size="small" color="warning" @click="duplicateExam(item.id)" title="Duplicate Exam" />
                 

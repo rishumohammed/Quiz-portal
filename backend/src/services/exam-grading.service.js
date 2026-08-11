@@ -1,5 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 import { pool } from '../db/connection.js';
+import { CertificateService } from './certificate.service.js';
+import EmailService from './email.service.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fsSync from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Helper to grade correct answers
 export function gradeQuestion(type, correct, submitted) {
@@ -47,9 +55,11 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     await connection.beginTransaction();
 
     const [attempts] = await connection.query(`
-      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage
+      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage, e.name as exam_name,
+             c.name as candidate_name, c.email as candidate_email
       FROM public_exam_attempts a
       JOIN public_exams e ON a.exam_id = e.id
+      LEFT JOIN public_exam_candidates c ON a.candidate_id = c.id
       WHERE a.id = ?
     `, [attemptId]);
 
@@ -145,6 +155,52 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     ]);
 
     await connection.commit();
+
+    // Trigger participation certificate asynchronously
+    const finalCandidateName = attempt.candidate_name || attempt.guest_name;
+    const finalCandidateEmail = attempt.candidate_email || attempt.guest_email;
+    const finalExamName = attempt.exam_name;
+
+    if (finalCandidateEmail) {
+      // Fetch the certificate logo path from config
+      let logoAbsPath = null;
+      try {
+        const [[logoRow]] = await pool.query(
+          "SELECT `value` FROM system_config WHERE `key` = 'certificate_logo'"
+        );
+        if (logoRow && logoRow.value) {
+          const relPath = logoRow.value.startsWith('/') ? logoRow.value : '/' + logoRow.value;
+          const absPath = path.join(__dirname, '../../', relPath);
+          if (fsSync.existsSync(absPath)) logoAbsPath = absPath;
+        }
+      } catch (_) { /* ignore – logo is optional */ }
+
+      CertificateService.generateParticipationCertificate(finalCandidateName, finalExamName, new Date(), logoAbsPath)
+        .then(async ({ buffer, pdfUrl }) => {
+          try {
+            // Save to DB
+            const certId = uuidv4();
+            await pool.query(`
+              INSERT INTO public_exam_issued_certificates 
+                (id, exam_id, attempt_id, candidate_name, candidate_email, pdf_url) 
+              VALUES (?, ?, ?, ?, ?, ?)
+            `, [certId, attempt.exam_id, attemptId, finalCandidateName, finalCandidateEmail, pdfUrl]);
+
+            // Send email
+            await EmailService.sendExamCertificateEmail(
+              { name: finalCandidateName, email: finalCandidateEmail },
+              { name: finalExamName },
+              buffer
+            );
+          } catch (err) {
+            console.error('Failed to save certificate record or send email:', err);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to generate certificate:', err);
+        });
+    }
+
     return {
       result_id: resultId,
       score: calculatedScore,
