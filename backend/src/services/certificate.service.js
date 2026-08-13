@@ -4,6 +4,7 @@ import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import { pool } from '../db/connection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,23 +15,77 @@ if (!fsSync.existsSync(certsDir)) {
   fsSync.mkdirSync(certsDir, { recursive: true });
 }
 
-// Colors from the KEFTA design
-const GOLD    = '#C9A84C';
-const NAVY    = '#1B2A6B';
-const DARK    = '#1a1a2e';
-const CREAM   = '#F9F6EE';
-const LIGHT_GOLD = '#E5C97A';
+// Colors from reference certificate
+const GOLD       = '#D4AF37';
+const DARK_GOLD  = '#B8860B';
+const NAVY       = '#003366';
+const LIGHT_NAVY = '#1B3A68';
+const CREAM      = '#F4EFE6';
 
 export class CertificateService {
   /**
-   * Generates a KEFTA-styled participation certificate as a PDF
+   * Helper to fetch full certificate config from system_config table
+   */
+  static async getCertificateConfig() {
+    const config = {
+      logoAbsPath: null,
+      sealAbsPath: null,
+      sig1ImageAbsPath: null,
+      sig1Name: '',
+      sig1Title: '',
+      sig2ImageAbsPath: null,
+      sig2Name: '',
+      sig2Title: '',
+    };
+
+    try {
+      const [rows] = await pool.query(
+        "SELECT `key`, `value` FROM system_config WHERE `key` LIKE 'certificate_%'"
+      );
+      const map = {};
+      for (const row of rows) {
+        map[row.key] = row.value;
+      }
+
+      const resolveAbsPath = (relPath) => {
+        if (!relPath) return null;
+        const normalized = relPath.startsWith('/') ? relPath : '/' + relPath;
+        const abs = path.join(__dirname, '../../', normalized);
+        return fsSync.existsSync(abs) ? abs : null;
+      };
+
+      if (map.certificate_logo) config.logoAbsPath = resolveAbsPath(map.certificate_logo);
+      if (map.certificate_seal) config.sealAbsPath = resolveAbsPath(map.certificate_seal);
+      if (map.certificate_sig1_image) config.sig1ImageAbsPath = resolveAbsPath(map.certificate_sig1_image);
+      if (map.certificate_sig1_name !== undefined) config.sig1Name = map.certificate_sig1_name;
+      if (map.certificate_sig1_title !== undefined) config.sig1Title = map.certificate_sig1_title;
+      if (map.certificate_sig2_image) config.sig2ImageAbsPath = resolveAbsPath(map.certificate_sig2_image);
+      if (map.certificate_sig2_name !== undefined) config.sig2Name = map.certificate_sig2_name;
+      if (map.certificate_sig2_title !== undefined) config.sig2Title = map.certificate_sig2_title;
+    } catch (_) { /* ignore config fetch failure fallback to defaults */ }
+
+    return config;
+  }
+
+  /**
+   * Generates a KEFTA-styled participation certificate as a PDF matching the reference design
    * @param {string} candidateName 
    * @param {string} examName 
    * @param {Date} date 
-   * @param {string|null} logoAbsPath  Absolute filesystem path to logo image (optional)
+   * @param {Object|string|null} customOptions Or logoAbsPath string for backwards compatibility
    * @returns {Promise<{ buffer: Buffer, pdfUrl: string }>}
    */
-  static async generateParticipationCertificate(candidateName, examName, date, logoAbsPath = null) {
+  static async generateParticipationCertificate(candidateName, examName, date, customOptions = null) {
+    let opts = {};
+    if (typeof customOptions === 'string') {
+      opts = { logoAbsPath: customOptions };
+    } else if (customOptions && typeof customOptions === 'object') {
+      opts = customOptions;
+    }
+
+    const sysConfig = await CertificateService.getCertificateConfig();
+    const config = { ...sysConfig, ...opts };
+
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
@@ -57,118 +112,130 @@ export class CertificateService {
         const W = 480;
         const H = 680;
 
-        // ── Background (cream) ─────────────────────────────────────
+        // 1. Background (Cream)
         doc.rect(0, 0, W, H).fill(CREAM);
 
-        // ── Outer golden border ────────────────────────────────────
-        doc.rect(14, 14, W - 28, H - 28).lineWidth(3).stroke(GOLD);
-        doc.rect(20, 20, W - 40, H - 40).lineWidth(1).stroke(GOLD);
+        // 2. Decorative Left and Top Frame
+        // Outer Frame Elements
+        doc.lineWidth(1.5).strokeColor(GOLD);
+        // Outer Square
+        doc.rect(36, 36, 8, 8).stroke();
+        // Outer Horizontal Line
+        doc.moveTo(44, 40).lineTo(340, 40).stroke();
+        // Outer Vertical Line
+        doc.moveTo(40, 44).lineTo(40, 550).stroke();
 
-        // ── Left side vertical text strip ─────────────────────────
+        // Inner Frame Elements
+        doc.lineWidth(1).strokeColor(GOLD);
+        // Inner Square
+        doc.rect(48, 48, 6, 6).stroke();
+        // Inner Horizontal Line
+        doc.moveTo(54, 51).lineTo(290, 51).stroke();
+        // Inner Vertical Line
+        doc.moveTo(51, 54).lineTo(51, 600).stroke();
+
+        // 3. Left vertical text motto strip
         doc.save();
-        doc.translate(32, H / 2);
+        doc.translate(28, H);
         doc.rotate(-90);
-        doc.fontSize(8.5).fillColor(GOLD).font('Helvetica')
-          .text('Igniting Scientific Temper, Inspiring Future Innovators.', -120, 0, { width: 240, align: 'center' });
+        doc.fontSize(11).fillColor(DARK_GOLD).font('Helvetica')
+          .text('Igniting Scientific Temper, Inspiring Future Innovators.', 0, 0, { width: H, align: 'center' });
         doc.restore();
 
-        // ── Top-right logo ─────────────────────────────────────────
-        if (logoAbsPath && fsSync.existsSync(logoAbsPath)) {
+        // 4. Top-right Logo
+        if (config.logoAbsPath && fsSync.existsSync(config.logoAbsPath)) {
           try {
-            doc.image(logoAbsPath, W - 110, 28, { width: 80, height: 60, fit: [80, 60] });
-          } catch (_) { /* skip logo if error */ }
+            doc.image(config.logoAbsPath, W - 140, 40, { width: 100, height: 60, fit: [100, 60] });
+          } catch (_) { /* fallback if logo error */ }
         }
 
-        // ── Top decorative gold corner box ─────────────────────────
-        doc.rect(38, 38, 14, 14).fill(GOLD);
-        doc.rect(W - 52, 38, 14, 14).fill(GOLD);
-
-        // ── Exam title (navy bold) ─────────────────────────────────
+        // 5. Exam Title
         doc.fontSize(16).fillColor(NAVY).font('Helvetica-Bold')
-          .text('KEFTA ~ NATIONAL LEVEL', 60, 100, { width: W - 120, align: 'center' });
+          .text('KEFTA - NATIONAL LEVEL', 0, 110, { align: 'center' });
         doc.fontSize(16).fillColor(NAVY).font('Helvetica-Bold')
-          .text('TALENT HUNT', 60, 120, { width: W - 120, align: 'center' });
+          .text('TALENT HUNT', 0, 130, { align: 'center' });
 
-        // ── Gold rule + ornament ───────────────────────────────────
-        doc.moveTo(60, 148).lineTo(W - 60, 148).lineWidth(1.5).stroke(GOLD);
-        doc.fontSize(14).fillColor(GOLD).font('Helvetica')
-          .text('✦  ❖  ✦', 0, 152, { align: 'center' });
-        doc.moveTo(60, 174).lineTo(W - 60, 174).lineWidth(1.5).stroke(GOLD);
+        // 6. Gold Rule + Ornament
+        const midY = 160;
+        doc.moveTo(140, midY).lineTo(230, midY).lineWidth(1).stroke(DARK_GOLD);
+        doc.moveTo(250, midY).lineTo(340, midY).lineWidth(1).stroke(DARK_GOLD);
+        doc.save();
+        doc.translate(240, midY);
+        doc.rotate(45);
+        doc.rect(-3, -3, 6, 6).stroke(DARK_GOLD);
+        doc.restore();
 
-        // ── CERTIFICATE heading ────────────────────────────────────
-        doc.fontSize(26).fillColor(GOLD).font('Helvetica-Bold')
-          .text('CERTIFICATE', 0, 188, { align: 'center' });
+        // 7. CERTIFICATE OF PARTICIPATION
+        doc.fontSize(28).fillColor(GOLD).font('Times-Roman')
+          .text('CERTIFICATE', 0, 190, { align: 'center' });
+        doc.fontSize(12).fillColor(GOLD).font('Times-Roman')
+          .text('— OF PARTICIPATION —', 0, 225, { align: 'center' });
 
-        // ── "OF PARTICIPATION" sub-label ───────────────────────────
-        doc.moveTo(100, 220).lineTo(180, 220).lineWidth(0.8).stroke(GOLD);
-        doc.fontSize(10).fillColor(GOLD).font('Helvetica')
-          .text('— OF PARTICIPATION —', 0, 224, { align: 'center' });
-        doc.moveTo(300, 220).lineTo(380, 220).lineWidth(0.8).stroke(GOLD);
+        // 8. Certification Body
+        doc.fontSize(10).fillColor(LIGHT_NAVY).font('Helvetica')
+          .text('This is to certify that', 0, 280, { align: 'center' });
 
-        // ── "This is to certify that" ──────────────────────────────
-        doc.fontSize(11).fillColor(DARK).font('Helvetica-Oblique')
-          .text('This is to certify that', 0, 258, { align: 'center' });
+        doc.fontSize(24).fillColor(DARK_GOLD).font('Times-BoldItalic')
+          .text(candidateName || 'Participant', 0, 315, { align: 'center' });
 
-        // ── Candidate Name ─────────────────────────────────────────
-        doc.fontSize(22).fillColor(GOLD).font('Helvetica-BoldOblique')
-          .text(candidateName || 'Participant', 60, 278, { width: W - 120, align: 'center' });
+        doc.moveTo(140, 345).lineTo(340, 345).lineWidth(1).stroke('#AAAAAA');
 
-        // ── Decorative underline under name ───────────────────────
-        doc.moveTo(100, 310).lineTo(W - 100, 310).lineWidth(0.8).stroke(GOLD);
+        doc.fontSize(9).fillColor(LIGHT_NAVY).font('Helvetica')
+          .text('has participated in the National Level Talent Hunt organized by', 0, 370, { align: 'center' });
+        doc.fontSize(9).fillColor(LIGHT_NAVY).font('Helvetica')
+          .text('Kerala Food Technologists Association - KEFTA.', 0, 385, { align: 'center' });
 
-        // ── Body text ─────────────────────────────────────────────
-        doc.fontSize(10.5).fillColor(DARK).font('Helvetica')
-          .text(`has participated in the National Level Talent Hunt organized by\nKerala Food Technologists Association - KEFTA.`, 60, 322, {
-            width: W - 120,
-            align: 'center',
-            lineGap: 4,
-          });
-
-        // ── Date ──────────────────────────────────────────────────
-        const dateString = date
-          ? new Date(date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })
-          : new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-        doc.fontSize(9).fillColor('#555555').font('Helvetica')
-          .text(`Date: ${dateString}`, 0, 372, { align: 'center' });
-
-        // ── Gold separator ─────────────────────────────────────────
-        doc.moveTo(60, 392).lineTo(W - 60, 392).lineWidth(0.8).stroke(GOLD);
-
-        // ── Seal placeholder (circular badge look) ─────────────────
+        // 9. Seal (Center)
         const sealX = W / 2;
-        const sealY = 455;
-        const sealR = 46;
-        doc.circle(sealX, sealY, sealR).lineWidth(3).stroke(NAVY);
-        doc.circle(sealX, sealY, sealR - 6).lineWidth(1).stroke(GOLD);
-        doc.fontSize(7).fillColor(NAVY).font('Helvetica-Bold')
-          .text('KERALA FOOD TECHNOLOGISTS', sealX - 36, sealY - 20, { width: 72, align: 'center' });
-        doc.fontSize(10).fillColor(GOLD).font('Helvetica-Bold')
-          .text('kefta', sealX - 20, sealY - 6, { width: 40, align: 'center' });
-        doc.fontSize(7).fillColor(NAVY).font('Helvetica-Bold')
-          .text('ASSOCIATION', sealX - 30, sealY + 8, { width: 60, align: 'center' });
+        const sealY = 485;
+        if (config.sealAbsPath && fsSync.existsSync(config.sealAbsPath)) {
+          try {
+            doc.image(config.sealAbsPath, sealX - 35, sealY - 35, { width: 70, height: 70, fit: [70, 70] });
+          } catch (_) { /* fallback if image load fails */ }
+        }
 
-        // ── Signatures ────────────────────────────────────────────
-        const sigY = 515;
-        // Left signature line
-        doc.moveTo(60, sigY).lineTo(170, sigY).lineWidth(0.8).stroke(DARK);
-        doc.fontSize(9).fillColor(DARK).font('Helvetica-Bold')
-          .text('Mr. Ameer Faisal', 50, sigY + 4, { width: 120, align: 'center' });
-        doc.fontSize(7.5).fillColor('#555555').font('Helvetica')
-          .text('Co-founder & State Convenor, KEFTA', 42, sigY + 17, { width: 136, align: 'center' });
+        // 10. Signatures
+        const sigY = 540;
 
-        // Right signature line
-        doc.moveTo(310, sigY).lineTo(420, sigY).lineWidth(0.8).stroke(DARK);
-        doc.fontSize(9).fillColor(DARK).font('Helvetica-Bold')
-          .text('Mr. Bins K Thomas', 300, sigY + 4, { width: 130, align: 'center' });
-        doc.fontSize(7.5).fillColor('#555555').font('Helvetica')
-          .text('General Secretary, KEFTA', 300, sigY + 17, { width: 130, align: 'center' });
+        // Signature 1 (Left)
+        if (config.sig1ImageAbsPath && fsSync.existsSync(config.sig1ImageAbsPath)) {
+          try {
+            doc.image(config.sig1ImageAbsPath, 85, sigY - 35, { width: 90, height: 32, fit: [90, 32] });
+          } catch (_) {}
+        } else if (config.sig1Name) {
+          doc.fontSize(16).fillColor(LIGHT_NAVY).font('Times-BoldItalic')
+             .text(config.sig1Name.split(' ')[0], 85, sigY - 25);
+        }
+        doc.moveTo(70, sigY).lineTo(190, sigY).lineWidth(0.5).stroke('#888888');
+        doc.fontSize(10).fillColor(DARK_GOLD).font('Times-Bold')
+          .text(config.sig1Name || '', 55, sigY + 5, { width: 150, align: 'center' });
+        doc.fontSize(7.5).fillColor(LIGHT_NAVY).font('Helvetica')
+          .text(config.sig1Title || '', 45, sigY + 20, { width: 170, align: 'center' });
 
-        // ── Bottom gold band ───────────────────────────────────────
-        doc.rect(20, H - 76, W - 40, 54).fill(GOLD);
-        doc.fontSize(11.5).fillColor('#1a1a2e').font('Helvetica-Bold')
-          .text('Kerala Food Technologists Association - KEFTA', 40, H - 65, { width: W - 80, align: 'center' });
-        doc.fontSize(8).fillColor('#3a2800').font('Helvetica')
-          .text('Kozhikode - Kerala, www.kefta.in, kefta.kerala@gmail.com', 40, H - 48, { width: W - 80, align: 'center' });
+        // Signature 2 (Right)
+        if (config.sig2ImageAbsPath && fsSync.existsSync(config.sig2ImageAbsPath)) {
+          try {
+            doc.image(config.sig2ImageAbsPath, 305, sigY - 35, { width: 90, height: 32, fit: [90, 32] });
+          } catch (_) {}
+        } else if (config.sig2Name) {
+          doc.fontSize(16).fillColor(LIGHT_NAVY).font('Times-BoldItalic')
+             .text(config.sig2Name.split(' ')[0], 320, sigY - 25);
+        }
+        doc.moveTo(290, sigY).lineTo(410, sigY).lineWidth(0.5).stroke('#888888');
+        doc.fontSize(10).fillColor(DARK_GOLD).font('Times-Bold')
+          .text(config.sig2Name || '', 275, sigY + 5, { width: 150, align: 'center' });
+        doc.fontSize(7.5).fillColor(LIGHT_NAVY).font('Helvetica')
+          .text(config.sig2Title || '', 265, sigY + 20, { width: 170, align: 'center' });
+
+        // 11. Footer Band
+        const footerY = H - 50;
+        doc.rect(0, footerY, W, 50).fill('#EAE6DC');
+        doc.moveTo(0, footerY).lineTo(W, footerY).lineWidth(1).dash(2, { space: 2 }).stroke('#CCCCCC');
+        doc.undash();
+        doc.fontSize(10).fillColor('#333333').font('Helvetica-Bold')
+          .text('Kerala Food Technologists Association - KEFTA', 0, footerY + 15, { align: 'center' });
+        doc.fontSize(8).fillColor('#666666').font('Helvetica')
+          .text('Kozhikode - Kerala, www.kefta.in, kefta.kerala@gmail.com', 0, footerY + 30, { align: 'center' });
 
         doc.end();
       } catch (error) {
