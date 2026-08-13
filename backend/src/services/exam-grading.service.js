@@ -55,7 +55,7 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     await connection.beginTransaction();
 
     const [attempts] = await connection.query(`
-      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage, e.name as exam_name,
+      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage, e.name as exam_name, e.enable_certificate,
              c.name as candidate_name, c.email as candidate_email
       FROM public_exam_attempts a
       JOIN public_exams e ON a.exam_id = e.id
@@ -161,7 +161,7 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     const finalCandidateEmail = attempt.candidate_email || attempt.guest_email;
     const finalExamName = attempt.exam_name;
 
-    if (finalCandidateEmail) {
+    if (finalCandidateEmail && attempt.enable_certificate) {
       // Fetch the certificate logo path from config
       let logoAbsPath = null;
       try {

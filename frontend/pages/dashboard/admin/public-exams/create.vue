@@ -213,6 +213,9 @@
                   <v-text-field v-if="fields.allow_retake" v-model.number="fields.max_retakes" label="Max Retakes (0 = unlimited)" type="number" density="compact" hide-details style="max-width: 200px;"></v-text-field>
                 </div>
               </v-col>
+              <v-col cols="12" sm="6" class="py-1">
+                <v-checkbox v-model="fields.enable_certificate" label="Generate & Send Certificates on Completion" color="primary" hide-details></v-checkbox>
+              </v-col>
             </v-row>
 
 
