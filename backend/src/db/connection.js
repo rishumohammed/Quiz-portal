@@ -11,7 +11,7 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const Redis = process.env.USE_MOCK_REDIS === 'true' ? RedisMock : IORedis;
 
-// MySQL Connection Pool
+// MySQL Connection Pool (Scaled for high concurrency up to 5,000 active users)
 export const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
@@ -19,8 +19,10 @@ export const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'aems_db',
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 100,
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000
 });
 
 // Redis Client
@@ -29,7 +31,8 @@ export const redis = new Redis({
   port: process.env.REDIS_PORT || 6379,
   password: process.env.REDIS_PASSWORD || undefined,
   lazyConnect: true,
-  maxRetriesPerRequest: 0
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
 });
 
 redis.on('error', (err) => console.error('Redis Error:', err));

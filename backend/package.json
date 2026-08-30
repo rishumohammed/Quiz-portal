@@ -7,6 +7,7 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "test:load": "node scripts/load-test-5000.js",
     "migrate": "node src/db/migrate.js"
   },
   "keywords": [],
@@ -15,6 +16,8 @@
   "type": "module",
   "dependencies": {
     "@aems/shared": "file:../shared",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "autocannon": "^7.15.0",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -34,6 +37,7 @@
     "nodemailer": "^9.0.1",
     "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
+    "rate-limit-redis": "^4.2.0",
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.3",
     "uuid": "^14.0.1",

@@ -38,7 +38,18 @@ const router = express.Router();
 // 1. GET /api/public/exams/categories
 router.get('/categories', async (req, res) => {
   try {
+    const cacheKey = 'cache:public_exam_categories';
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+    } catch (e) { /* fallback to DB on Redis fail */ }
+
     const [categories] = await pool.query("SELECT * FROM public_exam_categories WHERE status = 'active' ORDER BY name ASC");
+    
+    try {
+      await redis.set(cacheKey, JSON.stringify(categories), 'EX', 3600);
+    } catch (e) {}
+
     res.json(categories);
   } catch (error) {
     console.error('Fetch categories error:', error);
@@ -50,7 +61,12 @@ router.get('/categories', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { category, search } = req.query;
-    
+    const cacheKey = `cache:public_exams:${category || 'all'}:${search || ''}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+    } catch (e) { /* fallback to DB */ }
+
     let query = `
       SELECT e.*, c.name as category_name, c.slug as category_slug
       FROM public_exams e
@@ -73,6 +89,11 @@ router.get('/', async (req, res) => {
     query += ' ORDER BY e.created_at DESC';
 
     const [exams] = await pool.query(query, params);
+    
+    try {
+      await redis.set(cacheKey, JSON.stringify(exams), 'EX', 900);
+    } catch (e) {}
+
     res.json(exams);
   } catch (error) {
     console.error('Fetch exams error:', error);
@@ -83,6 +104,12 @@ router.get('/', async (req, res) => {
 // GET /api/public/exams/terms-privacy
 router.get('/terms-privacy', async (req, res) => {
   try {
+    const cacheKey = 'cache:terms_privacy';
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+    } catch (e) { /* fallback */ }
+
     const [rows] = await pool.query("SELECT * FROM system_config WHERE `key` IN ('terms_content', 'terms_version', 'privacy_content', 'privacy_version', 'talent_hunt_categories', 'talent_hunt_levels_1', 'talent_hunt_degrees', 'talent_hunt_courses', 'talent_hunt_levels_3', 'talent_hunt_competitive')");
     const config = {};
     rows.forEach(r => {
@@ -97,7 +124,7 @@ router.get('/terms-privacy', async (req, res) => {
       }
     };
 
-    res.json({
+    const responsePayload = {
       terms_content: config.terms_content || 'Default Terms & Conditions Content.',
       terms_version: config.terms_version || '1.0',
       privacy_content: config.privacy_content || 'Default Privacy Policy Content.',
@@ -108,7 +135,13 @@ router.get('/terms-privacy', async (req, res) => {
       talent_hunt_courses: parseArray(config.talent_hunt_courses, ['Food Technology', 'Biotechnology', 'Biochemistry', 'Microbiology', 'Chemistry', 'Fisheries Science', 'Dairy Science', 'Home Science', 'Nutrition and Related Programs']),
       talent_hunt_levels_3: parseArray(config.talent_hunt_levels_3, ['Masters 1st Year', 'Masters 2nd Year', 'PhD']),
       talent_hunt_competitive: parseArray(config.talent_hunt_competitive, ['CUET', 'NET', 'NEET', 'JEE', 'OTHERS'])
-    });
+    };
+
+    try {
+      await redis.set(cacheKey, JSON.stringify(responsePayload), 'EX', 86400);
+    } catch (e) {}
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('Fetch terms-privacy error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -118,18 +151,30 @@ router.get('/terms-privacy', async (req, res) => {
 // 3. GET /api/public/exams/:slug
 router.get('/:slug', async (req, res) => {
   try {
+    const { slug } = req.params;
+    const cacheKey = `cache:public_exam_detail:${slug}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return res.json(JSON.parse(cached));
+    } catch (e) { /* fallback */ }
+
     const [exams] = await pool.query(`
       SELECT e.*, e.registration_status, c.name as category_name, c.slug as category_slug
       FROM public_exams e
       JOIN public_exam_categories c ON e.category_id = c.id
       WHERE e.slug = ? AND e.status = 'published' AND c.status = 'active'
-    `, [req.params.slug]);
+    `, [slug]);
 
     if (exams.length === 0) {
       return res.status(404).json({ message: 'Exam not found' });
     }
 
     const exam = exams[0];
+
+    try {
+      await redis.set(cacheKey, JSON.stringify(exam), 'EX', 900);
+    } catch (e) {}
+
     res.json(exam);
   } catch (error) {
     console.error('Fetch exam error:', error);

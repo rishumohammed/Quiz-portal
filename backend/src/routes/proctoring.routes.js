@@ -16,8 +16,9 @@ const storage = multer.diskStorage({
     let __dirname = path.dirname(__filename);
     if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
     const dir = path.join(__dirname, '../../uploads/recordings', attemptId);
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    fs.promises.mkdir(dir, { recursive: true })
+      .then(() => cb(null, dir))
+      .catch((err) => cb(err));
   },
   filename: (req, file, cb) => {
     const chunkIndex = req.body.chunk_index || '0';
@@ -35,8 +36,9 @@ const screenshotStorage = multer.diskStorage({
     let __dirname = path.dirname(__filename);
     if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
     const dir = path.join(__dirname, '../../uploads/screenshots', attemptId);
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+    fs.promises.mkdir(dir, { recursive: true })
+      .then(() => cb(null, dir))
+      .catch((err) => cb(err));
   },
   filename: (req, file, cb) => {
     const timestamp = Date.now();

@@ -66,17 +66,53 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
-// Rate Limiting
-const limiter = rateLimit({
+import { RedisStore } from 'rate-limit-redis';
+import { redis } from './db/connection.js';
+
+// Tiered Rate Limiters for High Concurrency (5,000 Concurrent Users)
+const createStore = (prefix) => {
+  if (process.env.USE_MOCK_REDIS === 'true') return undefined;
+  try {
+    return new RedisStore({
+      // @ts-ignore
+      sendCommand: (...args) => redis.call(...args),
+      prefix: `rl:${prefix}:`
+    });
+  } catch (err) {
+    console.warn(`RedisStore initialization warning for ${prefix}:`, err.message);
+    return undefined;
+  }
+};
+
+// Strict Limiter for Auth Routes (Login, Password Reset)
+const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'test' ? 10000 : 100,
-  skip: (req) => {
-    return process.env.NODE_ENV === 'test' || 
-           req.ip === '127.0.0.1' || 
-           req.ip === '::1';
-  }
+  store: createStore('auth'),
+  message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
 });
-app.use('/api/', limiter);
+
+// High-Capacity Limiter for Exam Taking & Proctoring Heartbeats
+const examLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 50000 : 5000,
+  store: createStore('exam'),
+  skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1'
+});
+
+// General API Limiter
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 50000 : 2000,
+  store: createStore('general'),
+  skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1'
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/public/candidates/login', authLimiter);
+app.use('/api/public/exams', examLimiter);
+app.use('/api/proctoring', examLimiter);
+app.use('/api/', generalLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
