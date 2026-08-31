@@ -97,7 +97,7 @@ const authLimiter = rateLimit({
 // High-Capacity Limiter for Exam Taking & Proctoring Heartbeats
 const examLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 50000 : 5000,
+  max: 50000,
   store: createStore('exam'),
   skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1'
 });
