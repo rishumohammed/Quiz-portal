@@ -6,3 +6,5 @@ dist/
 .DS_Store
 backend/uploads/
 backend/sample_certificate.pdf
+backend/backups/
+*.sql.gz

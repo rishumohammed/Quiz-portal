@@ -21,9 +21,11 @@ import { authenticateJWT, authorizeRoles } from './middleware/auth.js';
 import { initSocket } from './socket/index.js';
 import adminSystemUsersRoutes from './routes/admin.system-users.routes.js';
 import adminEmailTemplatesRoutes from './routes/admin.email-templates.routes.js';
+import adminBackupsRoutes from './routes/admin.backups.routes.js';
 import { initFollowupJob } from './jobs/followup-reminder.job.js';
 import { initExamRemindersJob } from './jobs/exam-reminders.job.js';
 import { initExamAutocompleteJob } from './jobs/exam-autocomplete.job.js';
+import { initBackupJob } from './jobs/backup.job.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,6 +126,7 @@ app.use('/api/admin/faqs', adminFaqsRoutes);
 app.use('/api/proctoring', proctoringRoutes);
 app.use('/api/admin/system-users', adminSystemUsersRoutes);
 app.use('/api/admin/email-templates', adminEmailTemplatesRoutes);
+app.use('/api/admin/backups', adminBackupsRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
@@ -139,6 +142,7 @@ const PORT = process.env.PORT || 5000;
 initExamRemindersJob();
 initFollowupJob();
 initExamAutocompleteJob();
+initBackupJob();
 
 httpServer.listen(PORT, () => {
   console.log(`Kefta Talent Hunt Server running on port ${PORT}`);

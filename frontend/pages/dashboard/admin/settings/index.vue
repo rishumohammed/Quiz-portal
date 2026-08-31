@@ -377,7 +377,12 @@
             <TalentHuntSettingsTab />
           </div>
 
-          <div class="d-flex justify-end gap-3 mt-12 pt-6 border-t" v-if="activeTab[0] !== 'social' && activeTab[0] !== 'currencies' && activeTab[0] !== 'homepage' && activeTab[0] !== 'certifications' && activeTab[0] !== 'email_templates'">
+          <!-- Database Backups Tab -->
+          <div v-if="activeTab[0] === 'backups'" class="fade-in">
+            <DatabaseBackupsTab />
+          </div>
+
+          <div class="d-flex justify-end gap-3 mt-12 pt-6 border-t" v-if="activeTab[0] !== 'social' && activeTab[0] !== 'currencies' && activeTab[0] !== 'homepage' && activeTab[0] !== 'certifications' && activeTab[0] !== 'email_templates' && activeTab[0] !== 'backups'">
             <AppButton variant="g" size="lg" icon="mdi-refresh" @click="fetchData">
               Reset Changes
             </AppButton>
@@ -404,6 +409,7 @@ import CurrenciesTab from '@/components/admin/settings/CurrenciesTab.vue';
 import CertificationsTab from '@/components/admin/settings/CertificationsTab.vue';
 import EmailTemplatesTab from '@/components/admin/settings/EmailTemplatesTab.vue';
 import TalentHuntSettingsTab from '@/components/admin/settings/TalentHuntSettingsTab.vue';
+import DatabaseBackupsTab from '@/components/admin/settings/DatabaseBackupsTab.vue';
 import { provide } from 'vue';
 
 definePageMeta({
@@ -440,7 +446,8 @@ const tabs = [
   { label: 'Email (Resend)', value: 'email', icon: 'mdi-email-fast-outline' },
   { label: 'Email Templates', value: 'email_templates', icon: 'mdi-email-edit-outline' },
   { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' },
-  { label: 'Talent Hunt', value: 'talent_hunt', icon: 'mdi-account-star-outline' }
+  { label: 'Talent Hunt', value: 'talent_hunt', icon: 'mdi-account-star-outline' },
+  { label: 'Database Backups', value: 'backups', icon: 'mdi-database-clock-outline' }
 ];
 
 
