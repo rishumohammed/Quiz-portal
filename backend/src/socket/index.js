@@ -1,5 +1,4 @@
 import { Server } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
 import jwt from 'jsonwebtoken';
 import messageHandler from './messageHandler.js';
 import { redis } from '../db/connection.js';
@@ -17,14 +16,17 @@ export const initSocket = (server) => {
 
   // Attach Redis Adapter for multi-worker PM2 Cluster mode
   if (process.env.USE_MOCK_REDIS !== 'true' && redis) {
-    try {
-      const pubClient = redis.duplicate();
-      const subClient = redis.duplicate();
-      io.adapter(createAdapter(pubClient, subClient));
-      console.log('Socket.IO Redis Adapter initialized successfully');
-    } catch (err) {
-      console.warn('Socket.IO Redis Adapter fallback to default memory adapter:', err.message);
-    }
+    (async () => {
+      try {
+        const { createAdapter } = await import('@socket.io/redis-adapter');
+        const pubClient = redis.duplicate();
+        const subClient = redis.duplicate();
+        io.adapter(createAdapter(pubClient, subClient));
+        console.log('Socket.IO Redis Adapter initialized successfully');
+      } catch (err) {
+        console.warn('Socket.IO Redis Adapter fallback to default memory adapter:', err.message);
+      }
+    })();
   }
 
   // Authentication Middleware for Socket.io
