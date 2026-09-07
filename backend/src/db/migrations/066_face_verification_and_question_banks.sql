@@ -3,3 +3,7 @@ ALTER TABLE public_exams ADD COLUMN active_question_bank VARCHAR(255) DEFAULT 'D
 ALTER TABLE public_exam_questions ADD COLUMN bank_name VARCHAR(255) DEFAULT 'Default Bank';
 ALTER TABLE public_exam_candidates ADD COLUMN reminder_24h_sent TINYINT(1) DEFAULT 0;
 ALTER TABLE public_exam_issued_certificates ADD COLUMN certificate_number VARCHAR(100) NULL;
+
+-- Automatically assign all pre-existing questions and exams to 'Default Bank' (Zero Data Loss)
+UPDATE public_exam_questions SET bank_name = 'Default Bank' WHERE bank_name IS NULL;
+UPDATE public_exams SET active_question_bank = 'Default Bank' WHERE active_question_bank IS NULL;

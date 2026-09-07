@@ -83,6 +83,15 @@ async function migrate() {
       else throw err;
     }
 
+    // Set Default Bank for all existing questions and exams
+    try {
+      await connection.query("UPDATE public_exam_questions SET bank_name = 'Default Bank' WHERE bank_name IS NULL");
+      await connection.query("UPDATE public_exams SET active_question_bank = 'Default Bank' WHERE active_question_bank IS NULL");
+      console.log('✅ Backfilled existing questions and exams to "Default Bank"');
+    } catch (err) {
+      console.warn('⚠️ Backfill warning:', err.message);
+    }
+
     console.log('🎉 Migration completed successfully!');
   } catch (error) {
     console.error('❌ Migration failed:', error);
