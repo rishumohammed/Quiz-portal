@@ -77,7 +77,7 @@
             Add Question
           </v-btn>
         </v-col>
-      </row>
+      </v-row>
     </v-card>
 
     <!-- QUESTION BANK GROUPS SELECTION BAR -->
