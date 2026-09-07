@@ -9,9 +9,9 @@
     </div>
 
     <!-- Exam Title & Action Controls -->
-    <v-card class="pa-6 border rounded-xl mb-6" flat>
+    <v-card class="pa-4 pa-md-6 border rounded-xl mb-6 bg-white" flat>
       <v-row align="center">
-        <v-col cols="12" md="6">
+        <v-col cols="12" md="4" lg="4">
           <div class="d-flex align-center gap-3">
             <v-btn icon="mdi-arrow-left" variant="tonal" size="small" color="secondary" to="/dashboard/admin/public-exams" title="Back to Exams"></v-btn>
             <div class="flex-grow-1">
@@ -31,12 +31,13 @@
             </div>
           </div>
         </v-col>
-        <v-col cols="12" md="7" class="d-flex justify-md-end gap-2 flex-wrap" v-if="selectedExamId">
+        <v-col cols="12" md="8" lg="8" class="d-flex align-center justify-start justify-md-end gap-2 flex-wrap" v-if="selectedExamId">
           <!-- Export Options -->
           <v-btn
             variant="tonal"
             color="success"
             rounded="lg"
+            size="small"
             prepend-icon="mdi-export-variant"
             @click="exportQuestions('csv')"
           >
@@ -46,19 +47,21 @@
             variant="tonal"
             color="info"
             rounded="lg"
+            size="small"
             prepend-icon="mdi-code-json"
             @click="exportQuestions('json')"
           >
             Export JSON
           </v-btn>
 
-          <v-divider vertical inset class="mx-1 d-none d-sm-flex" />
+          <v-divider vertical inset class="mx-1 d-none d-sm-flex" style="height: 24px;" />
 
           <!-- Import Toggle Buttons -->
           <v-btn
             variant="outlined"
             color="indigo"
             rounded="lg"
+            size="small"
             prepend-icon="mdi-file-import-outline"
             @click="openImportSection('json')"
           >
@@ -68,16 +71,21 @@
             variant="outlined"
             color="indigo"
             rounded="lg"
+            size="small"
             prepend-icon="mdi-file-delimited-outline"
             @click="openImportSection('csv')"
           >
             Bulk CSV
           </v-btn>
+
+          <!-- Add Question -->
           <v-btn
             color="primary"
             rounded="lg"
+            size="small"
             prepend-icon="mdi-plus"
             elevation="0"
+            class="font-weight-bold"
             @click="openQuestionDialog()"
           >
             Add Question
@@ -92,6 +100,16 @@
         <div class="d-flex align-center gap-2 flex-wrap">
           <span class="text-caption font-weight-bold text-uppercase text-secondary mr-2">Question Bank:</span>
           
+          <v-chip
+            :color="selectedBankGroup === 'ALL' ? 'primary' : 'grey-lighten-3'"
+            variant="flat"
+            class="font-weight-bold cursor-pointer px-4"
+            @click="switchBankGroup('ALL')"
+          >
+            <v-icon start size="16">mdi-buffer</v-icon>
+            All Bank Groups
+          </v-chip>
+
           <v-chip
             v-for="bank in availableBankGroups"
             :key="bank"
@@ -253,7 +271,7 @@
         flat
       >
         <div class="d-flex align-center justify-space-between mb-3 flex-wrap gap-2">
-          <div class="d-flex align-center gap-2">
+          <div class="d-flex align-center gap-2 flex-wrap">
             <v-chip color="grey-lighten-3" class="font-weight-black text-dark" size="small">
               #{{ idx + 1 }}
             </v-chip>
@@ -266,9 +284,15 @@
             <v-chip size="small" color="indigo" variant="tonal" class="font-weight-bold">
               {{ q.marks }} Marks
             </v-chip>
+            <v-chip size="small" color="blue-grey-darken-2" variant="tonal" class="font-weight-bold">
+              <v-icon start size="14">mdi-folder-outline</v-icon> {{ q.bank_name || 'Default Bank' }}
+            </v-chip>
           </div>
 
           <div class="d-flex gap-1">
+            <v-btn icon variant="tonal" color="teal" size="small" class="rounded-lg" @click="openMoveCopyDialog(q)" title="Move / Copy to Bank Group">
+              <v-icon size="18">mdi-folder-swap-outline</v-icon>
+            </v-btn>
             <v-btn icon variant="tonal" color="warning" size="small" class="rounded-lg" @click="duplicateQuestion(q)" title="Duplicate Question">
               <v-icon size="18">mdi-content-copy</v-icon>
             </v-btn>
@@ -338,6 +362,17 @@
         </h3>
 
         <v-form ref="questionForm" v-model="questionFormValid" lazy-validation>
+          <v-combobox
+            v-model="questionFields.bank_name"
+            :items="availableBankGroups"
+            label="Question Bank Group *"
+            placeholder="Select an existing group or type to create a new group"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            class="mb-3 font-weight-bold"
+          ></v-combobox>
+
           <v-textarea
             v-model="questionFields.question_text"
             label="Question Text"
@@ -492,6 +527,44 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- Move / Copy Question Dialog -->
+    <v-dialog v-model="moveCopyModal" max-width="500">
+      <v-card class="pa-6 rounded-xl">
+        <h3 class="text-h6 font-weight-bold mb-2 text-dark">Move or Copy Question</h3>
+        <p class="text-body-2 text-secondary mb-4">
+          Organize questions across Question Bank Groups. Choose whether to move this question or create a copy in another group.
+        </p>
+
+        <v-radio-group v-model="moveCopyMode" inline class="mb-2">
+          <v-radio label="Move to Group" value="move" color="primary"></v-radio>
+          <v-radio label="Copy (Duplicate in Another Group)" value="copy" color="success"></v-radio>
+        </v-radio-group>
+
+        <v-combobox
+          v-model="targetMoveBankGroup"
+          :items="availableBankGroups"
+          label="Target Bank Group Name *"
+          placeholder="e.g. Set B, Retake Bank"
+          variant="outlined"
+          density="comfortable"
+          class="mb-4"
+        />
+
+        <div class="d-flex justify-end gap-2">
+          <v-btn variant="text" color="grey" @click="moveCopyModal = false">Cancel</v-btn>
+          <v-btn
+            :color="moveCopyMode === 'move' ? 'primary' : 'success'"
+            rounded="lg"
+            class="text-capitalize font-weight-bold"
+            :loading="movingCopying"
+            @click="confirmMoveCopyQuestion"
+          >
+            {{ moveCopyMode === 'move' ? 'Move Question' : 'Copy Question to Group' }}
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -549,8 +622,16 @@ const questionFields = ref<any>({
   correct_answer_msq: [],
   explanation: '',
   marks: 4,
-  difficulty_level: 'Medium'
+  difficulty_level: 'Medium',
+  bank_name: 'Default Bank'
 });
+
+// Move / Copy State
+const moveCopyModal = ref(false);
+const moveCopyMode = ref<'move' | 'copy'>('move');
+const targetMoveBankGroup = ref('Default Bank');
+const moveCopyQuestionObj = ref<any>(null);
+const movingCopying = ref(false);
 
 const filteredOptions = computed(() => {
   const opts = questionFields.value?.options;
@@ -657,10 +738,30 @@ async function setActiveBankForExam() {
   }
 }
 
-function exportQuestions(format: 'csv' | 'json') {
+async function exportQuestions(format: 'csv' | 'json') {
   if (!selectedExamId.value) return;
-  const url = `${api.defaults.baseURL || '/api'}/admin/public-exams/${selectedExamId.value}/questions/export?bank_name=${encodeURIComponent(selectedBankGroup.value)}&format=${format}`;
-  window.open(url, '_blank');
+  try {
+    const res = await api.get(`/admin/public-exams/${selectedExamId.value}/questions/export`, {
+      params: {
+        bank_name: selectedBankGroup.value,
+        format
+      },
+      responseType: 'blob'
+    });
+
+    const blob = new Blob([res.data], { type: format === 'json' ? 'application/json' : 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `questions_${selectedBankGroup.value.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${selectedExamId.value}.${format}`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err: any) {
+    alert('Failed to export questions: ' + (err.response?.data?.message || err.message));
+  }
 }
 
 function openImportSection(mode: 'json' | 'csv') {
@@ -673,12 +774,13 @@ function openImportSection(mode: 'json' | 'csv') {
 }
 
 function downloadSampleCsv() {
-  const headers = ['Type', 'Question', 'Options', 'Correct Answer', 'Explanation', 'Marks', 'Difficulty'];
+  const currentBank = selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value;
+  const headers = ['Type', 'Question', 'Options', 'Correct Answer', 'Explanation', 'Marks', 'Difficulty', 'Bank Name'];
   const rows = [
-    ['mcq', 'Which is a prime number?', '2|4|6|8', '2', '2 is the only even prime.', '4', 'Easy'],
-    ['msq', 'Select all vowels.', 'A|B|C|E|F', 'A|E', 'A and E are vowels.', '4', 'Medium'],
-    ['truefalse', 'The earth is flat.', 'True|False', 'False', 'The earth is spherical.', '2', 'Easy'],
-    ['fib', 'The chemical symbol for water is __.', '', 'H2O', 'Water is composed of 2 hydrogen and 1 oxygen.', '4', 'Medium']
+    ['mcq', 'Which is a prime number?', '2|4|6|8', '2', '2 is the only even prime.', '4', 'Easy', currentBank],
+    ['msq', 'Select all vowels.', 'A|B|C|E|F', 'A|E', 'A and E are vowels.', '4', 'Medium', currentBank],
+    ['truefalse', 'The earth is flat.', 'True|False', 'False', 'The earth is spherical.', '2', 'Easy', currentBank],
+    ['fib', 'The chemical symbol for water is __.', '', 'H2O', 'Water is composed of 2 hydrogen and 1 oxygen.', '4', 'Medium', currentBank]
   ];
   
   const csvContent = [
@@ -752,7 +854,8 @@ async function runBulkImport() {
         correct_answer: corr,
         explanation: row.Explanation || row.explanation || '',
         marks: parseInt(row.Marks || row.marks) || 4,
-        difficulty_level: row.Difficulty || row.difficulty || 'Medium'
+        difficulty_level: row.Difficulty || row.difficulty || 'Medium',
+        bank_name: row['Bank Name'] || row.bank_name || row.Bank || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value)
       };
     });
   }
@@ -761,7 +864,7 @@ async function runBulkImport() {
   try {
     await api.post(`/admin/public-exams/${selectedExamId.value}/questions/bulk`, {
       questions: questionsToImport,
-      bank_name: selectedBankGroup.value
+      bank_name: selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value
     });
 
     importOpen.value = false;
@@ -792,7 +895,8 @@ function openQuestionDialog(q: any = null) {
       correct_answer_msq: corrMsq,
       explanation: q.explanation || '',
       marks: q.marks || 4,
-      difficulty_level: q.difficulty_level || 'Medium'
+      difficulty_level: q.difficulty_level || 'Medium',
+      bank_name: q.bank_name || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value)
     };
   } else {
     editingQuestionId.value = null;
@@ -804,7 +908,8 @@ function openQuestionDialog(q: any = null) {
       correct_answer_msq: [],
       explanation: '',
       marks: 4,
-      difficulty_level: 'Medium'
+      difficulty_level: 'Medium',
+      bank_name: selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value
     };
   }
   questionDialog.value = true;
@@ -848,6 +953,7 @@ async function saveQuestion() {
 
   savingQuestion.value = true;
   try {
+    const targetBank = questionFields.value.bank_name || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value);
     const payload = {
       question_text: questionFields.value.question_text,
       type: questionFields.value.type,
@@ -856,13 +962,17 @@ async function saveQuestion() {
       explanation: questionFields.value.explanation,
       marks: questionFields.value.marks,
       difficulty_level: questionFields.value.difficulty_level,
-      bank_name: selectedBankGroup.value
+      bank_name: targetBank
     };
 
     if (editingQuestionId.value) {
       await api.put(`/admin/public-exams/${selectedExamId.value}/questions/${editingQuestionId.value}`, payload);
     } else {
       await api.post(`/admin/public-exams/${selectedExamId.value}/questions`, payload);
+    }
+
+    if (targetBank && !availableBankGroups.value.includes(targetBank)) {
+      availableBankGroups.value.push(targetBank);
     }
 
     questionDialog.value = false;
@@ -883,10 +993,64 @@ function duplicateQuestion(q: any) {
     correct_answer_msq: q.type === 'msq' ? (Array.isArray(q.correct_answer) ? q.correct_answer : [q.correct_answer]) : [],
     explanation: q.explanation || '',
     marks: q.marks || 4,
-    difficulty_level: q.difficulty_level || 'Medium'
+    difficulty_level: q.difficulty_level || 'Medium',
+    bank_name: q.bank_name || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value)
   };
   editingQuestionId.value = null;
   questionDialog.value = true;
+}
+
+function openMoveCopyDialog(q: any) {
+  moveCopyQuestionObj.value = q;
+  targetMoveBankGroup.value = q.bank_name || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value);
+  moveCopyMode.value = 'move';
+  moveCopyModal.value = true;
+}
+
+async function confirmMoveCopyQuestion() {
+  if (!moveCopyQuestionObj.value || !targetMoveBankGroup.value.trim()) return;
+  const q = moveCopyQuestionObj.value;
+  const targetBank = targetMoveBankGroup.value.trim();
+
+  movingCopying.value = true;
+  try {
+    if (moveCopyMode.value === 'move') {
+      await api.put(`/admin/public-exams/${selectedExamId.value}/questions/${q.id}`, {
+        bank_name: targetBank
+      });
+    } else {
+      let corrMsq = [];
+      if (q.type === 'msq') {
+        try {
+          corrMsq = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
+        } catch (e) {
+          corrMsq = [q.correct_answer];
+        }
+      }
+      const payload = {
+        question_text: q.question_text,
+        type: q.type,
+        options: Array.isArray(q.options) ? q.options : null,
+        correct_answer: q.type === 'msq' ? corrMsq : q.correct_answer,
+        explanation: q.explanation || '',
+        marks: q.marks || 4,
+        difficulty_level: q.difficulty_level || 'Medium',
+        bank_name: targetBank
+      };
+      await api.post(`/admin/public-exams/${selectedExamId.value}/questions`, payload);
+    }
+
+    if (!availableBankGroups.value.includes(targetBank)) {
+      availableBankGroups.value.push(targetBank);
+    }
+
+    moveCopyModal.value = false;
+    fetchQuestions();
+  } catch (err: any) {
+    alert(err.response?.data?.message || 'Failed to move/copy question');
+  } finally {
+    movingCopying.value = false;
+  }
 }
 
 function confirmDelete(q: any) {

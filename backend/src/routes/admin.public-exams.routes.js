@@ -682,12 +682,15 @@ router.get('/:id/questions', async (req, res) => {
     const [exams] = await pool.query('SELECT active_question_bank FROM public_exams WHERE id = ?', [examId]);
     const activeBank = (exams[0] && exams[0].active_question_bank) ? exams[0].active_question_bank : 'Default Bank';
 
-    const [questions] = await pool.query(
-      `SELECT * FROM public_exam_questions 
-       WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) 
-       ORDER BY order_index ASC`,
-      [examId, selectedBank, selectedBank]
-    );
+    let queryStr = `SELECT * FROM public_exam_questions WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) ORDER BY order_index ASC`;
+    let queryParams = [examId, selectedBank, selectedBank];
+
+    if (selectedBank === 'ALL' || selectedBank === 'All Banks') {
+      queryStr = `SELECT * FROM public_exam_questions WHERE exam_id = ? ORDER BY order_index ASC`;
+      queryParams = [examId];
+    }
+
+    const [questions] = await pool.query(queryStr, queryParams);
 
     const [banks] = await pool.query(
       `SELECT DISTINCT IFNULL(bank_name, 'Default Bank') as bank_name FROM public_exam_questions WHERE exam_id = ?`,
@@ -739,12 +742,13 @@ router.get('/:id/questions/export', async (req, res) => {
     if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
     const exam = exams[0];
 
-    const [questions] = await pool.query(
-      `SELECT * FROM public_exam_questions 
-       WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) 
-       ORDER BY order_index ASC`,
-      [examId, bankName, bankName]
-    );
+    let queryStr = `SELECT * FROM public_exam_questions WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) ORDER BY order_index ASC`;
+    let queryParams = [examId, bankName, bankName];
+    if (bankName === 'ALL' || bankName === 'All Banks') {
+      queryStr = `SELECT * FROM public_exam_questions WHERE exam_id = ? ORDER BY order_index ASC`;
+      queryParams = [examId];
+    }
+    const [questions] = await pool.query(queryStr, queryParams);
 
     if (format === 'json') {
       const jsonOutput = questions.map(q => ({
@@ -754,7 +758,8 @@ router.get('/:id/questions/export', async (req, res) => {
         correct_answer: q.correct_answer,
         explanation: q.explanation || '',
         marks: q.marks || 1,
-        difficulty_level: q.difficulty_level || 'Medium'
+        difficulty_level: q.difficulty_level || 'Medium',
+        bank_name: q.bank_name || 'Default Bank'
       }));
 
       res.setHeader('Content-Type', 'application/json');
@@ -763,7 +768,7 @@ router.get('/:id/questions/export', async (req, res) => {
     }
 
     // CSV Export in exact matching import format
-    let csvRows = ['Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty'];
+    let csvRows = ['Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty,Bank Name'];
     
     for (const q of questions) {
       let opts = [];
@@ -789,7 +794,8 @@ router.get('/:id/questions/export', async (req, res) => {
         escapeCsv(corr),
         escapeCsv(q.explanation || ''),
         q.marks || 1,
-        escapeCsv(q.difficulty_level || 'Medium')
+        escapeCsv(q.difficulty_level || 'Medium'),
+        escapeCsv(q.bank_name || 'Default Bank')
       ].join(','));
     }
 
@@ -910,6 +916,7 @@ router.post('/:id/questions/bulk', async (req, res) => {
     for (const q of questions) {
       orderIdx++;
       const id = uuidv4();
+      const itemBank = q.bank_name || q['Bank Name'] || targetBank;
       await connection.query(`
         INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level, bank_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -924,7 +931,7 @@ router.post('/:id/questions/bulk', async (req, res) => {
         q.marks || 1,
         orderIdx,
         q.difficulty_level || 'Medium',
-        targetBank
+        itemBank
       ]);
     }
 

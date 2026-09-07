@@ -149,8 +149,8 @@
         <template v-slot:item.actions="{ item }">
           <div class="d-flex justify-end py-2 px-2">
             <div class="d-flex flex-column gap-1">
-                <!-- First Row of Actions -->
-              <div class="d-flex gap-1">
+              <!-- First Row of Actions (7 Icons: Navigation & Management) -->
+              <div class="d-flex gap-1 justify-end">
                 <!-- Manage Questions -->
                 <v-btn icon="mdi-database-outline" variant="tonal" size="small" color="blue-grey" :to="`/dashboard/admin/public-exams/questions?examId=${item.id}`" title="Manage Questions" />
                 <!-- Registration Form -->
@@ -165,12 +165,12 @@
                 <v-btn icon="mdi-share-variant" variant="tonal" size="small" color="info" @click="openShareDialog(item)" title="Share Exam Link" />
                 <!-- Re-Conduct Exam -->
                 <v-btn icon="mdi-autorenew" variant="tonal" size="small" color="purple-darken-1" @click="openReConductDialog(item)" title="Re-Conduct Exam (New Session / Bank)" />
-                <!-- Send 24h Reminder -->
-                <v-btn icon="mdi-bell-ring-outline" variant="tonal" size="small" color="amber-darken-3" @click="openReminderDialog(item)" title="Send 24h Exam Reminder Email" />
               </div>
               
-              <!-- Second Row of Actions -->
-              <div class="d-flex gap-1">
+              <!-- Second Row of Actions (6 Icons: Lifecycle & Admin Controls) -->
+              <div class="d-flex gap-1 justify-end">
+                <!-- Send 24h Reminder -->
+                <v-btn icon="mdi-bell-ring-outline" variant="tonal" size="small" color="amber-darken-3" @click="openReminderDialog(item)" title="Send 24h Exam Reminder Email" />
                 <!-- Edit -->
                 <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="indigo" :to="`/dashboard/admin/public-exams/create?id=${item.id}`" title="Edit Exam Settings" />
                 <!-- Duplicate -->

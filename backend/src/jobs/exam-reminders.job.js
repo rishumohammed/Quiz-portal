@@ -21,14 +21,14 @@ export const initExamRemindersJob = () => {
         const [candidates] = await connection.query(`
           SELECT id, name, email 
           FROM public_exam_candidates 
-          WHERE exam_id = ? AND notified_1day_before = FALSE
+          WHERE exam_id = ? AND (notified_1day_before = FALSE OR notified_1day_before IS NULL) AND (reminder_24h_sent = 0 OR reminder_24h_sent IS NULL)
         `, [exam.id]);
 
         for (const candidate of candidates) {
           try {
             const examLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}`;
             const [tplRows] = await connection.query('SELECT subject, body FROM email_templates WHERE id = ?', ['exam_reminder_1day']);
-            let subject = tplRows[0].subject.replace(/{{exam_name}}/g, exam.name);
+            let subject = tplRows[0]?.subject ? tplRows[0].subject.replace(/{{exam_name}}/g, exam.name) : `Reminder: Upcoming Exam ${exam.name}`;
             
             const logoConfig = await ConfigService.getByKey('app_logo');
             const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
@@ -36,11 +36,13 @@ export const initExamRemindersJob = () => {
 
             const verifyFaceUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}/verify-face`;
 
-            let html = tplRows[0].body
-              .replace(/{{name}}/g, candidate.name || 'Candidate')
-              .replace(/{{exam_name}}/g, exam.name)
-              .replace(/{{exam_link}}/g, examLink)
-              .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+            let html = tplRows[0]?.body 
+              ? tplRows[0].body
+                .replace(/{{name}}/g, candidate.name || 'Candidate')
+                .replace(/{{exam_name}}/g, exam.name)
+                .replace(/{{exam_link}}/g, examLink)
+                .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '')
+              : `<p>Hello ${candidate.name || 'Candidate'},</p><p>Your upcoming exam <strong>${exam.name}</strong> is starting within 24 hours.</p><p><a href="${examLink}">Access Exam Portal</a></p>`;
 
             html += `
               <div style="margin-top: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; text-align: center;">
@@ -56,7 +58,7 @@ export const initExamRemindersJob = () => {
               html
             });
 
-            await connection.query('UPDATE public_exam_candidates SET notified_1day_before = TRUE WHERE id = ?', [candidate.id]);
+            await connection.query('UPDATE public_exam_candidates SET notified_1day_before = TRUE, reminder_24h_sent = 1 WHERE id = ?', [candidate.id]);
           } catch (e) {
             console.error(`Failed to send 1-day reminder to ${candidate.email}:`, e.message);
           }
