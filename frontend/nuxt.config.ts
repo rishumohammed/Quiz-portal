@@ -11,6 +11,10 @@ export default defineNuxtConfig({
       watch: {
         usePolling: true
       }
+    },
+    build: {
+      chunkSizeWarningLimit: 2000,
+      cssCodeSplit: true
     }
   },
 
