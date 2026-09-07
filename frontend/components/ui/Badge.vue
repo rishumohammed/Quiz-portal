@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 defineProps<{
-  color?: 'blue' | 'green' | 'red' | 'orange' | 'purple' | 'teal' | 'gray' | 'grey' | 'success' | 'error';
+  color?: 'blue' | 'green' | 'red' | 'orange' | 'purple' | 'teal' | 'gray' | 'grey' | 'success' | 'error' | 'warning';
   label?: string;
 }>();
 </script>
@@ -31,6 +31,7 @@ defineProps<{
 .badge-red    { background-color: var(--red-l);    color: #C42B22; }
 .badge-error  { background-color: var(--red-l);    color: #C42B22; }
 .badge-orange { background-color: var(--orange-l); color: #8A4F00; }
+.badge-warning{ background-color: var(--orange-l); color: #8A4F00; }
 .badge-purple { background-color: var(--purple-l); color: #7D2BAB; }
 .badge-teal   { background-color: var(--teal-l);   color: #0E6E9E; }
 .badge-gray   { background-color: var(--g1);       color: var(--g5); }
