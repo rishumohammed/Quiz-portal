@@ -283,7 +283,7 @@
 
         <p class="text-body-2 text-dark font-weight-medium mb-3" style="white-space: pre-line;">{{ q.question_text }}</p>
 
-        <div v-if="q.options && q.options.length > 0" class="mb-3 pl-4">
+        <div v-if="Array.isArray(q.options) && q.options.length > 0" class="mb-3 pl-4">
           <div
             v-for="(opt, oIdx) in q.options"
             :key="oIdx"
@@ -499,7 +499,6 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
-import Papa from 'papaparse';
 
 definePageMeta({
   layout: 'dashboard',
@@ -692,19 +691,22 @@ function downloadSampleCsv() {
   document.body.removeChild(link);
 }
 
-function handleCsvUpload(event: any) {
+async function handleCsvUpload(event: any) {
   const file = event.target.files[0];
   if (!file) return;
 
   selectedCsvFileName.value = file.name;
   
+  let PapaMod = await import('papaparse');
+  const Papa = (PapaMod as any).default || PapaMod;
+
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
-    complete: (results) => {
+    complete: (results: any) => {
       parsedCsvData.value = results.data;
     },
-    error: (err) => {
+    error: (err: any) => {
       alert(`CSV Parse Error: ${err.message}`);
     }
   });
@@ -921,16 +923,22 @@ function getDifficultyColor(diff: string) {
 }
 
 function isCorrectAns(q: any, opt: string) {
-  if (!q.correct_answer) return false;
+  if (!q || q.correct_answer === undefined || q.correct_answer === null || opt === undefined || opt === null) return false;
+  const corrStr = String(q.correct_answer).trim();
+  const optStr = String(opt).trim();
   if (q.type === 'msq') {
     try {
-      const arr = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
-      return Array.isArray(arr) && arr.includes(opt);
+      let arr = q.correct_answer;
+      if (typeof arr === 'string') {
+        if (arr.startsWith('[')) arr = JSON.parse(arr);
+        else arr = arr.split('|');
+      }
+      return Array.isArray(arr) && arr.map(x => String(x).trim()).includes(optStr);
     } catch (e) {
-      return q.correct_answer === opt;
+      return corrStr === optStr;
     }
   }
-  return q.correct_answer === opt;
+  return corrStr === optStr;
 }
 
 onMounted(() => {
