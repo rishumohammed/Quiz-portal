@@ -49,7 +49,7 @@
           
           <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
             <span class="text-body-2 text-secondary">Proxy Risk Status</span>
-            <Badge :color="hasProxyMismatch ? 'error' : 'success'">
+            <Badge :color="hasProxyMismatch ? 'red' : 'green'">
               {{ hasProxyMismatch ? 'Mismatch Detected' : 'Verified' }}
             </Badge>
           </div>
@@ -69,15 +69,71 @@
       <!-- Right: Main Event Timeline -->
       <v-col cols="12" md="8" lg="9">
         <div class="apple-card h-100 d-flex flex-column pa-6">
-          <div class="pb-4 mb-4 border-b font-weight-bold d-flex align-center justify-space-between">
+          <div class="pb-4 mb-4 border-b font-weight-bold d-flex align-center justify-space-between flex-wrap gap-2">
             <div class="d-flex align-center text-h6 font-weight-black">
-              <v-icon left color="warning" class="mr-2">mdi-history</v-icon> Event Timeline
+              <v-icon left color="warning" class="mr-2">mdi-history</v-icon> Event Log & Screenshots
             </div>
-            <span class="text-caption text-secondary">{{ events.length }} events recorded</span>
+            <div class="d-flex align-center gap-2">
+              <span class="text-caption text-secondary font-weight-medium mr-2">{{ events.length }} events recorded</span>
+              <v-btn-toggle v-model="viewMode" mandatory density="compact" rounded="lg" color="primary">
+                <v-btn value="grid" size="small" prepend-icon="mdi-view-grid-outline">Grid</v-btn>
+                <v-btn value="timeline" size="small" prepend-icon="mdi-timeline-outline">Timeline</v-btn>
+              </v-btn-toggle>
+            </div>
           </div>
           
-          <div class="flex-grow-1 overflow-y-auto" style="max-height: 700px;">
-            <v-timeline density="comfortable" side="end">
+          <div class="flex-grow-1 overflow-y-auto pa-1" style="max-height: 750px;">
+            <!-- Grid View (Default) -->
+            <v-row v-if="viewMode === 'grid'">
+              <v-col
+                v-for="event in events"
+                :key="event.id"
+                cols="12"
+                sm="6"
+                md="4"
+                lg="3"
+              >
+                <v-card class="border rounded-xl pa-3 bg-white hover-shadow transition-all h-100 d-flex flex-column" flat>
+                  <div class="d-flex align-center justify-space-between mb-2">
+                    <v-chip size="x-small" :color="getEventColor(event.type)" variant="flat" class="font-weight-bold text-white px-2">
+                      {{ formatType(event.type) }}
+                    </v-chip>
+                    <span class="text-caption text-secondary font-weight-bold">
+                      {{ new Date(event.created_at).toLocaleTimeString() }}
+                    </span>
+                  </div>
+
+                  <!-- Screenshot Image Grid Preview -->
+                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-1 cursor-pointer overflow-hidden rounded-lg border" @click="openPreview(event.metadata_json.screenshot)">
+                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="140" cover class="bg-grey-lighten-3 grid-img">
+                      <template v-slot:placeholder>
+                        <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
+                          <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
+                        </div>
+                      </template>
+                    </v-img>
+                  </div>
+
+                  <!-- Metadata if no screenshot -->
+                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-grey-lighten-4 pa-2 rounded-lg flex-grow-1">
+                    <pre style="margin:0; white-space: pre-wrap; font-family: monospace; font-size: 11px;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
+                  </div>
+
+                  <div v-else class="mt-2 text-caption text-grey text-center py-4 bg-grey-lighten-4 rounded-lg">
+                    No screenshot attached
+                  </div>
+                </v-card>
+              </v-col>
+
+              <v-col cols="12" v-if="events.length === 0" class="text-center py-12">
+                <v-icon size="48" color="success" class="mb-2">mdi-check-circle-outline</v-icon>
+                <div class="text-subtitle-1 font-weight-bold text-success">No Violations Recorded</div>
+                <div class="text-body-2 text-secondary">Clean proctored session with zero violation events.</div>
+              </v-col>
+            </v-row>
+
+            <!-- Timeline View -->
+            <v-timeline v-else density="comfortable" side="end">
               <v-timeline-item
                 v-for="event in events"
                 :key="event.id"
@@ -90,18 +146,10 @@
                     <span class="text-caption text-secondary font-weight-medium">{{ new Date(event.created_at).toLocaleTimeString() }}</span>
                   </div>
 
-                  <!-- Screenshot Preview if attached -->
                   <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-3 cursor-pointer" style="max-width: 320px;" @click="openPreview(event.metadata_json.screenshot)">
-                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="180" class="rounded-xl bg-grey-lighten-2 border" cover>
-                      <template v-slot:placeholder>
-                        <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
-                          <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                        </div>
-                      </template>
-                    </v-img>
+                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="180" class="rounded-xl bg-grey-lighten-2 border" cover />
                   </div>
 
-                  <!-- JSON Metadata snippet -->
                   <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-3 rounded-lg">
                     <pre style="margin:0; white-space: pre-wrap; font-family: monospace;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
                   </div>
@@ -152,6 +200,7 @@ const api = useApi();
 const attemptId = route.params.attemptId as string;
 
 const loading = ref(true);
+const viewMode = ref<'grid' | 'timeline'>('grid');
 const events = ref<any[]>([]);
 const recordings = ref<any[]>([]);
 const currentChunkIndex = ref(0);
