@@ -172,7 +172,7 @@
               <code>Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty<br/>"mcq","Which is a prime number?","2|4|6|8","2","2 is the only even prime.",4,"Easy"</code>
             </p>
             <div class="d-flex gap-2 mb-4">
-              <v-btn color="primary" variant="outlined" class="text-none py-6 flex-grow-1" style="border-style: dashed" @click="$refs.csvFileInput.click()">
+              <v-btn color="primary" variant="outlined" class="text-none py-6 flex-grow-1" style="border-style: dashed" @click="triggerCsvSelect">
                 <v-icon left size="24" class="mr-2">mdi-cloud-upload</v-icon> Click to Select CSV File
               </v-btn>
               <v-btn color="info" variant="tonal" class="text-none py-6" @click="downloadSampleCsv">
@@ -399,7 +399,7 @@
             <div v-for="(opt, idx) in questionFields.options" :key="idx" class="d-flex align-center gap-2 mb-2">
               <v-text-field
                 v-model="questionFields.options[idx]"
-                :label="`Option ${idx + 1}`"
+                :label="`Option ${Number(idx) + 1}`"
                 density="compact"
                 hide-details
                 variant="outlined"
@@ -824,12 +824,21 @@ function onTypeChanged(newType: string) {
   }
 }
 
+function triggerCsvSelect() {
+  if (csvFileInput.value) {
+    (csvFileInput.value as any).click();
+  }
+}
+
 function addOptionField() {
   questionFields.value.options.push('');
 }
 
-function removeOptionField(idx: number) {
-  questionFields.value.options.splice(idx, 1);
+function removeOptionField(idx: number | string) {
+  const index = Number(idx);
+  if (!isNaN(index) && Array.isArray(questionFields.value.options)) {
+    questionFields.value.options.splice(index, 1);
+  }
 }
 
 async function saveQuestion() {
