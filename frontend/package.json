@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "NODE_OPTIONS='--max-old-space-size=1536' nuxt build",
+    "build": "npx cross-env NODE_OPTIONS=\"--max-old-space-size=1536\" nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
