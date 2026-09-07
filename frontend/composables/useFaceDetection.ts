@@ -1,11 +1,12 @@
 import { ref, shallowRef } from 'vue';
+import type * as faceDetection from '@tensorflow-models/face-detection';
 
 let faceDetectionApi: any = null;
 
 export function extractFacialDescriptor(face: any): number[] | null {
   if (!face || !face.keypoints || face.keypoints.length < 4) return null;
 
-  const getKp = (name: string) => face.keypoints.find(k => k.name === name || (k.name && k.name.toLowerCase().includes(name.toLowerCase())));
+  const getKp = (name: string) => face.keypoints.find((k: any) => k.name === name || (k.name && k.name.toLowerCase().includes(name.toLowerCase())));
   
   const leftEye = getKp('leftEye') || face.keypoints[0];
   const rightEye = getKp('rightEye') || face.keypoints[1];
@@ -45,23 +46,29 @@ export const useFaceDetection = () => {
   const referenceDescriptor = ref<number[] | null>(null);
   const referenceDescriptorsList = ref<number[][]>([]);
   
-  let detectionInterval: NodeJS.Timeout | null = null;
+  let detectionInterval: any = null;
   let lastMultipleFacesLogTime = 0;
   let lastProxyMismatchLogTime = 0;
   let mismatchCount = 0;
 
   const loadModel = async () => {
+    if (typeof window === 'undefined' || !process.client) return;
     try {
       isModelLoading.value = true;
       faceDetectionError.value = '';
+      
+      if (!faceDetectionApi) {
+        await import('@tensorflow/tfjs');
+        faceDetectionApi = await import('@tensorflow-models/face-detection');
+      }
       
       const detectorConfig: faceDetection.MediaPipeFaceDetectorTfjsModelConfig = {
         runtime: 'tfjs',
         maxFaces: 5,
       };
       
-      model.value = await faceDetection.createDetector(
-        faceDetection.SupportedModels.MediaPipeFaceDetector,
+      model.value = await faceDetectionApi.createDetector(
+        faceDetectionApi.SupportedModels.MediaPipeFaceDetector,
         detectorConfig
       );
     } catch (err: any) {
