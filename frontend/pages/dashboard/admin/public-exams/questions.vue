@@ -11,18 +11,24 @@
     <!-- Exam Title & Action Controls -->
     <v-card class="pa-6 border rounded-xl mb-6" flat>
       <v-row align="center">
-        <v-col cols="12" md="5">
-          <div v-if="selectedExam" class="d-flex align-center gap-3">
-            <v-btn icon="mdi-arrow-left" variant="tonal" size="small" color="secondary" to="/dashboard/admin/public-exams" title="Back to Exams" class="mr-2"></v-btn>
-            <div>
-              <div class="text-caption text-secondary font-weight-bold text-uppercase">Managing Questions For</div>
-              <h2 class="text-h6 font-weight-black text-dark">{{ selectedExam.name }}</h2>
+        <v-col cols="12" md="6">
+          <div class="d-flex align-center gap-3">
+            <v-btn icon="mdi-arrow-left" variant="tonal" size="small" color="secondary" to="/dashboard/admin/public-exams" title="Back to Exams"></v-btn>
+            <div class="flex-grow-1">
+              <v-select
+                v-model="selectedExamId"
+                :items="exams"
+                item-title="name"
+                item-value="id"
+                label="Select Exam"
+                density="compact"
+                variant="outlined"
+                hide-details
+                rounded="lg"
+                class="font-weight-bold"
+                @update:model-value="onExamSelected"
+              ></v-select>
             </div>
-          </div>
-          <div v-else>
-            <v-btn to="/dashboard/admin/public-exams" variant="tonal" color="primary" rounded="lg">
-              <v-icon start>mdi-arrow-left</v-icon> Return to Exams
-            </v-btn>
           </div>
         </v-col>
         <v-col cols="12" md="7" class="d-flex justify-md-end gap-2 flex-wrap" v-if="selectedExamId">
@@ -557,24 +563,39 @@ const targetQuestion = ref<any>(null);
 const deleting = ref(false);
 
 const filteredQuestions = computed(() => {
+  if (!Array.isArray(questionsList.value)) return [];
   return questionsList.value.filter(q => {
-    const matchesSearch = !search.value || q.question_text.toLowerCase().includes(search.value.toLowerCase());
+    if (!q) return false;
+    const qText = String(q.question_text || '').toLowerCase();
+    const searchVal = String(search.value || '').toLowerCase();
+    const matchesSearch = !searchVal || qText.includes(searchVal);
     const matchesDiff = difficultyFilter.value === 'All Difficulties' || q.difficulty_level === difficultyFilter.value;
     return matchesSearch && matchesDiff;
   });
 });
 
 const totalCalculatedMarks = computed(() => {
-  return filteredQuestions.value.reduce((acc, q) => acc + (parseInt(q.marks) || 0), 0);
+  return (filteredQuestions.value || []).reduce((acc, q) => acc + (parseInt(q?.marks) || 0), 0);
 });
+
+function onExamSelected(id: string) {
+  selectedExamId.value = id;
+  selectedBankGroup.value = 'Default Bank';
+  fetchQuestions();
+}
 
 async function loadExams() {
   try {
     const { data } = await api.get('/admin/public-exams');
-    exams.value = data;
+    exams.value = Array.isArray(data) ? data : [];
     
     if (route.query.examId) {
       selectedExamId.value = route.query.examId as string;
+    } else if (exams.value.length > 0) {
+      selectedExamId.value = exams.value[0].id;
+    }
+
+    if (selectedExamId.value) {
       fetchQuestions();
     }
   } catch (err) {
