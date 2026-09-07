@@ -293,9 +293,6 @@
             <v-btn icon variant="tonal" color="teal" size="small" class="rounded-lg" @click="openMoveCopyDialog(q)" title="Move / Copy to Bank Group">
               <v-icon size="18">mdi-folder-swap-outline</v-icon>
             </v-btn>
-            <v-btn icon variant="tonal" color="warning" size="small" class="rounded-lg" @click="duplicateQuestion(q)" title="Duplicate Question">
-              <v-icon size="18">mdi-content-copy</v-icon>
-            </v-btn>
             <v-btn icon variant="tonal" color="indigo" size="small" class="rounded-lg" @click="openQuestionDialog(q)" title="Edit Question">
               <v-icon size="18">mdi-pencil-outline</v-icon>
             </v-btn>
