@@ -56,8 +56,8 @@ export const useWebcamRecorder = () => {
 
     mediaRecorder.value.ondataavailable = handleDataAvailable;
     
-    // Start recording, slicing every 60 seconds (60000ms)
-    mediaRecorder.value.start(60000);
+    // Start recording, slicing every 10 seconds (10000ms)
+    mediaRecorder.value.start(10000);
     isRecording.value = true;
   };
 
