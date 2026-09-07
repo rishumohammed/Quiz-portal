@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { CertificateService } from './certificate.service.js';
-import { EmailService } from './email.service.js';
+import EmailService from './email.service.js';
 
 class ProctoringService {
   async logEvent(attemptId, type, metadata = {}) {
