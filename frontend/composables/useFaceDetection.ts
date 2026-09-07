@@ -1,8 +1,8 @@
 import { ref, shallowRef } from 'vue';
-import * as faceDetection from '@tensorflow-models/face-detection';
-import '@tensorflow/tfjs';
 
-export function extractFacialDescriptor(face: faceDetection.Face): number[] | null {
+let faceDetectionApi: any = null;
+
+export function extractFacialDescriptor(face: any): number[] | null {
   if (!face || !face.keypoints || face.keypoints.length < 4) return null;
 
   const getKp = (name: string) => face.keypoints.find(k => k.name === name || (k.name && k.name.toLowerCase().includes(name.toLowerCase())));

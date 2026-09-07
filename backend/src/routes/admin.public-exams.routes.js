@@ -1125,26 +1125,6 @@ router.post('/:id/questions/bulk-csv', async (req, res) => {
   }
 });
 
-// Helper to auto-update total questions and total marks on the exam record
-async function recalculateExamTotals(examId) {
-  try {
-    const [stats] = await pool.query(
-      'SELECT COUNT(*) as count, SUM(marks) as total_marks FROM public_exam_questions WHERE exam_id = ?',
-      [examId]
-    );
-
-    const qCount = stats[0].count || 0;
-    const tMarks = stats[0].total_marks || 0;
-
-    await pool.query(
-      'UPDATE public_exams SET total_questions = ?, total_marks = ? WHERE id = ?',
-      [qCount, tMarks, examId]
-    );
-  } catch (err) {
-    console.error('Recalculate totals failed for exam:', examId, err);
-  }
-}
-
 // ─── CANDIDATE MANAGEMENT ───────────────────────────────────────────────────
 
 // GET /api/admin/public-exams/:id/candidates
