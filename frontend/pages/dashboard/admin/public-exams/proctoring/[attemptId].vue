@@ -9,7 +9,8 @@
         </div>
       </div>
       <div class="d-flex gap-2">
-        <AppButton variant="danger" icon="mdi-flag-outline" @click="flagAttempt">Flag Attempt</AppButton>
+        <AppButton v-if="proctoringStatus !== 'approved'" variant="g" icon="mdi-certificate-outline" @click="approveCertificate">Approve & Issue Certificate</AppButton>
+        <AppButton v-if="proctoringStatus !== 'flagged'" variant="danger" icon="mdi-flag-outline" @click="flagAttempt">Flag Attempt</AppButton>
         <AppButton variant="g" icon="mdi-check-all" @click="clearViolations">Clear Violations</AppButton>
         <AppButton variant="danger" icon="mdi-delete-outline" @click="deleteLogs">Delete Data</AppButton>
       </div>
@@ -48,6 +49,13 @@
         <div class="apple-card pa-5 mb-4">
           <div class="text-subtitle-2 font-weight-black mb-4 text-uppercase tracking-wider text-grey-darken-1">Session Summary</div>
           
+          <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
+            <span class="text-body-2 text-secondary">Certificate Release</span>
+            <Badge :color="proctoringStatus === 'approved' ? 'green' : (proctoringStatus === 'flagged' ? 'red' : 'warning')">
+              {{ proctoringStatus === 'approved' ? 'Approved & Issued' : (proctoringStatus === 'flagged' ? 'Flagged & Withheld' : 'Pending Review') }}
+            </Badge>
+          </div>
+
           <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
             <span class="text-body-2 text-secondary">Proxy Risk Status</span>
             <Badge :color="hasProxyMismatch ? 'red' : 'green'">
@@ -202,6 +210,7 @@ const attemptId = route.params.attemptId as string;
 
 const loading = ref(true);
 const viewMode = ref<'grid' | 'timeline'>('grid');
+const proctoringStatus = ref<string>('pending_review');
 const events = ref<any[]>([]);
 const recordings = ref<any[]>([]);
 const currentChunkIndex = ref(0);
@@ -230,6 +239,9 @@ const loadData = async () => {
     const { data } = await api.get(`/proctoring/admin/${attemptId}`);
     events.value = data.events || [];
     recordings.value = data.recordings || [];
+    if (data.proctoring_status) {
+      proctoringStatus.value = data.proctoring_status;
+    }
   } catch (err) {
     console.error('Failed to load proctoring data', err);
   } finally {
@@ -297,8 +309,28 @@ const clearViolations = async () => {
   }
 };
 
-const flagAttempt = () => {
-  alert('Flagging attempt for manual review...');
+const approveCertificate = async () => {
+  if (!confirm('Are you sure you want to approve this candidate\'s proctoring session and release their certificate?')) return;
+  try {
+    await api.post(`/proctoring/admin/${attemptId}/approve-certificate`);
+    alert('Certificate approved and emailed to candidate successfully!');
+    await loadData();
+  } catch (err: any) {
+    console.error(err);
+    alert(err.response?.data?.message || 'Failed to approve certificate');
+  }
+};
+
+const flagAttempt = async () => {
+  if (!confirm('Are you sure you want to flag this attempt? This will withhold certificate issuance.')) return;
+  try {
+    await api.post(`/proctoring/admin/${attemptId}/flag-attempt`, { reason: 'Flagged after proctoring review' });
+    alert('Attempt flagged. Certificate generation has been withheld.');
+    await loadData();
+  } catch (err: any) {
+    console.error(err);
+    alert(err.response?.data?.message || 'Failed to flag attempt');
+  }
 };
 
 const deleteLogs = async () => {

@@ -55,7 +55,7 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     await connection.beginTransaction();
 
     const [attempts] = await connection.query(`
-      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage, e.name as exam_name, e.enable_certificate,
+      SELECT a.*, e.passing_marks, e.total_marks, e.negative_marking, e.pass_percentage, e.name as exam_name, e.enable_certificate, e.enable_proctoring,
              c.name as candidate_name, c.email as candidate_email
       FROM public_exam_attempts a
       JOIN public_exams e ON a.exam_id = e.id
@@ -130,12 +130,14 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
 
     const timeTakenSec = Math.max(0, Math.floor((submittedAt - startedAt) / 1000));
 
+    const initialProctoringStatus = attempt.enable_proctoring ? 'pending_review' : 'not_applicable';
+
     // Update attempt
     await connection.query(`
       UPDATE public_exam_attempts 
-      SET status = 'submitted', submitted_at = ?, answers_json = ?
+      SET status = 'submitted', submitted_at = ?, answers_json = ?, proctoring_status = ?
       WHERE id = ?
-    `, [new Date(), JSON.stringify(guestAnswers), attemptId]);
+    `, [new Date(), JSON.stringify(guestAnswers), initialProctoringStatus, attemptId]);
 
     // Create result
     const resultId = uuidv4();
@@ -156,12 +158,12 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
 
     await connection.commit();
 
-    // Trigger participation certificate asynchronously
+    // Trigger participation certificate asynchronously (ONLY if non-proctored or proctoring disabled)
     const finalCandidateName = attempt.candidate_name || attempt.guest_name;
     const finalCandidateEmail = attempt.candidate_email || attempt.guest_email;
     const finalExamName = attempt.exam_name;
 
-    if (finalCandidateEmail && attempt.enable_certificate) {
+    if (finalCandidateEmail && attempt.enable_certificate && !attempt.enable_proctoring) {
       // Fetch the certificate logo path from config
       let logoAbsPath = null;
       try {

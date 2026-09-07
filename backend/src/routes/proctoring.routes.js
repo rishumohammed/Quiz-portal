@@ -160,6 +160,27 @@ router.post('/admin/:attemptId/clear-violations', authenticateJWT, isAdminOrTuto
   }
 });
 
+// POST /api/proctoring/admin/:attemptId/approve-certificate
+router.post('/admin/:attemptId/approve-certificate', authenticateJWT, isAdminOrTutor, async (req, res) => {
+  try {
+    const result = await proctoringService.approveCertificateAndRelease(req.params.attemptId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/proctoring/admin/:attemptId/flag-attempt
+router.post('/admin/:attemptId/flag-attempt', authenticateJWT, isAdminOrTutor, async (req, res) => {
+  try {
+    const reason = req.body?.reason || 'Flagged by admin';
+    const result = await proctoringService.flagAttempt(req.params.attemptId, reason);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE /api/proctoring/admin/attempt/:attemptId
 router.delete('/admin/attempt/:attemptId', authenticateJWT, isAdminOrTutor, async (req, res) => {
   try {

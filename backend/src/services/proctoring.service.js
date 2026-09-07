@@ -1,7 +1,10 @@
 import { pool } from '../db/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
+import { CertificateService } from './certificate.service.js';
+import { EmailService } from './email.service.js';
 
 class ProctoringService {
   async logEvent(attemptId, type, metadata = {}) {
@@ -18,7 +21,12 @@ class ProctoringService {
       'SELECT * FROM proctoring_events WHERE attempt_id = ? ORDER BY created_at ASC',
       [attemptId]
     );
-    return events;
+    let proctoring_status = 'pending_review';
+    try {
+      const [[att]] = await pool.query('SELECT proctoring_status FROM public_exam_attempts WHERE id = ?', [attemptId]);
+      if (att && att.proctoring_status) proctoring_status = att.proctoring_status;
+    } catch (_) {}
+    return { events, proctoring_status };
   }
 
   async getRecordingsForAttempt(attemptId) {
@@ -402,6 +410,84 @@ class ProctoringService {
       await this.deleteAttemptLogs(attempt.id);
     }
     return { success: true };
+  }
+
+  async approveCertificateAndRelease(attemptId) {
+    const [attempts] = await pool.query(`
+      SELECT a.*, e.name as exam_name, e.enable_certificate,
+             c.name as candidate_name, c.email as candidate_email
+      FROM public_exam_attempts a
+      JOIN public_exams e ON a.exam_id = e.id
+      LEFT JOIN public_exam_candidates c ON a.candidate_id = c.id
+      WHERE a.id = ?
+    `, [attemptId]);
+
+    if (attempts.length === 0) {
+      throw new Error('Attempt not found');
+    }
+
+    const attempt = attempts[0];
+    const finalCandidateName = attempt.candidate_name || attempt.guest_name;
+    const finalCandidateEmail = attempt.candidate_email || attempt.guest_email;
+    const finalExamName = attempt.exam_name;
+
+    // Mark as approved
+    await pool.query('UPDATE public_exam_attempts SET proctoring_status = ? WHERE id = ?', ['approved', attemptId]);
+
+    let certInfo = null;
+    // Generate certificate if enabled and candidate has email
+    if (finalCandidateEmail && attempt.enable_certificate) {
+      let logoAbsPath = null;
+      try {
+        const [[logoRow]] = await pool.query("SELECT `value` FROM system_config WHERE `key` = 'certificate_logo'");
+        if (logoRow && logoRow.value) {
+          const relPath = logoRow.value.startsWith('/') ? logoRow.value : '/' + logoRow.value;
+          const absPath = path.join(process.cwd(), relPath);
+          if (fsSync.existsSync(absPath)) logoAbsPath = absPath;
+        }
+      } catch (_) {}
+
+      const { buffer, pdfUrl, certificateNumber } = await CertificateService.generateParticipationCertificate(
+        finalCandidateName,
+        finalExamName,
+        new Date(),
+        logoAbsPath
+      );
+
+      // Check if already issued
+      const [existing] = await pool.query('SELECT id FROM public_exam_issued_certificates WHERE attempt_id = ?', [attemptId]);
+      if (existing.length === 0) {
+        const certId = uuidv4();
+        await pool.query(`
+          INSERT INTO public_exam_issued_certificates 
+            (id, exam_id, attempt_id, candidate_name, candidate_email, pdf_url, certificate_number) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [certId, attempt.exam_id, attemptId, finalCandidateName, finalCandidateEmail, pdfUrl, certificateNumber || null]);
+      }
+
+      await EmailService.sendExamCertificateEmail(
+        { name: finalCandidateName, email: finalCandidateEmail },
+        { name: finalExamName },
+        buffer
+      );
+
+      certInfo = { pdfUrl, certificateNumber };
+    }
+
+    await this.logEvent(attemptId, 'proctoring_approved', { approved_at: new Date() });
+    return { success: true, proctoring_status: 'approved', certificate: certInfo };
+  }
+
+  async flagAttempt(attemptId, reason = 'Flagged by proctor') {
+    const [attempts] = await pool.query('SELECT id FROM public_exam_attempts WHERE id = ?', [attemptId]);
+    if (attempts.length === 0) {
+      throw new Error('Attempt not found');
+    }
+
+    await pool.query('UPDATE public_exam_attempts SET proctoring_status = ? WHERE id = ?', ['flagged', attemptId]);
+    await this.logEvent(attemptId, 'attempt_flagged', { reason, flagged_at: new Date() });
+
+    return { success: true, proctoring_status: 'flagged' };
   }
 }
 
