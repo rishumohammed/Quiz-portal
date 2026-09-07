@@ -1,3 +1,4 @@
+
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -151,10 +152,10 @@ class EmailService {
       let html = await fs.readFile(templatePath, 'utf-8');
 
       const dateStr = new Date(completionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      
+
       let certText = '';
       let certButton = '';
-      
+
       if (certificateDetails && certificateDetails.pdfUrl) {
         certText = 'Your certificate of completion has been generated and is now available for download.';
         const fullPdfUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}${certificateDetails.pdfUrl}`;
@@ -166,7 +167,7 @@ class EmailService {
         const parts = student.name.trim().split(' ');
         let initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]) : parts[0].substring(0, 2);
         initials = initials.toUpperCase();
-        
+
         if (student.avatar_url) {
           const fullAvatarUrl = student.avatar_url.startsWith('http') ? student.avatar_url : `${process.env.FRONTEND_URL || 'http://localhost:3000'}${student.avatar_url}`;
           profilePicHtml = `<img src="${fullAvatarUrl}" alt="Profile Picture" style="width: 80px; height: 80px; border-radius: 50%; border: 4px solid #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; object-fit: cover;">`;

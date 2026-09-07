@@ -64,7 +64,7 @@ export const useProctoring = () => {
   };
 
   const lastScreenshotTimeMap = new Map<string, number>();
-  const SCREENSHOT_COOLDOWN_MS = 45000; // 45 seconds cooldown per violation type to save bandwidth
+  const SCREENSHOT_COOLDOWN_MS = 10000; // 10 seconds cooldown per violation type for quick timeline screenshots
 
   const logEvent = async (type: string, metadata: any = {}) => {
     if (!attemptId.value) return;
