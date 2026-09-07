@@ -329,7 +329,19 @@ const setupCamera = async () => {
   }
 };
 
-const onVideoReady = (videoEl: HTMLVideoElement) => {
+const onVideoReady = async (videoEl: HTMLVideoElement) => {
+  if (!faceDetection.referenceDescriptor.value) {
+    const descriptor = await faceDetection.captureReferenceDescriptor(videoEl, 3);
+    if (descriptor) {
+      console.info('[Proctoring] 3-sample candidate reference face profile registered.');
+      // Capture reference selfie for proctor audit
+      const selfieUrl = await recorder.captureScreenshot(attemptId.value);
+      if (selfieUrl) {
+        proctoring.logEvent('reference_face_registered', { screenshot: selfieUrl, samples_count: 3 });
+      }
+    }
+  }
+
   faceDetection.startDetection(
     videoEl, 
     proctoring.logEvent, 

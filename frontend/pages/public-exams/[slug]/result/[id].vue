@@ -8,13 +8,19 @@
 
     <div v-else-if="result">
       <!-- Result Stats Header -->
-      <div class="mb-6">
-        <h1 class="text-h4 font-weight-black text-dark mb-2">
-          {{ result.guest_name ? result.guest_name + "'s Scorecard" : 'Candidate Exam Scorecard' }}
-        </h1>
-        <p class="text-subtitle-1 text-secondary">
-          Detailed breakdown of the candidate's performance.
-        </p>
+      <div class="d-flex align-center justify-space-between flex-wrap gap-4 mb-6">
+        <div>
+          <h1 class="text-h4 font-weight-black text-dark mb-2">
+            {{ result.guest_name ? result.guest_name + "'s Scorecard" : 'Candidate Exam Scorecard' }}
+          </h1>
+          <p class="text-subtitle-1 text-secondary mb-0">
+            Detailed breakdown of the candidate's performance.
+          </p>
+        </div>
+        <v-chip v-if="result.passed" color="primary" variant="flat" size="large" class="font-weight-bold px-4">
+          <v-icon start>mdi-certificate-outline</v-icon>
+          Certificate No: KEF-0926-{{ String(result.attempt_id).substring(0, 3).toUpperCase() }}
+        </v-chip>
       </div>
 
       <!-- Stats Grid -->

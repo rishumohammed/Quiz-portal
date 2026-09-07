@@ -176,15 +176,15 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
       } catch (_) { /* ignore – logo is optional */ }
 
       CertificateService.generateParticipationCertificate(finalCandidateName, finalExamName, new Date(), logoAbsPath)
-        .then(async ({ buffer, pdfUrl }) => {
+        .then(async ({ buffer, pdfUrl, certificateNumber }) => {
           try {
             // Save to DB
             const certId = uuidv4();
             await pool.query(`
               INSERT INTO public_exam_issued_certificates 
-                (id, exam_id, attempt_id, candidate_name, candidate_email, pdf_url) 
-              VALUES (?, ?, ?, ?, ?, ?)
-            `, [certId, attempt.exam_id, attemptId, finalCandidateName, finalCandidateEmail, pdfUrl]);
+                (id, exam_id, attempt_id, candidate_name, candidate_email, pdf_url, certificate_number) 
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [certId, attempt.exam_id, attemptId, finalCandidateName, finalCandidateEmail, pdfUrl, certificateNumber || null]);
 
             // Send email
             await EmailService.sendExamCertificateEmail(

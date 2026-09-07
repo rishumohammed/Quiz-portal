@@ -14,26 +14,85 @@
       </div>
     </div>
 
+    <v-alert
+      v-if="hasProxyMismatch"
+      color="error"
+      variant="elevated"
+      icon="mdi-account-alert"
+      class="mb-6 rounded-xl text-white font-weight-bold"
+      prominent
+    >
+      <div class="text-h6 font-weight-black">HIGH RISK: Proxy Candidate Mismatch Detected!</div>
+      <div>The face monitoring system detected a different person writing the exam than the initial candidate registered face.</div>
+    </v-alert>
+
     <v-row v-if="!loading">
-      <!-- Left: Timeline -->
-      <v-col cols="12" md="4">
-        <div class="apple-card h-100 d-flex flex-column">
-          <div class="pa-4 border-b font-weight-bold d-flex align-center">
-            <v-icon left color="warning" class="mr-2">mdi-history</v-icon> Event Timeline
+      <!-- Left: Summary & Candidate Selfie -->
+      <v-col cols="12" md="4" lg="3">
+        <!-- Candidate Reference Selfie Card -->
+        <div v-if="referenceSelfieUrl" class="apple-card mb-4 pa-4 bg-indigo-lighten-5 border-indigo">
+          <div class="font-weight-bold text-caption text-uppercase text-indigo mb-2 d-flex align-center">
+            <v-icon size="16" color="indigo" class="mr-1">mdi-account-box</v-icon> Candidate Reference Selfie
           </div>
-          <div class="pa-4 flex-grow-1 overflow-y-auto" style="max-height: 600px;">
-            <v-timeline density="compact" side="end">
+          <v-img :src="backendUrl(referenceSelfieUrl)" height="180" class="rounded-xl border bg-white cursor-pointer" cover @click="openPreview(referenceSelfieUrl)">
+            <template v-slot:placeholder>
+              <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
+                <v-progress-circular indeterminate color="indigo"></v-progress-circular>
+              </div>
+            </template>
+          </v-img>
+        </div>
+
+        <!-- Session Overview Stats Card -->
+        <div class="apple-card pa-5 mb-4">
+          <div class="text-subtitle-2 font-weight-black mb-4 text-uppercase tracking-wider text-grey-darken-1">Session Summary</div>
+          
+          <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
+            <span class="text-body-2 text-secondary">Proxy Risk Status</span>
+            <Badge :color="hasProxyMismatch ? 'error' : 'success'">
+              {{ hasProxyMismatch ? 'Mismatch Detected' : 'Verified' }}
+            </Badge>
+          </div>
+
+          <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
+            <span class="text-body-2 text-secondary">Total Events Logged</span>
+            <span class="font-weight-black text-body-1">{{ events.length }}</span>
+          </div>
+
+          <div class="d-flex align-center justify-space-between mb-3 pb-3 border-b">
+            <span class="text-body-2 text-secondary">High Severity Violations</span>
+            <span class="font-weight-black text-body-1 text-error">{{ highSeverityCount }}</span>
+          </div>
+        </div>
+      </v-col>
+
+      <!-- Right: Main Event Timeline -->
+      <v-col cols="12" md="8" lg="9">
+        <div class="apple-card h-100 d-flex flex-column pa-6">
+          <div class="pb-4 mb-4 border-b font-weight-bold d-flex align-center justify-space-between">
+            <div class="d-flex align-center text-h6 font-weight-black">
+              <v-icon left color="warning" class="mr-2">mdi-history</v-icon> Event Timeline
+            </div>
+            <span class="text-caption text-secondary">{{ events.length }} events recorded</span>
+          </div>
+          
+          <div class="flex-grow-1 overflow-y-auto" style="max-height: 700px;">
+            <v-timeline density="comfortable" side="end">
               <v-timeline-item
                 v-for="event in events"
                 :key="event.id"
                 :dot-color="getEventColor(event.type)"
                 size="small"
               >
-                <div class="d-flex flex-column">
-                  <strong class="text-body-2">{{ formatType(event.type) }}</strong>
-                  <span class="text-caption text-secondary">{{ new Date(event.created_at).toLocaleTimeString() }}</span>
-                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-2 cursor-pointer" @click="openPreview(event.metadata_json.screenshot)">
-                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="120" class="rounded-lg bg-grey-lighten-2 border" cover>
+                <div class="d-flex flex-column pa-2">
+                  <div class="d-flex align-center justify-space-between mb-1">
+                    <strong class="text-body-1 font-weight-bold">{{ formatType(event.type) }}</strong>
+                    <span class="text-caption text-secondary font-weight-medium">{{ new Date(event.created_at).toLocaleTimeString() }}</span>
+                  </div>
+
+                  <!-- Screenshot Preview if attached -->
+                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-3 cursor-pointer" style="max-width: 320px;" @click="openPreview(event.metadata_json.screenshot)">
+                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="180" class="rounded-xl bg-grey-lighten-2 border" cover>
                       <template v-slot:placeholder>
                         <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
                           <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -41,59 +100,19 @@
                       </template>
                     </v-img>
                   </div>
-                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-2 rounded-lg">
+
+                  <!-- JSON Metadata snippet -->
+                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-3 rounded-lg">
                     <pre style="margin:0; white-space: pre-wrap; font-family: monospace;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
                   </div>
                 </div>
               </v-timeline-item>
               
               <v-timeline-item v-if="events.length === 0" dot-color="green" size="small">
-                <strong>No Violations</strong>
-                <div class="text-caption text-secondary">Clean session recorded</div>
+                <strong class="text-subtitle-1 text-success">No Violations</strong>
+                <div class="text-body-2 text-secondary">Clean proctored session recorded with zero violations.</div>
               </v-timeline-item>
             </v-timeline>
-          </div>
-        </div>
-      </v-col>
-
-      <!-- Right: Video Player -->
-      <v-col cols="12" md="8">
-        <div class="apple-card">
-          <div class="pa-4 border-b d-flex justify-space-between align-center">
-            <div class="font-weight-bold"><v-icon left color="blue" class="mr-2">mdi-video</v-icon> Session Recording</div>
-            <Badge color="blue">Chunk {{ currentChunkIndex + 1 }} / {{ recordings.length }}</Badge>
-          </div>
-          <div class="pa-4">
-            <div v-if="recordings.length > 0">
-              <div class="video-wrapper rounded-xl overflow-hidden bg-black">
-                <video 
-                  ref="videoPlayer"
-                  controls 
-                  class="w-100" 
-                  style="max-height: 500px; display: block;"
-                  :src="backendUrl(recordings[currentChunkIndex].url)"
-                  @ended="playNextChunk"
-                ></video>
-              </div>
-              
-              <div class="d-flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
-                <v-btn 
-                  v-for="(rec, index) in recordings" 
-                  :key="index"
-                  size="small"
-                  variant="flat"
-                  :color="currentChunkIndex === index ? 'primary' : 'grey-lighten-4'"
-                  class="rounded-lg"
-                  @click="playChunk(index)"
-                >
-                  Part {{ index + 1 }}
-                </v-btn>
-              </div>
-            </div>
-            <div v-else class="text-center py-16">
-              <v-icon size="64" color="grey-lighten-2" class="mb-4">mdi-video-off-outline</v-icon>
-              <h3 class="text-h6 text-secondary">No recordings available for this attempt.</h3>
-            </div>
           </div>
         </div>
       </v-col>
@@ -168,8 +187,24 @@ const loadData = async () => {
   }
 };
 
+const hasProxyMismatch = computed(() => {
+  return events.value.some(e => e.type === 'proxy_mismatch');
+});
+
+const highSeverityCount = computed(() => {
+  const highTypes = ['multiple_faces', 'face_absent', 'proxy_mismatch', 'devtools_open', 'phone_detected', 'suspicious_object'];
+  return events.value.filter(e => highTypes.includes(e.type)).length;
+});
+
+const referenceSelfieUrl = computed(() => {
+  const refEvent = events.value.find(e => e.type === 'reference_face_registered' && e.metadata_json?.screenshot);
+  return refEvent?.metadata_json?.screenshot || null;
+});
+
 const getEventColor = (type: string) => {
   switch (type) {
+    case 'proxy_mismatch': return 'red';
+    case 'reference_face_registered': return 'purple';
     case 'tab_switch': return 'warning';
     case 'window_blur': return 'warning';
     case 'fullscreen_exit': return 'red';

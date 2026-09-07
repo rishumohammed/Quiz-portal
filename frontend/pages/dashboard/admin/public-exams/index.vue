@@ -163,6 +163,10 @@
                 <v-btn icon="mdi-chart-bar" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${item.id}/analytics`" title="Results & Analytics" />
                 <!-- Share / Copy Link Modal -->
                 <v-btn icon="mdi-share-variant" variant="tonal" size="small" color="info" @click="openShareDialog(item)" title="Share Exam Link" />
+                <!-- Re-Conduct Exam -->
+                <v-btn icon="mdi-autorenew" variant="tonal" size="small" color="purple-darken-1" @click="openReConductDialog(item)" title="Re-Conduct Exam (New Session / Bank)" />
+                <!-- Send 24h Reminder -->
+                <v-btn icon="mdi-bell-ring-outline" variant="tonal" size="small" color="amber-darken-3" @click="openReminderDialog(item)" title="Send 24h Exam Reminder Email" />
               </div>
               
               <!-- Second Row of Actions -->
@@ -297,6 +301,115 @@
       </v-card>
     </v-dialog>
 
+    <!-- Re-Conduct Exam Dialog -->
+    <v-dialog v-model="reConductDialog" max-width="550">
+      <v-card class="pa-6 rounded-xl">
+        <div class="d-flex align-center justify-space-between mb-4">
+          <div class="d-flex align-center gap-2">
+            <v-icon color="purple-darken-1" size="28">mdi-autorenew</v-icon>
+            <h3 class="text-h6 font-weight-bold text-dark">Re-Conduct Exam Session</h3>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="reConductDialog = false"></v-btn>
+        </div>
+
+        <p class="text-body-2 text-secondary mb-4">
+          Re-conducting will reopen registration, reset candidate 24h reminder status, set the active question bank, and optionally send email notifications to all registered students with the new schedule.
+        </p>
+
+        <v-select
+          v-model="reConductForm.active_bank"
+          :items="availableBankNames"
+          label="Active Question Bank"
+          variant="outlined"
+          density="comfortable"
+          class="mb-3"
+          hint="Questions from this bank will be served to candidates"
+          persistent-hint
+        ></v-select>
+
+        <v-text-field
+          v-model="reConductForm.exam_start_date"
+          label="Exam Start Date & Time"
+          type="datetime-local"
+          variant="outlined"
+          density="comfortable"
+          class="mb-3"
+          persistent-hint
+          hint="Leave empty to make exam available immediately"
+        ></v-text-field>
+
+        <v-text-field
+          v-model="reConductForm.exam_end_date"
+          label="Exam End Date & Time"
+          type="datetime-local"
+          variant="outlined"
+          density="comfortable"
+          class="mb-3"
+          persistent-hint
+          hint="Leave empty for no expiry"
+        ></v-text-field>
+
+        <v-checkbox
+          v-model="reConductForm.allow_retake"
+          label="Allow candidates to attempt exam again"
+          color="purple"
+          hide-details
+          class="mb-2"
+        ></v-checkbox>
+
+        <v-checkbox
+          v-model="reConductForm.send_email_notification"
+          label="Send email notification to all registered candidates now"
+          color="purple"
+          hide-details
+          class="mb-6"
+        ></v-checkbox>
+
+        <div class="d-flex justify-end gap-2">
+          <v-btn variant="text" color="grey" @click="reConductDialog = false">Cancel</v-btn>
+          <v-btn
+            color="purple-darken-1"
+            rounded="lg"
+            class="text-capitalize font-weight-bold text-white"
+            :loading="reConducting"
+            @click="doReConductExam"
+          >
+            <v-icon start>mdi-send</v-icon>
+            Re-Conduct & Notify
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
+    <!-- Send 24h Reminder Confirmation Dialog -->
+    <v-dialog v-model="reminderDialog" max-width="460">
+      <v-card class="pa-6 rounded-xl">
+        <div class="d-flex align-center gap-3 mb-4">
+          <v-icon size="36" color="amber-darken-3">mdi-bell-ring-outline</v-icon>
+          <h3 class="text-h6 font-weight-bold text-dark">Send 24-Hour Exam Reminders?</h3>
+        </div>
+        <p class="text-body-2 text-secondary mb-2">
+          Send a 24-hour countdown reminder email to all registered candidates for <strong>{{ reminderExamTarget?.name }}</strong>?
+        </p>
+        <p class="text-caption text-secondary mb-6">
+          The email includes the exam schedule, facial verification test link, and candidate login credentials link.
+        </p>
+        <div class="d-flex justify-end gap-2">
+          <v-btn variant="text" color="grey" @click="reminderDialog = false">Cancel</v-btn>
+          <v-btn
+            color="amber-darken-3"
+            rounded="lg"
+            class="text-capitalize font-weight-bold text-white"
+            :loading="sendingReminders"
+            @click="doSend24hReminders"
+          >
+            <v-icon start>mdi-email-send-outline</v-icon>
+            Send Reminders Now
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
       {{ snackbarText }}
@@ -340,6 +453,24 @@ const snackbarColor = ref('success');
 // Share Dialog State
 const shareDialog = ref(false);
 const shareUrl = ref('');
+
+// Re-Conduct Exam State
+const reConductDialog = ref(false);
+const reConductExamTarget = ref<any>(null);
+const reConducting = ref(false);
+const availableBankNames = ref<string[]>([]);
+const reConductForm = ref({
+  active_bank: 'Default Bank',
+  exam_start_date: '',
+  exam_end_date: '',
+  allow_retake: true,
+  send_email_notification: true
+});
+
+// Reminder Dialog State
+const reminderDialog = ref(false);
+const reminderExamTarget = ref<any>(null);
+const sendingReminders = ref(false);
 
 const headers = [
   { title: 'Exam Details', key: 'name' },
@@ -481,6 +612,75 @@ function executeCopy() {
     snackbarColor.value = 'warning';
     snackbar.value = true;
   });
+}
+
+async function openReConductDialog(exam: any) {
+  reConductExamTarget.value = exam;
+  reConductForm.value = {
+    active_bank: exam.active_question_bank || 'Default Bank',
+    exam_start_date: exam.exam_start_date ? new Date(exam.exam_start_date).toISOString().slice(0, 16) : '',
+    exam_end_date: exam.exam_end_date ? new Date(exam.exam_end_date).toISOString().slice(0, 16) : '',
+    allow_retake: true,
+    send_email_notification: true
+  };
+
+  try {
+    const res = await api.get(`/admin/public-exams/${exam.id}/questions`);
+    const banks = new Set<string>();
+    banks.add('Default Bank');
+    if (exam.active_question_bank) banks.add(exam.active_question_bank);
+    (res.data || []).forEach((q: any) => {
+      if (q.bank_name) banks.add(q.bank_name);
+    });
+    availableBankNames.value = Array.from(banks);
+  } catch (err) {
+    availableBankNames.value = ['Default Bank'];
+  }
+  reConductDialog.value = true;
+}
+
+async function doReConductExam() {
+  if (!reConductExamTarget.value) return;
+  reConducting.value = true;
+  try {
+    await api.post(`/admin/public-exams/${reConductExamTarget.value.id}/re-conduct`, reConductForm.value);
+    reConductDialog.value = false;
+    snackbarText.value = 'Exam re-conducted successfully! Candidate notifications sent.';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    console.error('Failed to re-conduct exam:', err);
+    snackbarText.value = err.response?.data?.message || 'Failed to re-conduct exam. Please try again.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    reConducting.value = false;
+  }
+}
+
+function openReminderDialog(exam: any) {
+  reminderExamTarget.value = exam;
+  reminderDialog.value = true;
+}
+
+async function doSend24hReminders() {
+  if (!reminderExamTarget.value) return;
+  sendingReminders.value = true;
+  try {
+    const res = await api.post(`/admin/public-exams/${reminderExamTarget.value.id}/send-24h-reminders`);
+    reminderDialog.value = false;
+    snackbarText.value = res.data.message || '24-hour reminder emails sent successfully!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err: any) {
+    console.error('Failed to send reminders:', err);
+    snackbarText.value = err.response?.data?.message || 'Failed to send 24h reminders.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    sendingReminders.value = false;
+  }
 }
 
 onMounted(() => {

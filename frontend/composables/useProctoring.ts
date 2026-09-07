@@ -63,14 +63,21 @@ export const useProctoring = () => {
     }
   };
 
+  const lastScreenshotTimeMap = new Map<string, number>();
+  const SCREENSHOT_COOLDOWN_MS = 45000; // 45 seconds cooldown per violation type to save bandwidth
+
   const logEvent = async (type: string, metadata: any = {}) => {
     if (!attemptId.value) return;
     try {
-      // Auto-capture screenshot on violation if option enabled
-      if (proctoringConfig.value?.capture_on_violation && captureScreenshotCallback) {
+      const now = Date.now();
+      const lastScreenshotTime = lastScreenshotTimeMap.get(type) || 0;
+
+      // Auto-capture screenshot on violation if option enabled AND cooldown period has passed
+      if (proctoringConfig.value?.capture_on_violation && captureScreenshotCallback && (now - lastScreenshotTime >= SCREENSHOT_COOLDOWN_MS)) {
         const screenshotUrl = await captureScreenshotCallback();
         if (screenshotUrl) {
           metadata.screenshot = screenshotUrl;
+          lastScreenshotTimeMap.set(type, now);
         }
       }
 

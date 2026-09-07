@@ -34,11 +34,21 @@ export const initExamRemindersJob = () => {
             const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
             const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
 
+            const verifyFaceUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}/verify-face`;
+
             let html = tplRows[0].body
               .replace(/{{name}}/g, candidate.name || 'Candidate')
               .replace(/{{exam_name}}/g, exam.name)
               .replace(/{{exam_link}}/g, examLink)
               .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+
+            html += `
+              <div style="margin-top: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; text-align: center;">
+                <strong style="color: #334155; display: block; margin-bottom: 4px;">Camera & Face Verification Check</strong>
+                <span style="color: #64748b; font-size: 13px;">Test your webcam before exam day:</span><br>
+                <a href="${verifyFaceUrl}" style="color: #6366f1; font-weight: bold; font-size: 13px; display: inline-block; margin-top: 8px;">Test Face Enrollment Status →</a>
+              </div>
+            `;
 
             await EmailService.sendEmail({
               to: candidate.email,

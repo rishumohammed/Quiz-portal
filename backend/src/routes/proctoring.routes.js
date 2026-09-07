@@ -74,12 +74,30 @@ router.post('/recording-chunk', authenticateAnyJWT, upload.single('video'), (req
 });
 
 // POST /api/proctoring/violation-screenshot
-router.post('/violation-screenshot', authenticateAnyJWT, uploadScreenshot.single('image'), (req, res) => {
+router.post('/violation-screenshot', authenticateAnyJWT, uploadScreenshot.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No image file provided' });
     }
-    const url = `/uploads/screenshots/${req.body.attempt_id}/${req.file.filename}`;
+
+    const attemptId = req.body.attempt_id;
+    const __filename = new URL(import.meta.url).pathname;
+    let __dirname = path.dirname(__filename);
+    if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
+    const dir = path.join(__dirname, '../../uploads/screenshots', attemptId);
+
+    try {
+      const files = await fs.promises.readdir(dir);
+      if (files.length > 15) {
+        // Remove current uploaded file if attempt quota exceeded
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(429).json({ message: 'Screenshot upload quota reached for this attempt.' });
+      }
+    } catch (e) {
+      // Ignore readdir error if folder created just now
+    }
+
+    const url = `/uploads/screenshots/${attemptId}/${req.file.filename}`;
     res.json({ message: 'Screenshot saved successfully', url, filename: req.file.filename });
   } catch (err) {
     res.status(500).json({ message: err.message });

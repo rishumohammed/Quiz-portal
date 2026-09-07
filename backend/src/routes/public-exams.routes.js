@@ -227,7 +227,7 @@ router.post('/candidates/login', async (req, res) => {
 
     // Find candidate for this exam
     const [candidates] = await pool.query(
-      'SELECT id, name, email, phone, password_hash, registration_status FROM public_exam_candidates WHERE email = ? AND exam_id = ?',
+      'SELECT id, name, email, phone, password_hash, registration_status, metadata FROM public_exam_candidates WHERE email = ? AND exam_id = ?',
       [email.trim().toLowerCase(), exam.id]
     );
 
@@ -266,12 +266,49 @@ router.post('/candidates/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      candidate: { id: candidate.id, name: candidate.name, email: candidate.email, phone: candidate.phone },
+      candidate: {
+        id: candidate.id,
+        name: candidate.name,
+        email: candidate.email,
+        phone: candidate.phone,
+        reference_photo_url: (candidate.metadata && typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata)?.reference_photo_url || null,
+        facial_descriptor: (candidate.metadata && typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata)?.facial_descriptor || null
+      },
       exam: { id: exam.id, name: exam.name, slug: exam.slug }
     });
   } catch (error) {
     console.error('Candidate login error:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Candidate Registration Selfie Upload — POST /api/public/exams/upload-selfie
+const selfieStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const __filename = new URL(import.meta.url).pathname;
+    let __dirname = path.dirname(__filename);
+    if (process.platform === 'win32' && __dirname.startsWith('/')) __dirname = __dirname.substring(1);
+    const dir = path.join(__dirname, '../../uploads/candidates');
+    fs.promises.mkdir(dir, { recursive: true })
+      .then(() => cb(null, dir))
+      .catch((err) => cb(err));
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    cb(null, `selfie-${timestamp}-${uuidv4().substring(0, 8)}.jpg`);
+  }
+});
+const uploadSelfie = multer({ storage: selfieStorage });
+
+router.post('/upload-selfie', uploadSelfie.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image provided' });
+    }
+    const url = `/uploads/candidates/${req.file.filename}`;
+    res.json({ message: 'Selfie uploaded successfully', url, filename: req.file.filename });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -410,6 +447,8 @@ router.post('/:slug/register', async (req, res) => {
       const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
       const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
 
+      const verifyFaceUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}/verify-face`;
+
       let html = tplRows[0].body
         .replace(/{{name}}/g, name || 'Candidate')
         .replace(/{{exam_name}}/g, exam.name)
@@ -419,6 +458,16 @@ router.post('/:slug/register', async (req, res) => {
         .replace(/{{password}}/g, password)
         .replace(/{{exam_link}}/g, loginUrl)
         .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+
+      // Append Face Verification Test Button
+      html += `
+        <div style="margin-top: 24px; padding: 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; text-align: center;">
+          <h4 style="margin: 0 0 6px 0; color: #1e293b;">Check Your Face Verification Status</h4>
+          <p style="margin: 0 0 14px 0; font-size: 13px; color: #64748b;">You can test your webcam and verify your face enrolment before exam day:</p>
+          <a href="${verifyFaceUrl}" style="display: inline-block; padding: 10px 22px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">Test Face Enrollment →</a>
+        </div>
+      `;
+
       // Send email asynchronously to prevent API timeouts
       EmailService.sendEmail({
         to: email,
@@ -533,13 +582,32 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
       candidate_id || null
     ]);
 
-    // Fetch questions WITH optional randomization
+    // If registered candidate has reference_photo_url, auto-log reference_face_registered event
+    if (candidate_id) {
+      try {
+        const [candRows] = await pool.query('SELECT metadata FROM public_exam_candidates WHERE id = ?', [candidate_id]);
+        if (candRows.length > 0 && candRows[0].metadata) {
+          const meta = typeof candRows[0].metadata === 'string' ? JSON.parse(candRows[0].metadata) : candRows[0].metadata;
+          if (meta.reference_photo_url) {
+            await pool.query(
+              'INSERT INTO proctoring_events (id, attempt_id, type, metadata_json) VALUES (?, ?, ?, ?)',
+              [uuidv4(), attemptId, 'reference_face_registered', JSON.stringify({ screenshot: meta.reference_photo_url, source: 'registration' })]
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to auto-log registration reference photo:', e.message);
+      }
+    }
+
+    // Fetch questions from active question bank WITH optional randomization
+    const activeBank = exam.active_question_bank || 'Default Bank';
     let [questions] = await pool.query(`
       SELECT id, question_text, type, options_json, marks, order_index
       FROM public_exam_questions
-      WHERE exam_id = ?
+      WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank'))
       ORDER BY order_index ASC
-    `, [examId]);
+    `, [examId, activeBank, activeBank]);
 
     let formattedQuestions = questions.map(q => {
       let opts = q.options_json ? (typeof q.options_json === 'string' ? JSON.parse(q.options_json) : q.options_json) : [];
@@ -855,8 +923,16 @@ router.get('/attempts/:id/certificate', async (req, res) => {
     doc.fontSize(8).font('Helvetica').fillColor('#999999')
        .text('Scan to take exams', 680, 515, { width: 95, align: 'center' });
 
-    // Footer info
-    doc.fontSize(9).font('Helvetica').fillColor('#A2A2A2')
+    // Footer info & Certificate Number
+    const certDate = new Date(data.created_at);
+    const mm = String(certDate.getMonth() + 1).padStart(2, '0');
+    const yy = String(certDate.getFullYear()).slice(-2);
+    const seq = attemptId.substring(0, 3).toUpperCase();
+    const certNo = `KEF-${mm}${yy}-${seq}`;
+
+    doc.fontSize(9.5).font('Helvetica-Bold').fillColor(primaryColor)
+       .text(`Certificate No: ${certNo}`, 50, 505);
+    doc.fontSize(8.5).font('Helvetica').fillColor('#A2A2A2')
        .text(`Attempt Verification ID: ${attemptId}`, 50, 520);
 
     // Custom Signature image or default signatory text
@@ -912,6 +988,96 @@ router.put('/attempts/:id/guest-info', async (req, res) => {
     res.json({ message: 'Guest info updated successfully' });
   } catch (error) {
     console.error('Update guest info error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// 11. GET /api/public/exams/candidates/validate-re-enroll-token
+router.get('/candidates/validate-re-enroll-token', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ valid: false, message: 'Token is required' });
+
+    const [rows] = await pool.query(
+      'SELECT c.id, c.name, c.email, c.metadata, e.id as exam_id, e.name as exam_name, e.slug as exam_slug FROM public_exam_candidates c JOIN public_exams e ON c.exam_id = e.id'
+    );
+
+    let foundCandidate = null;
+    for (const c of rows) {
+      if (!c.metadata) continue;
+      const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+      if (meta.re_enroll_token === token) {
+        foundCandidate = { candidate: c, meta };
+        break;
+      }
+    }
+
+    if (!foundCandidate) {
+      return res.status(404).json({ valid: false, message: 'This re-enrollment link is invalid or has expired.' });
+    }
+
+    const { candidate, meta } = foundCandidate;
+
+    if (meta.re_enroll_token_used) {
+      return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has already been used. Please request a new link from the admin.' });
+    }
+
+    if (meta.re_enroll_token_expires_at && new Date() > new Date(meta.re_enroll_token_expires_at)) {
+      return res.status(400).json({ valid: false, message: 'This re-enrollment link has expired. Please request a new link from the admin.' });
+    }
+
+    res.json({
+      valid: true,
+      candidate: { id: candidate.id, name: candidate.name, email: candidate.email },
+      exam: { id: candidate.exam_id, name: candidate.exam_name, slug: candidate.exam_slug }
+    });
+  } catch (error) {
+    console.error('Validate re-enroll token error:', error);
+    res.status(500).json({ valid: false, message: 'Internal server error' });
+  }
+});
+
+// 12. POST /api/public/exams/candidates/re-enroll-face
+router.post('/candidates/re-enroll-face', async (req, res) => {
+  try {
+    const { token, reference_photo_url, facial_descriptor } = req.body;
+    if (!token || !facial_descriptor) {
+      return res.status(400).json({ message: 'Token and facial descriptor are required.' });
+    }
+
+    const [rows] = await pool.query('SELECT id, metadata FROM public_exam_candidates');
+    let targetCandidate = null;
+    let targetMeta = null;
+
+    for (const c of rows) {
+      if (!c.metadata) continue;
+      const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+      if (meta.re_enroll_token === token) {
+        targetCandidate = c;
+        targetMeta = meta;
+        break;
+      }
+    }
+
+    if (!targetCandidate || !targetMeta) {
+      return res.status(404).json({ message: 'Invalid or expired re-enrollment token.' });
+    }
+
+    if (targetMeta.re_enroll_token_used) {
+      return res.status(400).json({ message: 'This re-enrollment link was already consumed. Please request a new link from admin.' });
+    }
+
+    // Update candidate metadata with new face profile and IMMEDIATELY CONSUME TOKEN
+    targetMeta.reference_photo_url = reference_photo_url || targetMeta.reference_photo_url;
+    targetMeta.facial_descriptor = facial_descriptor;
+    targetMeta.re_enroll_token_used = true;
+    delete targetMeta.re_enroll_token; // Permanently consume token
+
+    await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(targetMeta), targetCandidate.id]);
+
+    res.json({ message: 'Face profile successfully re-enrolled and updated!' });
+  } catch (error) {
+    console.error('Re-enroll face error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

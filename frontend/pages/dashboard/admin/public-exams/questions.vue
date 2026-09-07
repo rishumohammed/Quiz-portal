@@ -1,15 +1,12 @@
 <template>
   <v-container fluid class="pa-6">
     <!-- Header -->
-    <div class="d-flex align-center justify-space-between mb-8 flex-wrap gap-4">
+    <div class="d-flex align-center justify-space-between mb-6 flex-wrap gap-4">
       <div>
-        <h1 class="text-h4 font-weight-bold mb-1">Question Bank</h1>
-        <p class="text-subtitle-2 text-secondary">Manage exam questions, set marking schemes, and bulk import questions using CSV or JSON.</p>
+        <h1 class="text-h4 font-weight-bold mb-1">Question Bank Studio</h1>
+        <p class="text-subtitle-2 text-secondary">Manage question groups, switch active exam question banks, export in standard CSV format, and bulk import.</p>
       </div>
     </div>
-
-    <!-- Quick Navigation Links (Admin Submenu) -->
-    <!-- Removed to act as a child page of the specific exam -->
 
     <!-- Exam Title & Action Controls -->
     <v-card class="pa-6 border rounded-xl mb-6" flat>
@@ -29,6 +26,28 @@
           </div>
         </v-col>
         <v-col cols="12" md="7" class="d-flex justify-md-end gap-2 flex-wrap" v-if="selectedExamId">
+          <!-- Export Options -->
+          <v-btn
+            variant="tonal"
+            color="success"
+            rounded="lg"
+            prepend-icon="mdi-export-variant"
+            @click="exportQuestions('csv')"
+          >
+            Export CSV
+          </v-btn>
+          <v-btn
+            variant="tonal"
+            color="info"
+            rounded="lg"
+            prepend-icon="mdi-code-json"
+            @click="exportQuestions('json')"
+          >
+            Export JSON
+          </v-btn>
+
+          <v-divider vertical inset class="mx-1 d-none d-sm-flex" />
+
           <!-- Import Toggle Buttons -->
           <v-btn
             variant="outlined"
@@ -58,7 +77,60 @@
             Add Question
           </v-btn>
         </v-col>
-      </v-row>
+      </row>
+    </v-card>
+
+    <!-- QUESTION BANK GROUPS SELECTION BAR -->
+    <v-card class="pa-4 border rounded-xl mb-6 bg-white" flat v-if="selectedExamId">
+      <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+        <div class="d-flex align-center gap-2 flex-wrap">
+          <span class="text-caption font-weight-bold text-uppercase text-secondary mr-2">Question Bank:</span>
+          
+          <v-chip
+            v-for="bank in availableBankGroups"
+            :key="bank"
+            :color="selectedBankGroup === bank ? 'primary' : 'grey-lighten-3'"
+            :variant="selectedBankGroup === bank ? 'flat' : 'flat'"
+            class="font-weight-bold cursor-pointer px-4"
+            @click="switchBankGroup(bank)"
+          >
+            <v-icon start size="16" v-if="activeExamBank === bank" color="success">mdi-check-decagram</v-icon>
+            {{ bank }}
+            <span v-if="activeExamBank === bank" class="ml-1 opacity-70 text-caption">(Active)</span>
+          </v-chip>
+
+          <v-btn
+            variant="text"
+            color="primary"
+            size="small"
+            class="text-capitalize font-weight-bold pa-1"
+            prepend-icon="mdi-folder-plus-outline"
+            @click="showCreateBankModal = true"
+          >
+            + Create New Bank Group
+          </v-btn>
+        </div>
+
+        <!-- Active Bank Action Control -->
+        <div>
+          <v-btn
+            v-if="selectedBankGroup !== activeExamBank"
+            color="success"
+            variant="tonal"
+            rounded="lg"
+            size="small"
+            prepend-icon="mdi-check-decagram"
+            class="text-capitalize font-weight-bold"
+            :loading="activatingBank"
+            @click="setActiveBankForExam"
+          >
+            Set "{{ selectedBankGroup }}" as Active Bank for Exam
+          </v-btn>
+          <v-chip v-else color="success" variant="tonal" class="font-weight-bold">
+            <v-icon start size="16">mdi-shield-check</v-icon> Currently Serving Candidate Attempts
+          </v-chip>
+        </div>
+      </div>
     </v-card>
 
     <!-- Bulk Import Section (JSON / CSV) -->
@@ -67,14 +139,14 @@
         <v-card class="pa-6 border rounded-xl" flat color="grey-lighten-4">
           <div class="d-flex justify-space-between align-center mb-2">
             <h3 class="text-h6 font-weight-bold text-dark">
-              Bulk Import Questions ({{ importMode.toUpperCase() }} Mode)
+              Bulk Import Questions into "{{ selectedBankGroup }}" ({{ importMode.toUpperCase() }} Mode)
             </h3>
             <v-btn icon="mdi-close" variant="text" size="small" color="grey" @click="importOpen = false"></v-btn>
           </div>
 
           <div v-if="importMode === 'json'">
             <p class="text-caption text-secondary mb-4 leading-relaxed">
-              Paste a valid JSON array of question objects. Example format:<br/>
+              Paste a valid JSON array of question objects.<br/>
               <code>[ { "question_text": "Solve 2+2?", "type": "mcq", "options": ["3", "4", "5"], "correct_answer": "4", "explanation": "2+2 equals 4", "marks": 4, "difficulty_level": "Easy" } ]</code>
             </p>
             <v-textarea
@@ -89,8 +161,8 @@
 
           <div v-else>
             <p class="text-caption text-secondary mb-4 leading-relaxed">
-              Upload a CSV file. Columns must map to: <strong class="text-dark">Type, Question, Options (separated by |), Correct Answer (separated by | for MSQ), Explanation, Marks, Difficulty</strong>.<br/>
-              The first row is ignored as the header. Valid Types: <code>mcq, msq, truefalse, fib</code>. Example:<br/>
+              Upload a CSV file. Columns must map to: <strong class="text-dark">Type, Question, Options (separated by |), Correct Answer, Explanation, Marks, Difficulty</strong>.<br/>
+              Valid Types: <code>mcq, msq, truefalse, fib</code>. Example:<br/>
               <code>Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty<br/>"mcq","Which is a prime number?","2|4|6|8","2","2 is the only even prime.",4,"Easy"</code>
             </p>
             <div class="d-flex gap-2 mb-4">
@@ -109,7 +181,7 @@
 
           <div class="d-flex gap-2">
             <v-btn color="success" rounded="lg" class="text-white font-weight-bold px-6" elevation="0" :loading="importing" @click="runBulkImport">
-              Import Questions
+              Import Questions into {{ selectedBankGroup }}
             </v-btn>
             <v-btn variant="text" color="grey" @click="importOpen = false">Cancel</v-btn>
           </div>
@@ -145,57 +217,51 @@
         </v-col>
         <v-spacer></v-spacer>
         <div class="d-flex text-caption text-secondary gap-4 pr-2">
+          <div>Bank Group: <strong class="text-primary">{{ selectedBankGroup }}</strong></div>
           <div>Total Questions: <strong class="text-dark">{{ filteredQuestions.length }}</strong></div>
           <div>Total Marks: <strong class="text-dark">{{ totalCalculatedMarks }}</strong></div>
         </div>
       </v-row>
     </v-card>
 
-    <!-- Loading State -->
-    <div v-if="loadingQuestions" class="text-center py-12">
+    <!-- Questions Loading -->
+    <div v-if="loadingQuestions" class="pa-12 text-center">
       <v-progress-circular indeterminate color="primary" size="48"></v-progress-circular>
-      <div class="mt-4 text-grey font-weight-bold">Loading questions...</div>
+      <div class="mt-4 text-grey font-weight-bold">Loading question bank...</div>
     </div>
 
     <!-- Empty State -->
-    <v-card v-else-if="selectedExamId && filteredQuestions.length === 0" class="text-center py-16 border rounded-xl" flat>
-      <v-icon size="64" color="grey-lighten-1" class="mb-3">mdi-database-alert-outline</v-icon>
-      <h3 class="text-h6 font-weight-bold mb-2">No Questions Found</h3>
-      <p class="text-body-2 text-secondary mb-4">No questions match your filter criteria or there are no questions in this exam yet.</p>
+    <v-card v-else-if="filteredQuestions.length === 0" class="text-center pa-12 border rounded-xl" flat>
+      <v-icon size="64" color="grey-lighten-1" class="mb-4">mdi-help-box-multiple-outline</v-icon>
+      <h3 class="text-h6 font-weight-bold text-dark mb-1">No Questions Found in "{{ selectedBankGroup }}"</h3>
+      <p class="text-body-2 text-secondary mb-6">Add questions manually or import CSV/JSON into this bank group.</p>
+      <v-btn color="primary" rounded="lg" prepend-icon="mdi-plus" @click="openQuestionDialog()">Add First Question</v-btn>
     </v-card>
 
-    <div v-else-if="!selectedExamId" class="text-center py-16 border rounded-xl bg-white" flat>
-      <v-icon size="64" color="primary" class="mb-3">mdi-database-search-outline</v-icon>
-      <h3 class="text-h6 font-weight-bold mb-2">No Exam Selected</h3>
-      <p class="text-body-2 text-secondary mb-4">You must select an exam from the All Exams list to manage its questions.</p>
-      <v-btn to="/dashboard/admin/public-exams" color="primary" rounded="lg" class="text-capitalize font-weight-bold">
-        Go to All Exams
-      </v-btn>
-    </div>
-
-    <!-- Questions Listing -->
+    <!-- Question Cards List -->
     <div v-else>
       <v-card
         v-for="(q, idx) in filteredQuestions"
         :key="q.id"
-        class="pa-6 border rounded-xl mb-4"
+        class="pa-6 border rounded-xl mb-4 bg-white shadow-sm"
         flat
       >
         <div class="d-flex align-center justify-space-between mb-3 flex-wrap gap-2">
-          <div class="d-flex align-center flex-wrap gap-2">
-            <span class="font-weight-black text-body-1 text-dark">Question {{ idx + 1 }}</span>
-            <v-chip size="small" color="primary" variant="flat" class="text-white font-weight-bold text-uppercase">
-              {{ q.type }}
+          <div class="d-flex align-center gap-2">
+            <v-chip color="grey-lighten-3" class="font-weight-black text-dark" size="small">
+              #{{ idx + 1 }}
+            </v-chip>
+            <v-chip size="small" :color="getTypeColor(q.type)" variant="flat" class="text-white font-weight-bold">
+              {{ getTypeLabel(q.type) }}
             </v-chip>
             <v-chip size="small" :color="getDifficultyColor(q.difficulty_level)" variant="tonal" class="font-weight-bold">
-              {{ q.difficulty_level }}
+              {{ q.difficulty_level || 'Medium' }}
             </v-chip>
-            <v-chip size="small" color="grey-lighten-4" text-color="grey-darken-3" class="font-weight-bold">
+            <v-chip size="small" color="indigo" variant="tonal" class="font-weight-bold">
               {{ q.marks }} Marks
             </v-chip>
           </div>
 
-          <!-- Question Controls -->
           <div class="d-flex gap-1">
             <v-btn icon variant="tonal" color="warning" size="small" class="rounded-lg" @click="duplicateQuestion(q)" title="Duplicate Question">
               <v-icon size="18">mdi-content-copy</v-icon>
@@ -209,10 +275,8 @@
           </div>
         </div>
 
-        <!-- Question Text -->
         <p class="text-body-2 text-dark font-weight-medium mb-3" style="white-space: pre-line;">{{ q.question_text }}</p>
 
-        <!-- Options (if MCQ/MSQ/TF) -->
         <div v-if="q.options && q.options.length > 0" class="mb-3 pl-4">
           <div
             v-for="(opt, oIdx) in q.options"
@@ -227,23 +291,44 @@
           </div>
         </div>
 
-        <!-- Correct Display for non-options -->
         <div v-else class="text-caption text-success font-weight-bold mb-3 pl-4">
           Correct Answer: {{ q.correct_answer }}
         </div>
 
-        <!-- Explanation -->
         <div v-if="q.explanation" class="text-caption text-secondary bg-grey-lighten-4 pa-3 rounded-lg border-l-4 border-indigo-accent-1">
           <strong class="text-dark">Explanation:</strong> {{ q.explanation }}
         </div>
       </v-card>
     </div>
 
+    <!-- Create Question Bank Modal -->
+    <v-dialog v-model="showCreateBankModal" max-width="450">
+      <v-card class="pa-6 rounded-xl">
+        <h3 class="text-h6 font-weight-bold mb-2 text-dark">Create New Question Bank</h3>
+        <p class="text-body-2 text-secondary mb-4">Create a new group to store alternative questions for retakes or variations.</p>
+        
+        <v-text-field
+          v-model="newBankName"
+          label="Bank Group Name"
+          placeholder="e.g. Set B, Retake Bank, Practice Set 1"
+          variant="outlined"
+          density="comfortable"
+          class="mb-4"
+          hide-details
+        />
+
+        <div class="d-flex justify-end gap-2">
+          <v-btn variant="text" color="grey" @click="showCreateBankModal = false">Cancel</v-btn>
+          <v-btn color="primary" rounded="lg" class="text-capitalize font-weight-bold" @click="confirmCreateBank">Create Bank</v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
     <!-- Create / Edit Question Dialog -->
     <v-dialog v-model="questionDialog" max-width="650" persistent>
       <v-card class="pa-6 rounded-xl" elevation="24">
         <h3 class="text-h5 font-weight-bold text-dark mb-6">
-          {{ editingQuestionId ? 'Edit Question' : 'Add Question' }}
+          {{ editingQuestionId ? 'Edit Question' : 'Add Question' }} ({{ selectedBankGroup }})
         </h3>
 
         <v-form ref="questionForm" v-model="questionFormValid" lazy-validation>
@@ -281,8 +366,8 @@
                 v-model.number="questionFields.marks"
                 label="Marks"
                 type="number"
+                min="1"
                 required
-                :rules="[v => v !== undefined || 'Marks are required']"
                 class="mb-3"
               ></v-text-field>
             </v-col>
@@ -296,86 +381,88 @@
             </v-col>
           </v-row>
 
-          <!-- Options Editor (MCQ / MSQ) -->
-          <div v-if="['mcq', 'msq'].includes(questionFields.type)" class="mb-4">
-            <div class="d-flex align-center justify-space-between mb-2">
+          <!-- Options Editor for MCQ / MSQ -->
+          <div v-if="questionFields.type === 'mcq' || questionFields.type === 'msq'" class="mb-4">
+            <div class="d-flex justify-space-between align-center mb-2">
               <span class="text-subtitle-2 font-weight-bold text-dark">Options</span>
-              <v-btn variant="text" color="primary" size="small" @click="addOptionField">
-                <v-icon start>mdi-plus</v-icon> Add Option
+              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-plus" @click="addOptionField">
+                Add Option
               </v-btn>
             </div>
-            
-            <div v-for="(opt, idx) in questionFields.options" :key="idx" class="d-flex align-center mb-2">
+
+            <div v-for="(opt, idx) in questionFields.options" :key="idx" class="d-flex align-center gap-2 mb-2">
               <v-text-field
                 v-model="questionFields.options[idx]"
-                placeholder="Option text"
-                hide-details
+                :label="`Option ${idx + 1}`"
                 density="compact"
-                class="mr-2"
+                hide-details
+                variant="outlined"
               ></v-text-field>
-              <v-btn icon variant="text" color="error" size="small" @click="removeOptionField(idx)" :disabled="questionFields.options.length <= 2">
-                <v-icon>mdi-delete-outline</v-icon>
-              </v-btn>
+              <v-btn icon="mdi-close" variant="text" size="x-small" color="error" @click="removeOptionField(idx)" :disabled="questionFields.options.length <= 2"></v-btn>
             </div>
           </div>
 
-          <!-- Correct Answer Selection -->
-          <!-- A. MCQ Selector -->
-          <v-select
-            v-if="questionFields.type === 'mcq'"
-            v-model="questionFields.correct_answer"
-            :items="filteredOptions"
-            label="Correct Answer"
-            required
-            :rules="[v => !!v || 'Correct Answer is required']"
-            class="mb-3"
-          ></v-select>
+          <!-- Correct Answer Selector based on Type -->
+          <div class="mb-4">
+            <!-- MCQ -->
+            <v-select
+              v-if="questionFields.type === 'mcq'"
+              v-model="questionFields.correct_answer"
+              :items="filteredOptions"
+              label="Select Correct Option *"
+              variant="outlined"
+              density="comfortable"
+              :rules="[v => !!v || 'Correct Option is required']"
+            ></v-select>
 
-          <!-- B. MSQ Selector -->
-          <v-select
-            v-if="questionFields.type === 'msq'"
-            v-model="questionFields.correct_answer_msq"
-            :items="filteredOptions"
-            label="Correct Answers (Select Multiple)"
-            multiple
-            chips
-            required
-            :rules="[v => (v && v.length > 0) || 'At least one correct answer is required']"
-            class="mb-3"
-          ></v-select>
+            <!-- MSQ -->
+            <v-select
+              v-else-if="questionFields.type === 'msq'"
+              v-model="questionFields.correct_answer_msq"
+              :items="filteredOptions"
+              label="Select Correct Option(s) *"
+              multiple
+              chips
+              variant="outlined"
+              density="comfortable"
+              :rules="[v => (v && v.length > 0) || 'At least 1 correct option is required']"
+            ></v-select>
 
-          <!-- C. True / False Selector -->
-          <v-select
-            v-if="questionFields.type === 'truefalse'"
-            v-model="questionFields.correct_answer"
-            :items="['True', 'False']"
-            label="Correct Answer"
-            required
-            :rules="[v => !!v || 'Correct Answer is required']"
-            class="mb-3"
-          ></v-select>
+            <!-- True / False -->
+            <v-select
+              v-else-if="questionFields.type === 'truefalse'"
+              v-model="questionFields.correct_answer"
+              :items="['True', 'False']"
+              label="Correct Answer *"
+              variant="outlined"
+              density="comfortable"
+              :rules="[v => !!v || 'Correct Answer is required']"
+            ></v-select>
 
-          <!-- D. FIB Text Input -->
-          <v-text-field
-            v-if="questionFields.type === 'fib'"
-            v-model="questionFields.correct_answer"
-            label="Correct Answer Text (Case-insensitive exact match)"
-            placeholder="Enter correct blank text"
-            required
-            :rules="[v => !!v || 'Correct Answer is required']"
-            class="mb-3"
-          ></v-text-field>
+            <!-- FIB -->
+            <v-text-field
+              v-else-if="questionFields.type === 'fib'"
+              v-model="questionFields.correct_answer"
+              label="Correct Text Answer *"
+              placeholder="Exact string matching candidate input"
+              variant="outlined"
+              density="comfortable"
+              :rules="[v => !!v || 'Correct Text Answer is required']"
+            ></v-text-field>
+          </div>
 
+          <!-- Explanation -->
           <v-textarea
             v-model="questionFields.explanation"
-            label="Explanation"
-            placeholder="Describe why this answer is correct..."
-            rows="3"
-            class="mb-3"
+            label="Explanation (Optional)"
+            placeholder="Detailed solution breakdown displayed to candidates after submission..."
+            rows="2"
+            variant="outlined"
+            density="comfortable"
           ></v-textarea>
         </v-form>
 
-        <div class="d-flex justify-end gap-2 mt-6">
+        <div class="d-flex justify-end gap-2 mt-4">
           <v-btn variant="text" color="grey" @click="questionDialog = false">Cancel</v-btn>
           <v-btn color="primary" rounded="lg" class="px-6 font-weight-bold" :loading="savingQuestion" @click="saveQuestion">
             Save Question
@@ -389,7 +476,7 @@
       <v-card class="pa-6 rounded-xl">
         <h3 class="text-h6 font-weight-bold mb-3 text-dark">Delete Question?</h3>
         <p class="text-body-2 text-secondary mb-6">
-          Are you sure you want to delete this question? This will permanently remove it from the exam and cannot be undone.
+          Are you sure you want to delete this question? This will remove it from "{{ selectedBankGroup }}".
         </p>
         <div class="d-flex justify-end gap-2">
           <v-btn variant="text" color="grey" @click="deleteConfirmDialog = false">Cancel</v-btn>
@@ -420,6 +507,14 @@ const api = useApi();
 const exams = ref<any[]>([]);
 const selectedExamId = ref('');
 const selectedExam = computed(() => exams.value.find(e => e.id === selectedExamId.value));
+
+const selectedBankGroup = ref('Default Bank');
+const availableBankGroups = ref<string[]>(['Default Bank']);
+const activeExamBank = ref('Default Bank');
+const showCreateBankModal = ref(false);
+const newBankName = ref('');
+const activatingBank = ref(false);
+
 const loadingQuestions = ref(false);
 const questionsList = ref<any[]>([]);
 
@@ -478,7 +573,6 @@ async function loadExams() {
     const { data } = await api.get('/admin/public-exams');
     exams.value = data;
     
-    // Require exam from route query parameters
     if (route.query.examId) {
       selectedExamId.value = route.query.examId as string;
       fetchQuestions();
@@ -492,8 +586,12 @@ async function fetchQuestions() {
   if (!selectedExamId.value) return;
   loadingQuestions.value = true;
   try {
-    const { data } = await api.get(`/admin/public-exams/${selectedExamId.value}/questions`);
-    questionsList.value = data;
+    const { data } = await api.get(`/admin/public-exams/${selectedExamId.value}/questions`, {
+      params: { bank_name: selectedBankGroup.value }
+    });
+    questionsList.value = data.questions || [];
+    availableBankGroups.value = data.banks || ['Default Bank'];
+    activeExamBank.value = data.active_bank || 'Default Bank';
   } catch (err) {
     console.error('Failed to load questions:', err);
   } finally {
@@ -501,9 +599,42 @@ async function fetchQuestions() {
   }
 }
 
-function onExamChange() {
-  importOpen.value = false;
+function switchBankGroup(bank: string) {
+  selectedBankGroup.value = bank;
   fetchQuestions();
+}
+
+function confirmCreateBank() {
+  if (!newBankName.value.trim()) return;
+  const name = newBankName.value.trim();
+  if (!availableBankGroups.value.includes(name)) {
+    availableBankGroups.value.push(name);
+  }
+  selectedBankGroup.value = name;
+  newBankName.value = '';
+  showCreateBankModal.value = false;
+  fetchQuestions();
+}
+
+async function setActiveBankForExam() {
+  if (!selectedExamId.value) return;
+  activatingBank.value = true;
+  try {
+    await api.post(`/admin/public-exams/${selectedExamId.value}/active-bank`, {
+      active_bank: selectedBankGroup.value
+    });
+    activeExamBank.value = selectedBankGroup.value;
+  } catch (err) {
+    alert('Failed to set active bank.');
+  } finally {
+    activatingBank.value = false;
+  }
+}
+
+function exportQuestions(format: 'csv' | 'json') {
+  if (!selectedExamId.value) return;
+  const url = `${api.defaults.baseURL || '/api'}/admin/public-exams/${selectedExamId.value}/questions/export?bank_name=${encodeURIComponent(selectedBankGroup.value)}&format=${format}`;
+  window.open(url, '_blank');
 }
 
 function openImportSection(mode: 'json' | 'csv') {
@@ -550,113 +681,89 @@ function handleCsvUpload(event: any) {
     header: true,
     skipEmptyLines: true,
     complete: (results) => {
-      if (results.errors.length > 0) {
-        alert('Error parsing CSV. Please ensure it follows the format.');
-        console.error(results.errors);
-        return;
-      }
-      
-      const newQuestions = results.data.map((row: any) => {
-        const rawOptions = row['Options'] || '';
-        const rawCorrect = row['Correct Answer'] || '';
-        
-        const options = rawOptions ? rawOptions.split('|').map((o: string) => o.trim()) : [];
-        let type = row['Type'] ? row['Type'].toLowerCase().trim() : 'fib';
-        let correctVal: any = rawCorrect;
-
-        if (options.length > 0) {
-          if (!row['Type']) {
-            if (options.length === 2 && options.includes('True') && options.includes('False')) {
-              type = 'truefalse';
-            } else if (rawCorrect.includes('|')) {
-              type = 'msq';
-            } else {
-              type = 'mcq';
-            }
-          }
-        }
-
-        if (type === 'msq' && typeof rawCorrect === 'string' && rawCorrect.includes('|')) {
-          correctVal = rawCorrect.split('|').map((o: string) => o.trim());
-        }
-
-        return {
-          question_text: row['Question'] || 'Untitled',
-          type,
-          options,
-          correct_answer: correctVal,
-          explanation: row['Explanation'] || '',
-          marks: parseInt(row['Marks']) || 4,
-          difficulty_level: row['Difficulty'] || 'Medium'
-        };
-      });
-
-      parsedCsvData.value = newQuestions;
+      parsedCsvData.value = results.data;
+    },
+    error: (err) => {
+      alert(`CSV Parse Error: ${err.message}`);
     }
   });
 }
 
 async function runBulkImport() {
+  let questionsToImport: any[] = [];
+
   if (importMode.value === 'json') {
-    if (!importJsonText.value.trim()) return;
     try {
-      const parsed = JSON.parse(importJsonText.value.trim());
-      importing.value = true;
-      await api.post(`/admin/public-exams/${selectedExamId.value}/questions/bulk`, { questions: parsed });
-      alert('Questions imported successfully!');
-      importOpen.value = false;
-      fetchQuestions();
-    } catch (err: any) {
-      console.error('JSON import error:', err);
-      alert(err.response?.data?.message || 'Invalid JSON format or parameters.');
-    } finally {
-      importing.value = false;
-    }
-  } else {
-    if (parsedCsvData.value.length === 0) {
-      alert('Please select a valid CSV file first.');
+      questionsToImport = JSON.parse(importJsonText.value);
+      if (!Array.isArray(questionsToImport)) throw new Error('Root element must be an Array.');
+    } catch (e: any) {
+      alert(`JSON Format Error: ${e.message}`);
       return;
     }
-    importing.value = true;
-    try {
-      await api.post(`/admin/public-exams/${selectedExamId.value}/questions/bulk`, { questions: parsedCsvData.value });
-      alert(`Successfully imported ${parsedCsvData.value.length} questions from CSV!`);
-      importOpen.value = false;
-      fetchQuestions();
-    } catch (err: any) {
-      console.error('CSV import error:', err);
-      alert(err.response?.data?.message || 'Error occurred while uploading CSV.');
-    } finally {
-      importing.value = false;
+  } else {
+    if (!parsedCsvData.value || parsedCsvData.value.length === 0) {
+      alert('Please upload a valid CSV file first.');
+      return;
     }
+
+    questionsToImport = parsedCsvData.value.map((row: any) => {
+      const type = (row.Type || row.type || 'mcq').toLowerCase().trim();
+      const rawOpts = row.Options || row.options || '';
+      const opts = rawOpts ? String(rawOpts).split('|').map(x => x.trim()) : [];
+      let corr = row['Correct Answer'] || row.correct_answer || '';
+      
+      if (type === 'msq' && typeof corr === 'string' && corr.includes('|')) {
+        corr = corr.split('|').map(x => x.trim());
+      }
+
+      return {
+        question_text: row.Question || row.question || row.question_text || '',
+        type,
+        options: opts,
+        correct_answer: corr,
+        explanation: row.Explanation || row.explanation || '',
+        marks: parseInt(row.Marks || row.marks) || 4,
+        difficulty_level: row.Difficulty || row.difficulty || 'Medium'
+      };
+    });
+  }
+
+  importing.value = true;
+  try {
+    await api.post(`/admin/public-exams/${selectedExamId.value}/questions/bulk`, {
+      questions: questionsToImport,
+      bank_name: selectedBankGroup.value
+    });
+
+    importOpen.value = false;
+    fetchQuestions();
+  } catch (err: any) {
+    alert(err.response?.data?.message || 'Bulk import failed.');
+  } finally {
+    importing.value = false;
   }
 }
 
-function openQuestionDialog(question: any = null) {
-  if (question) {
-    editingQuestionId.value = question.id;
-    
-    // Parse Correct Answer MSQ if MSQ type
-    let correctMsq = [];
-    if (question.type === 'msq') {
+function openQuestionDialog(q: any = null) {
+  if (q) {
+    editingQuestionId.value = q.id;
+    let corrMsq = [];
+    if (q.type === 'msq') {
       try {
-        correctMsq = Array.isArray(question.correct_answer) 
-          ? question.correct_answer 
-          : JSON.parse(question.correct_answer);
+        corrMsq = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
       } catch (e) {
-        correctMsq = [question.correct_answer];
+        corrMsq = [q.correct_answer];
       }
     }
-
     questionFields.value = {
-      question_text: question.question_text,
-      type: question.type,
-      options: question.options && question.options.length > 0 ? [...question.options] : ['', ''],
-      correct_answer: question.type !== 'msq' ? question.correct_answer : '',
-      correct_answer_msq: correctMsq,
-      explanation: question.explanation || '',
-      marks: question.marks || 4,
-      difficulty_level: question.difficulty_level || 'Medium'
+      question_text: q.question_text,
+      type: q.type,
+      options: Array.isArray(q.options) && q.options.length ? [...q.options] : ['', ''],
+      correct_answer: q.correct_answer,
+      correct_answer_msq: corrMsq,
+      explanation: q.explanation || '',
+      marks: q.marks || 4,
+      difficulty_level: q.difficulty_level || 'Medium'
     };
   } else {
     editingQuestionId.value = null;
@@ -674,88 +781,78 @@ function openQuestionDialog(question: any = null) {
   questionDialog.value = true;
 }
 
-function onTypeChanged(type: string) {
-  if (type === 'truefalse') {
+function onTypeChanged(newType: string) {
+  if (newType === 'truefalse') {
     questionFields.value.options = ['True', 'False'];
-  } else if (['mcq', 'msq'].includes(type)) {
+    questionFields.value.correct_answer = 'True';
+  } else if (newType === 'fib') {
+    questionFields.value.options = [];
+    questionFields.value.correct_answer = '';
+  } else {
     if (!questionFields.value.options || questionFields.value.options.length < 2) {
       questionFields.value.options = ['', ''];
     }
-  } else {
-    questionFields.value.options = [];
   }
-  questionFields.value.correct_answer = '';
-  questionFields.value.correct_answer_msq = [];
 }
 
 function addOptionField() {
   questionFields.value.options.push('');
 }
 
-function removeOptionField(idx: number | string) {
-  const index = typeof idx === 'string' ? parseInt(idx, 10) : idx;
-  questionFields.value.options.splice(index, 1);
+function removeOptionField(idx: number) {
+  questionFields.value.options.splice(idx, 1);
 }
 
 async function saveQuestion() {
+  if (!questionForm.value) return;
   const { valid } = await questionForm.value.validate();
   if (!valid) return;
 
   savingQuestion.value = true;
   try {
-    const payload = { ...questionFields.value };
-    if (payload.type === 'msq') {
-      payload.correct_answer = payload.correct_answer_msq;
-    }
-    delete payload.correct_answer_msq;
+    const payload = {
+      question_text: questionFields.value.question_text,
+      type: questionFields.value.type,
+      options: (questionFields.value.type === 'mcq' || questionFields.value.type === 'msq') ? filteredOptions.value : (questionFields.value.type === 'truefalse' ? ['True', 'False'] : null),
+      correct_answer: questionFields.value.type === 'msq' ? questionFields.value.correct_answer_msq : questionFields.value.correct_answer,
+      explanation: questionFields.value.explanation,
+      marks: questionFields.value.marks,
+      difficulty_level: questionFields.value.difficulty_level,
+      bank_name: selectedBankGroup.value
+    };
 
     if (editingQuestionId.value) {
       await api.put(`/admin/public-exams/${selectedExamId.value}/questions/${editingQuestionId.value}`, payload);
-      alert('Question updated successfully!');
     } else {
       await api.post(`/admin/public-exams/${selectedExamId.value}/questions`, payload);
-      alert('Question added successfully!');
     }
+
     questionDialog.value = false;
     fetchQuestions();
   } catch (err: any) {
-    console.error('Save question error:', err);
-    alert(err.response?.data?.message || 'Error occurred while saving question.');
+    alert(err.response?.data?.message || 'Failed to save question');
   } finally {
     savingQuestion.value = false;
   }
 }
 
-async function duplicateQuestion(q: any) {
-  try {
-    let rawCorrect = q.correct_answer;
-    if (q.type === 'msq') {
-      try {
-        rawCorrect = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
-      } catch (e) {}
-    }
-
-    const payload = {
-      question_text: `${q.question_text} (Copy)`,
-      type: q.type,
-      options: q.options,
-      correct_answer: rawCorrect,
-      explanation: q.explanation || '',
-      marks: q.marks || 4,
-      difficulty_level: q.difficulty_level || 'Medium'
-    };
-    
-    await api.post(`/admin/public-exams/${selectedExamId.value}/questions`, payload);
-    alert('Question duplicated successfully!');
-    fetchQuestions();
-  } catch (err: any) {
-    console.error('Duplicate question error:', err);
-    alert(err.response?.data?.message || 'Failed to duplicate question.');
-  }
+function duplicateQuestion(q: any) {
+  questionFields.value = {
+    question_text: `${q.question_text} (Copy)`,
+    type: q.type,
+    options: Array.isArray(q.options) ? [...q.options] : ['', ''],
+    correct_answer: q.correct_answer,
+    correct_answer_msq: q.type === 'msq' ? (Array.isArray(q.correct_answer) ? q.correct_answer : [q.correct_answer]) : [],
+    explanation: q.explanation || '',
+    marks: q.marks || 4,
+    difficulty_level: q.difficulty_level || 'Medium'
+  };
+  editingQuestionId.value = null;
+  questionDialog.value = true;
 }
 
-function confirmDelete(question: any) {
-  targetQuestion.value = question;
+function confirmDelete(q: any) {
+  targetQuestion.value = q;
   deleteConfirmDialog.value = true;
 }
 
@@ -765,35 +862,54 @@ async function deleteQuestion() {
   try {
     await api.delete(`/admin/public-exams/${selectedExamId.value}/questions/${targetQuestion.value.id}`);
     deleteConfirmDialog.value = false;
-    targetQuestion.value = null;
     fetchQuestions();
-  } catch (err) {
-    console.error('Delete question error:', err);
+  } catch (err: any) {
+    alert('Failed to delete question.');
   } finally {
     deleting.value = false;
   }
 }
 
-function isCorrectAns(q: any, opt: string) {
-  if (!q.correct_answer) return false;
-  const clean = (s: string) => s.trim().toLowerCase();
-  
-  if (q.type === 'msq') {
-    try {
-      const arr = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
-      return Array.isArray(arr) && arr.map(x => clean(x)).includes(clean(opt));
-    } catch (e) {
-      return clean(q.correct_answer) === clean(opt);
-    }
+function getTypeColor(type: string) {
+  switch (type) {
+    case 'mcq': return 'primary';
+    case 'msq': return 'purple';
+    case 'truefalse': return 'indigo';
+    case 'fib': return 'teal';
+    default: return 'grey';
   }
-  return clean(q.correct_answer) === clean(opt);
+}
+
+function getTypeLabel(type: string) {
+  switch (type) {
+    case 'mcq': return 'MCQ';
+    case 'msq': return 'MSQ';
+    case 'truefalse': return 'True/False';
+    case 'fib': return 'Fill Blank';
+    default: return type.toUpperCase();
+  }
 }
 
 function getDifficultyColor(diff: string) {
-  if (diff === 'Easy') return 'success';
-  if (diff === 'Medium') return 'warning';
-  if (diff === 'Hard') return 'error';
-  return 'grey';
+  switch (diff) {
+    case 'Easy': return 'success';
+    case 'Medium': return 'warning';
+    case 'Hard': return 'error';
+    default: return 'grey';
+  }
+}
+
+function isCorrectAns(q: any, opt: string) {
+  if (!q.correct_answer) return false;
+  if (q.type === 'msq') {
+    try {
+      const arr = Array.isArray(q.correct_answer) ? q.correct_answer : JSON.parse(q.correct_answer);
+      return Array.isArray(arr) && arr.includes(opt);
+    } catch (e) {
+      return q.correct_answer === opt;
+    }
+  }
+  return q.correct_answer === opt;
 }
 
 onMounted(() => {
@@ -802,16 +918,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.text-dark { color: #1e293b; }
-.gap-1 { gap: 4px; }
+.rounded-xl { border-radius: 16px !important; }
+.font-mono { font-family: monospace; }
+.border-l-4 { border-left-width: 4px !important; }
+.cursor-pointer { cursor: pointer; }
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
-
-.custom-table :deep(th) {
-  text-transform: uppercase;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-  color: #475569 !important;
-  letter-spacing: 0.5px;
-}
 </style>

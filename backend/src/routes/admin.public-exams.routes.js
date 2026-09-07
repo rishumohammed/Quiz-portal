@@ -649,22 +649,156 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+async function recalculateExamTotals(examId) {
+  try {
+    const [exams] = await pool.query('SELECT active_question_bank FROM public_exams WHERE id = ?', [examId]);
+    const activeBank = (exams[0] && exams[0].active_question_bank) ? exams[0].active_question_bank : 'Default Bank';
+
+    const [stats] = await pool.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(marks), 0) as total_marks 
+       FROM public_exam_questions 
+       WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank'))`,
+      [examId, activeBank, activeBank]
+    );
+
+    const count = stats[0]?.count || 0;
+    const totalMarks = stats[0]?.total_marks || 0;
+
+    await pool.query(
+      'UPDATE public_exams SET total_questions = ?, total_marks = ? WHERE id = ?',
+      [count, totalMarks, examId]
+    );
+  } catch (e) {
+    console.warn('recalculateExamTotals error:', e.message);
+  }
+}
+
 // GET /api/admin/public-exams/:id/questions
 router.get('/:id/questions', async (req, res) => {
   try {
+    const examId = req.params.id;
+    const selectedBank = req.query.bank_name || 'Default Bank';
+
+    const [exams] = await pool.query('SELECT active_question_bank FROM public_exams WHERE id = ?', [examId]);
+    const activeBank = (exams[0] && exams[0].active_question_bank) ? exams[0].active_question_bank : 'Default Bank';
+
     const [questions] = await pool.query(
-      'SELECT * FROM public_exam_questions WHERE exam_id = ? ORDER BY order_index ASC',
-      [req.params.id]
+      `SELECT * FROM public_exam_questions 
+       WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) 
+       ORDER BY order_index ASC`,
+      [examId, selectedBank, selectedBank]
     );
+
+    const [banks] = await pool.query(
+      `SELECT DISTINCT IFNULL(bank_name, 'Default Bank') as bank_name FROM public_exam_questions WHERE exam_id = ?`,
+      [examId]
+    );
+    const bankList = Array.from(new Set(['Default Bank', ...banks.map(b => b.bank_name)]));
     
     const formatted = questions.map(q => ({
       ...q,
+      bank_name: q.bank_name || 'Default Bank',
       options: q.options_json ? (typeof q.options_json === 'string' ? JSON.parse(q.options_json) : q.options_json) : []
     }));
 
-    res.json(formatted);
+    res.json({
+      questions: formatted,
+      banks: bankList,
+      active_bank: activeBank
+    });
   } catch (error) {
     console.error('Fetch questions error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/:id/active-bank
+router.post('/:id/active-bank', async (req, res) => {
+  try {
+    const { active_bank } = req.body;
+    if (!active_bank) return res.status(400).json({ message: 'Active bank name is required' });
+
+    await pool.query('UPDATE public_exams SET active_question_bank = ? WHERE id = ?', [active_bank, req.params.id]);
+    await recalculateExamTotals(req.params.id);
+
+    res.json({ message: `Active Question Bank updated to "${active_bank}".` });
+  } catch (error) {
+    console.error('Set active bank error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/public-exams/:id/questions/export
+router.get('/:id/questions/export', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const bankName = req.query.bank_name || 'Default Bank';
+    const format = (req.query.format || 'csv').toLowerCase();
+
+    const [exams] = await pool.query('SELECT name, slug FROM public_exams WHERE id = ?', [examId]);
+    if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
+    const exam = exams[0];
+
+    const [questions] = await pool.query(
+      `SELECT * FROM public_exam_questions 
+       WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank')) 
+       ORDER BY order_index ASC`,
+      [examId, bankName, bankName]
+    );
+
+    if (format === 'json') {
+      const jsonOutput = questions.map(q => ({
+        question_text: q.question_text,
+        type: q.type,
+        options: q.options_json ? (typeof q.options_json === 'string' ? JSON.parse(q.options_json) : q.options_json) : [],
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        marks: q.marks || 1,
+        difficulty_level: q.difficulty_level || 'Medium'
+      }));
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="questions-${exam.slug}-${bankName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json"`);
+      return res.send(JSON.stringify(jsonOutput, null, 2));
+    }
+
+    // CSV Export in exact matching import format
+    let csvRows = ['Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty'];
+    
+    for (const q of questions) {
+      let opts = [];
+      if (q.options_json) {
+        opts = typeof q.options_json === 'string' ? JSON.parse(q.options_json) : q.options_json;
+      }
+      const optsJoined = Array.isArray(opts) ? opts.join('|') : '';
+      
+      let corr = q.correct_answer || '';
+      if (q.type === 'msq') {
+        try {
+          const arr = typeof corr === 'string' && corr.startsWith('[') ? JSON.parse(corr) : corr;
+          if (Array.isArray(arr)) corr = arr.join('|');
+        } catch (_) {}
+      }
+
+      const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+      
+      csvRows.push([
+        escapeCsv(q.type),
+        escapeCsv(q.question_text),
+        escapeCsv(optsJoined),
+        escapeCsv(corr),
+        escapeCsv(q.explanation || ''),
+        q.marks || 1,
+        escapeCsv(q.difficulty_level || 'Medium')
+      ].join(','));
+    }
+
+    const csvContent = csvRows.join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="questions-${exam.slug}-${bankName.toLowerCase().replace(/[^a-z0-9]/g, '_')}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    console.error('Export questions error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -672,8 +806,9 @@ router.get('/:id/questions', async (req, res) => {
 // POST /api/admin/public-exams/:id/questions
 router.post('/:id/questions', async (req, res) => {
   try {
-    const { question_text, type, options, correct_answer, explanation, marks, difficulty_level } = req.body;
+    const { question_text, type, options, correct_answer, explanation, marks, difficulty_level, bank_name } = req.body;
     const examId = req.params.id;
+    const targetBank = bank_name || 'Default Bank';
 
     if (!question_text || !type || correct_answer === undefined || correct_answer === null) {
       return res.status(400).json({ message: 'Question text, type, and correct answer are required' });
@@ -683,8 +818,8 @@ router.post('/:id/questions', async (req, res) => {
     const id = uuidv4();
 
     await pool.query(`
-      INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level, bank_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       examId,
@@ -695,12 +830,11 @@ router.post('/:id/questions', async (req, res) => {
       explanation || null,
       marks || 1,
       maxOrder[0].max_order + 1,
-      difficulty_level || 'Medium'
+      difficulty_level || 'Medium',
+      targetBank
     ]);
 
-    // Recalculate Exam Totals
     await recalculateExamTotals(examId);
-
     res.status(201).json({ id, message: 'Question added successfully' });
   } catch (error) {
     console.error('Add question error:', error);
@@ -711,7 +845,7 @@ router.post('/:id/questions', async (req, res) => {
 // PUT /api/admin/public-exams/:id/questions/:qid
 router.put('/:id/questions/:qid', async (req, res) => {
   try {
-    const { question_text, type, options, correct_answer, explanation, marks, order_index, difficulty_level } = req.body;
+    const { question_text, type, options, correct_answer, explanation, marks, order_index, difficulty_level, bank_name } = req.body;
     const { id: examId, qid } = req.params;
 
     const fields = [];
@@ -725,6 +859,7 @@ router.put('/:id/questions/:qid', async (req, res) => {
     if (marks !== undefined) { fields.push('marks = ?'); values.push(marks); }
     if (order_index !== undefined) { fields.push('order_index = ?'); values.push(order_index); }
     if (difficulty_level !== undefined) { fields.push('difficulty_level = ?'); values.push(difficulty_level); }
+    if (bank_name !== undefined) { fields.push('bank_name = ?'); values.push(bank_name); }
 
     if (fields.length === 0) {
       return res.json({ message: 'Nothing to update' });
@@ -732,8 +867,6 @@ router.put('/:id/questions/:qid', async (req, res) => {
 
     values.push(qid);
     await pool.query(`UPDATE public_exam_questions SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    // Recalculate Exam Totals
     await recalculateExamTotals(examId);
 
     res.json({ message: 'Question updated successfully' });
@@ -748,8 +881,6 @@ router.delete('/:id/questions/:qid', async (req, res) => {
   try {
     const { id: examId, qid } = req.params;
     await pool.query('DELETE FROM public_exam_questions WHERE id = ?', [qid]);
-    
-    // Recalculate Exam Totals
     await recalculateExamTotals(examId);
 
     res.json({ message: 'Question deleted successfully' });
@@ -764,22 +895,15 @@ router.post('/:id/questions/bulk', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const examId = req.params.id;
-    const { questions } = req.body;
+    const { questions, bank_name } = req.body;
+    const targetBank = bank_name || 'Default Bank';
 
     if (!Array.isArray(questions) || questions.length === 0) {
       connection.release();
       return res.status(400).json({ message: 'Invalid questions payload. Must be a non-empty array.' });
     }
 
-    for (const q of questions) {
-      if (!q.question_text || !q.type || q.correct_answer === undefined || q.correct_answer === null) {
-        connection.release();
-        return res.status(400).json({ message: 'Each question must have question_text, type, and correct_answer' });
-      }
-    }
-
     await connection.beginTransaction();
-
     const [maxOrder] = await connection.query('SELECT COALESCE(MAX(order_index), 0) as max_order FROM public_exam_questions WHERE exam_id = ?', [examId]);
     let orderIdx = maxOrder[0].max_order;
 
@@ -787,8 +911,8 @@ router.post('/:id/questions/bulk', async (req, res) => {
       orderIdx++;
       const id = uuidv4();
       await connection.query(`
-        INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level, bank_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id,
         examId,
@@ -799,22 +923,100 @@ router.post('/:id/questions/bulk', async (req, res) => {
         q.explanation || null,
         q.marks || 1,
         orderIdx,
-        q.difficulty_level || 'Medium'
+        q.difficulty_level || 'Medium',
+        targetBank
       ]);
     }
 
     await connection.commit();
     connection.release();
-
-    // Recalculate Exam Totals
     await recalculateExamTotals(examId);
 
-    res.status(201).json({ message: `Successfully imported ${questions.length} questions` });
+    res.status(201).json({ message: `Successfully imported ${questions.length} questions into "${targetBank}"` });
   } catch (error) {
     await connection.rollback();
     connection.release();
     console.error('Bulk import error:', error);
     res.status(500).json({ message: error.message || 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/:id/re-conduct
+router.post('/:id/re-conduct', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const { exam_start_date, exam_end_date, active_bank, allow_retake, send_email_notification } = req.body;
+
+    const [exams] = await pool.query('SELECT * FROM public_exams WHERE id = ?', [examId]);
+    if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
+    const exam = exams[0];
+
+    const updates = [];
+    const params = [];
+
+    if (exam_start_date) { updates.push('exam_start_date = ?'); params.push(formatMySQL(exam_start_date)); }
+    if (exam_end_date) { updates.push('exam_end_date = ?'); params.push(formatMySQL(exam_end_date)); }
+    if (active_bank) { updates.push('active_question_bank = ?'); params.push(active_bank); }
+    if (allow_retake !== undefined) { updates.push('allow_retake = ?'); params.push(!!allow_retake); }
+
+    // Reset reminder flag
+    updates.push('registration_status = "open"');
+
+    if (updates.length > 0) {
+      params.push(examId);
+      await pool.query(`UPDATE public_exams SET ${updates.join(', ')} WHERE id = ?`, params);
+    }
+
+    // Recalculate totals for active bank
+    await recalculateExamTotals(examId);
+
+    // Reset candidates reminder flag
+    await pool.query('UPDATE public_exam_candidates SET reminder_24h_sent = 0 WHERE exam_id = ?', [examId]);
+
+    // Send email notification to all registered candidates if requested
+    if (send_email_notification !== false) {
+      const [candidates] = await pool.query('SELECT id, name, email FROM public_exam_candidates WHERE exam_id = ?', [examId]);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const loginUrl = `${frontendUrl}/public-exams/${exam.slug}/login`;
+
+      for (const cand of candidates) {
+        EmailService.sendExamReConductNotification(cand, { ...exam, exam_start_date: exam_start_date || exam.exam_start_date }, loginUrl)
+          .catch(e => console.warn(`Re-conduct email error for ${cand.email}:`, e.message));
+      }
+    }
+
+    res.json({ message: 'Exam re-conducted successfully. Schedule and settings updated.' });
+  } catch (error) {
+    console.error('Re-conduct exam error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/:id/send-24h-reminders
+router.post('/:id/send-24h-reminders', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const [exams] = await pool.query('SELECT * FROM public_exams WHERE id = ?', [examId]);
+    if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
+    const exam = exams[0];
+
+    const [candidates] = await pool.query('SELECT id, name, email FROM public_exam_candidates WHERE exam_id = ?', [examId]);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const loginUrl = `${frontendUrl}/public-exams/${exam.slug}/login`;
+
+    let count = 0;
+    for (const cand of candidates) {
+      count++;
+      EmailService.sendExam24hReminderEmail(cand, exam, loginUrl)
+        .catch(e => console.warn(`24h reminder error for ${cand.email}:`, e.message));
+    }
+
+    await pool.query('UPDATE public_exam_candidates SET reminder_24h_sent = 1 WHERE exam_id = ?', [examId]);
+
+    res.json({ message: `24-hour reminder email dispatched to ${count} candidate(s).` });
+  } catch (error) {
+    console.error('Manual 24h reminder error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -1412,6 +1614,114 @@ router.delete('/issued-certificates/:certId', async (req, res) => {
     res.json({ message: 'Certificate deleted successfully' });
   } catch (error) {
     console.error('Delete certificate error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ─── CANDIDATE FACE MANAGEMENT & SINGLE-USE RE-ENROLLMENT ─────────────────────
+
+// DELETE /api/admin/public-exams/candidates/:id/face
+router.delete('/candidates/:id/face', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const [candidates] = await pool.query('SELECT id, metadata FROM public_exam_candidates WHERE id = ?', [candidateId]);
+    if (candidates.length === 0) return res.status(404).json({ message: 'Candidate not found' });
+
+    let metadata = {};
+    if (candidates[0].metadata) {
+      metadata = typeof candidates[0].metadata === 'string' ? JSON.parse(candidates[0].metadata) : candidates[0].metadata;
+    }
+
+    delete metadata.reference_photo_url;
+    delete metadata.facial_descriptor;
+    delete metadata.re_enroll_token;
+    delete metadata.re_enroll_token_used;
+    delete metadata.re_enroll_token_expires_at;
+
+    await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), candidateId]);
+    res.json({ message: 'Candidate face data deleted successfully.' });
+  } catch (error) {
+    console.error('Delete candidate face error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/candidates/:id/generate-re-enroll-token
+router.post('/candidates/:id/generate-re-enroll-token', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const [rows] = await pool.query(
+      'SELECT c.*, e.slug as exam_slug, e.name as exam_name FROM public_exam_candidates c JOIN public_exams e ON c.exam_id = e.id WHERE c.id = ?',
+      [candidateId]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Candidate not found' });
+
+    const candidate = rows[0];
+    let metadata = candidate.metadata ? (typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata) : {};
+
+    // Clear old face profile
+    delete metadata.reference_photo_url;
+    delete metadata.facial_descriptor;
+
+    // Generate single-use token valid for 48 hours
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+    metadata.re_enroll_token = token;
+    metadata.re_enroll_token_used = false;
+    metadata.re_enroll_token_expires_at = expiresAt;
+
+    await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), candidateId]);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const reEnrollUrl = `${frontendUrl}/public-exams/${candidate.exam_slug}/re-enroll-face?token=${token}`;
+
+    res.json({
+      message: 'Single-use face re-enrollment link generated successfully.',
+      token,
+      re_enroll_url: reEnrollUrl,
+      expires_at: expiresAt
+    });
+  } catch (error) {
+    console.error('Generate re-enroll token error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/candidates/:id/send-re-enroll-email
+router.post('/candidates/:id/send-re-enroll-email', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const [rows] = await pool.query(
+      'SELECT c.*, e.slug as exam_slug, e.name as exam_name FROM public_exam_candidates c JOIN public_exams e ON c.exam_id = e.id WHERE c.id = ?',
+      [candidateId]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Candidate not found' });
+
+    const candidate = rows[0];
+    let metadata = candidate.metadata ? (typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata) : {};
+
+    // Ensure active token exists
+    let token = metadata.re_enroll_token;
+    if (!token || metadata.re_enroll_token_used) {
+      token = uuidv4();
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      delete metadata.reference_photo_url;
+      delete metadata.facial_descriptor;
+      metadata.re_enroll_token = token;
+      metadata.re_enroll_token_used = false;
+      metadata.re_enroll_token_expires_at = expiresAt;
+      await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), candidateId]);
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const reEnrollUrl = `${frontendUrl}/public-exams/${candidate.exam_slug}/re-enroll-face?token=${token}`;
+
+    await EmailService.sendFaceReEnrollmentEmail(candidate, { name: candidate.exam_name }, reEnrollUrl);
+
+    res.json({ message: 'Re-enrollment email sent successfully to candidate.' });
+  } catch (error) {
+    console.error('Send re-enroll email error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

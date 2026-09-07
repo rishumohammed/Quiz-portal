@@ -106,7 +106,7 @@ class ProctoringService {
     const attemptsSet = new Set(); // for counting unique exams monitored
 
     const getSeverity = (type) => {
-      const high = ['multiple_faces', 'face_absent', 'devtools_open', 'phone_detected', 'suspicious_object', 'camera_disabled', 'microphone_disabled'];
+      const high = ['multiple_faces', 'face_absent', 'proxy_mismatch', 'devtools_open', 'phone_detected', 'suspicious_object', 'camera_disabled', 'microphone_disabled'];
       const medium = ['tab_switch', 'window_blur', 'fullscreen_exit', 'looking_away'];
       if (high.includes(type)) return 'High';
       if (medium.includes(type)) return 'Medium';
@@ -248,7 +248,7 @@ class ProctoringService {
     const attemptsSet = new Set();
 
     const getSeverity = (type) => {
-      const high = ['multiple_faces', 'face_absent', 'devtools_open', 'phone_detected', 'suspicious_object', 'camera_disabled', 'microphone_disabled'];
+      const high = ['multiple_faces', 'face_absent', 'proxy_mismatch', 'devtools_open', 'phone_detected', 'suspicious_object', 'camera_disabled', 'microphone_disabled'];
       const medium = ['tab_switch', 'window_blur', 'fullscreen_exit', 'looking_away'];
       if (high.includes(type)) return 'High';
       if (medium.includes(type)) return 'Medium';

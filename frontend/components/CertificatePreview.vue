@@ -35,6 +35,7 @@
 
         <h1 class="cert-main-title">CERTIFICATE</h1>
         <div class="cert-subtitle">— OF PARTICIPATION —</div>
+        <div v-if="certificateNumber" class="cert-number-text">Certificate No: {{ certificateNumber }}</div>
       </div>
 
       <!-- Body Content -->
@@ -97,9 +98,11 @@ import { useRuntimeConfig } from '#imports';
 
 const props = withDefaults(defineProps<{
   candidateName?: string;
+  certificateNumber?: string;
   config?: any;
 }>(), {
   candidateName: 'John Doe',
+  certificateNumber: '',
   config: () => ({})
 });
 

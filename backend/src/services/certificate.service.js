@@ -68,20 +68,45 @@ export class CertificateService {
   }
 
   /**
+   * Generates a unique certificate number in KEF-MMYY-XXX format
+   */
+  static async generateCertificateNumber() {
+    try {
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yy = String(now.getFullYear()).slice(-2);
+      
+      const [[res]] = await pool.query('SELECT COUNT(*) as count FROM public_exam_issued_certificates');
+      const count = (res && res.count) ? res.count : 0;
+      const seq = String(count + 1).padStart(3, '0');
+      return `KEF-${mm}${yy}-${seq}`;
+    } catch (e) {
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yy = String(now.getFullYear()).slice(-2);
+      const rand = String(Math.floor(100 + Math.random() * 900));
+      return `KEF-${mm}${yy}-${rand}`;
+    }
+  }
+
+  /**
    * Generates a KEFTA-styled participation certificate as a PDF matching the reference design
    * @param {string} candidateName 
    * @param {string} examName 
    * @param {Date} date 
    * @param {Object|string|null} customOptions Or logoAbsPath string for backwards compatibility
-   * @returns {Promise<{ buffer: Buffer, pdfUrl: string }>}
+   * @param {string|null} certificateNumber Custom certificate number or auto-generated if null
+   * @returns {Promise<{ buffer: Buffer, pdfUrl: string, certificateNumber: string }>}
    */
-  static async generateParticipationCertificate(candidateName, examName, date, customOptions = null) {
+  static async generateParticipationCertificate(candidateName, examName, date, customOptions = null, certificateNumber = null) {
     let opts = {};
     if (typeof customOptions === 'string') {
       opts = { logoAbsPath: customOptions };
     } else if (customOptions && typeof customOptions === 'object') {
       opts = customOptions;
     }
+
+    const certNo = certificateNumber || await CertificateService.generateCertificateNumber();
 
     const sysConfig = await CertificateService.getCertificateConfig();
     const config = { ...sysConfig, ...opts };
@@ -103,7 +128,7 @@ export class CertificateService {
           try {
             await fs.writeFile(filepath, pdfData);
             const pdfUrl = `/uploads/certificates/${filename}`;
-            resolve({ buffer: pdfData, pdfUrl });
+            resolve({ buffer: pdfData, pdfUrl, certificateNumber: certNo });
           } catch (writeErr) {
             reject(writeErr);
           }
@@ -170,6 +195,10 @@ export class CertificateService {
           .text('CERTIFICATE', 0, 190, { align: 'center' });
         doc.fontSize(12).fillColor(GOLD).font('Times-Roman')
           .text('— OF PARTICIPATION —', 0, 225, { align: 'center' });
+        
+        // Certificate Number Display
+        doc.fontSize(8.5).fillColor(NAVY).font('Helvetica-Bold')
+          .text(`Certificate No: ${certNo}`, 0, 245, { align: 'center' });
 
         // 8. Certification Body
         doc.fontSize(10).fillColor(LIGHT_NAVY).font('Helvetica')

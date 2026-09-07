@@ -1,16 +1,37 @@
 <template>
   <v-container fluid class="pa-6">
     <!-- Header -->
-    <div class="d-flex align-center mb-6">
-      <v-btn icon="mdi-arrow-left" variant="text" class="mr-4" @click="$router.back()"></v-btn>
-      <v-avatar :color="getAvatarColor(candidate?.name || '')" size="48" class="mr-4">
-        <span class="text-h6 font-weight-bold text-white">{{ initials(candidate?.name || '') }}</span>
-      </v-avatar>
-      <div>
-        <h1 class="text-h4 font-weight-bold mb-1 text-dark">{{ candidate?.name || 'Loading...' }}</h1>
-        <p class="text-subtitle-1 text-medium-emphasis mb-0">Select an exam attempt to view detailed proctoring logs.</p>
+    <div class="d-flex align-center mb-6 flex-wrap gap-4">
+      <div class="d-flex align-center">
+        <v-btn icon="mdi-arrow-left" variant="text" class="mr-3" @click="$router.back()"></v-btn>
+        
+        <!-- Candidate Registered Reference Selfie -->
+        <div v-if="candidate?.referenceSelfieUrl" class="mr-4 cursor-pointer" @click="openPreview(candidate.referenceSelfieUrl)">
+          <v-img :src="backendUrl(candidate.referenceSelfieUrl)" width="64" height="64" class="rounded-circle border bg-grey-lighten-3" cover>
+            <template v-slot:placeholder>
+              <div class="d-flex align-center justify-center fill-height">
+                <v-progress-circular indeterminate size="20" color="primary"></v-progress-circular>
+              </div>
+            </template>
+          </v-img>
+        </div>
+        <v-avatar v-else :color="getAvatarColor(candidate?.name || '')" size="56" class="mr-4">
+          <span class="text-h6 font-weight-bold text-white">{{ initials(candidate?.name || '') }}</span>
+        </v-avatar>
+
+        <div>
+          <div class="d-flex align-center gap-2">
+            <h1 class="text-h4 font-weight-bold mb-0 text-dark">{{ candidate?.name || 'Loading...' }}</h1>
+            <v-chip v-if="candidate?.referenceSelfieUrl" color="indigo" size="x-small" variant="flat" class="font-weight-bold">
+              Face Verified
+            </v-chip>
+          </div>
+          <p class="text-subtitle-1 text-medium-emphasis mb-0">Registered Candidate Profile & Proctoring History</p>
+        </div>
       </div>
+      
       <v-spacer></v-spacer>
+      
       <v-chip
         v-if="candidate?.isFlagged"
         color="error"
@@ -86,6 +107,16 @@
       </v-data-table>
     </v-card>
 
+    <!-- Image Preview Dialog -->
+    <v-dialog v-model="showPreviewDialog" max-width="800">
+      <v-card class="rounded-xl overflow-hidden bg-black">
+        <v-toolbar color="transparent" flat class="position-absolute w-100" style="z-index: 10;">
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" color="white" class="bg-black opacity-60 mr-2 mt-2" @click="showPreviewDialog = false"></v-btn>
+        </v-toolbar>
+        <v-img :src="previewImageUrl" class="w-100" contain></v-img>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -118,6 +149,19 @@ const headers: any[] = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
 ];
 
+const showPreviewDialog = ref(false);
+const previewImageUrl = ref('');
+
+const openPreview = (url: string) => {
+  previewImageUrl.value = backendUrl(url);
+  showPreviewDialog.value = true;
+};
+
+const backendUrl = (path: string) => {
+  const config = useRuntimeConfig();
+  return `${config.public.apiBase.replace('/api', '')}${path}`;
+};
+
 onMounted(async () => {
   loading.value = true;
   try {
@@ -135,7 +179,8 @@ onMounted(async () => {
             id: c.id,
             name: c.name,
             attempts: [],
-            isFlagged: false
+            isFlagged: false,
+            referenceSelfieUrl: null
           };
           
           c.attempts.forEach((a: any) => {
@@ -145,6 +190,12 @@ onMounted(async () => {
             });
             if (a.highSeverityCount > 0) {
               foundCandidate.isFlagged = true;
+            }
+            if (a.violations) {
+              const refEvt = a.violations.find((v: any) => (v.violation_type === 'reference_face_registered' || v.type === 'reference_face_registered') && (v.screenshot_url || v.metadata_json?.screenshot));
+              if (refEvt && !foundCandidate.referenceSelfieUrl) {
+                foundCandidate.referenceSelfieUrl = refEvt.screenshot_url || refEvt.metadata_json?.screenshot;
+              }
             }
           });
         }

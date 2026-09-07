@@ -85,6 +85,76 @@
               <div class="font-weight-bold text-dark">{{ formatDate(candidate?.created_at) }}</div>
             </div>
           </v-card>
+
+          <!-- Registered Face Profile Card -->
+          <v-card variant="outlined" class="rounded-xl bg-white border-0 shadow-sm pa-6 mb-6">
+            <div class="d-flex align-center justify-space-between mb-4">
+              <h3 class="text-h6 font-weight-bold text-dark">Registered Face Profile</h3>
+              <v-chip :color="metadata?.facial_descriptor ? 'success' : 'grey'" size="small" variant="flat" class="font-weight-bold text-white">
+                {{ metadata?.facial_descriptor ? 'Face Enrolled' : 'No Face Data' }}
+              </v-chip>
+            </div>
+            <v-divider class="mb-4 opacity-10"></v-divider>
+
+            <div class="text-center mb-4">
+              <v-avatar size="96" color="grey-lighten-2" class="border shadow-sm mb-2">
+                <v-img v-if="metadata?.reference_photo_url" :src="getImageUrl(metadata.reference_photo_url)" cover></v-img>
+                <v-icon v-else size="48" color="grey">mdi-account-circle</v-icon>
+              </v-avatar>
+              <div v-if="metadata?.facial_descriptor" class="text-caption text-success font-weight-bold">
+                <v-icon size="14" color="success">mdi-shield-check</v-icon> 3-Sample AI Profile Stored
+              </div>
+              <div v-else class="text-caption text-secondary">
+                No face profile enrolled
+              </div>
+            </div>
+
+            <!-- Admin Actions -->
+            <div class="d-flex flex-column gap-2">
+              <v-btn
+                v-if="metadata?.facial_descriptor"
+                color="error"
+                variant="tonal"
+                rounded="lg"
+                size="small"
+                block
+                prepend-icon="mdi-delete-outline"
+                class="text-capitalize font-weight-bold"
+                :loading="deletingFace"
+                @click="deleteCandidateFace"
+              >
+                Delete Registered Face Data
+              </v-btn>
+
+              <v-btn
+                color="primary"
+                variant="flat"
+                rounded="lg"
+                size="small"
+                block
+                prepend-icon="mdi-link-variant"
+                class="text-capitalize font-weight-bold"
+                :loading="generatingLink"
+                @click="generateAndCopyReEnrollLink"
+              >
+                Copy Single-Use Re-Enroll Link
+              </v-btn>
+
+              <v-btn
+                color="indigo"
+                variant="tonal"
+                rounded="lg"
+                size="small"
+                block
+                prepend-icon="mdi-email-send-outline"
+                class="text-capitalize font-weight-bold"
+                :loading="sendingEmail"
+                @click="emailReEnrollLink"
+              >
+                Email Re-Enroll Link to Candidate
+              </v-btn>
+            </div>
+          </v-card>
         </v-col>
 
         <!-- Talent Hunt / Additional Details -->
@@ -265,6 +335,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
+import { useRuntimeConfig } from '#imports';
 
 definePageMeta({
   layout: 'dashboard',
@@ -274,10 +345,75 @@ definePageMeta({
 
 const route = useRoute();
 const api = useApi();
+const runtimeConfig = useRuntimeConfig();
 
 const loading = ref(true);
 const candidate = ref<any>(null);
 const attempt = ref<any>(null);
+
+const deletingFace = ref(false);
+const generatingLink = ref(false);
+const sendingEmail = ref(false);
+
+function getImageUrl(path: string) {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  const apiBase = (runtimeConfig.public?.apiBase || '/api').replace('/api', '');
+  return apiBase + (path.startsWith('/') ? path : '/' + path);
+}
+
+async function deleteCandidateFace() {
+  if (!confirm('Are you sure you want to delete this candidate\'s registered face profile? They will need to re-enroll before logging in.')) return;
+  deletingFace.value = true;
+  try {
+    await api.delete(`/admin/public-exams/candidates/${route.params.candidateId}/face`);
+    snackbarText.value = 'Candidate face data deleted successfully.';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to delete face data.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    deletingFace.value = false;
+  }
+}
+
+async function generateAndCopyReEnrollLink() {
+  generatingLink.value = true;
+  try {
+    const { data } = await api.post(`/admin/public-exams/candidates/${route.params.candidateId}/generate-re-enroll-token`);
+    navigator.clipboard.writeText(data.re_enroll_url);
+    snackbarText.value = 'Single-use face re-enrollment link copied to clipboard!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to generate re-enrollment link.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    generatingLink.value = false;
+  }
+}
+
+async function emailReEnrollLink() {
+  sendingEmail.value = true;
+  try {
+    await api.post(`/admin/public-exams/candidates/${route.params.candidateId}/send-re-enroll-email`);
+    snackbarText.value = 'Single-use face re-enrollment link emailed to candidate!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to send re-enrollment email.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    sendingEmail.value = false;
+  }
+}
 
 const metadata = computed(() => {
   if (!candidate.value?.metadata) return null;

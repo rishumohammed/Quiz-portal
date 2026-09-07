@@ -250,6 +250,138 @@ class EmailService {
       console.error('Failed to send exam certificate email:', error);
     }
   }
+
+  async sendFaceReEnrollmentEmail(candidate, exam, reEnrollUrl) {
+    try {
+      const html = `
+        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #6366f1; color: #ffffff; font-size: 28px;">📷</div>
+            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">Face Re-Enrollment Request</h2>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+          </div>
+          
+          <p>Dear <strong>${candidate.name}</strong>,</p>
+          <p>The exam administrator has issued a single-use link for you to re-enroll your face photo and verification profile for <strong>${exam.name}</strong>.</p>
+          
+          <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 14px 18px; margin: 20px 0; border-radius: 6px;">
+            <strong style="color: #334155; display: block; margin-bottom: 4px;">Important Security Note:</strong>
+            <span style="color: #64748b; font-size: 13px; line-height: 1.5;">This re-enrollment link is single-use and will automatically expire as soon as you successfully submit your new selfie photos.</span>
+          </div>
+
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${reEnrollUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(99,102,241,0.3);">
+              Re-Enroll Your Face Profile Now →
+            </a>
+          </div>
+
+          <p style="font-size: 13px; color: #94a3b8; text-align: center;">If the button above does not work, copy and paste this link into your browser:<br><a href="${reEnrollUrl}" style="color: #6366f1;">${reEnrollUrl}</a></p>
+          
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Security Team</p>
+        </div>
+      `;
+
+      await this.sendEmail({
+        to: candidate.email,
+        subject: `[Action Required] Face Re-Enrollment Link for ${exam.name}`,
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send face re-enrollment email:', error);
+    }
+  }
+
+  async sendExam24hReminderEmail(candidate, exam, loginUrl) {
+    try {
+      const examDateStr = exam.exam_start_date ? new Date(exam.exam_start_date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'Tomorrow';
+      const verifyFaceUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}/verify-face`;
+
+      const html = `
+        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #eab308; color: #ffffff; font-size: 28px;">⏰</div>
+            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">Exam Starts in 24 Hours!</h2>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+          </div>
+          
+          <p>Dear <strong>${candidate.name}</strong>,</p>
+          <p>This is a friendly reminder that your upcoming examination <strong>${exam.name}</strong> is scheduled to begin in 24 hours.</p>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; margin: 20px 0; border-radius: 10px;">
+            <div style="margin-bottom: 8px;"><strong>Exam Schedule:</strong> ${examDateStr}</div>
+            <div style="margin-bottom: 8px;"><strong>Exam Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
+            <div><strong>Registered Email:</strong> ${candidate.email}</div>
+          </div>
+
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
+              Access Exam Portal →
+            </a>
+          </div>
+
+          <div style="background: #eef2ff; border-radius: 10px; padding: 16px; text-align: center; margin-top: 20px;">
+            <strong style="color: #3730a3; display: block; margin-bottom: 4px;">Camera & Face Verification Check</strong>
+            <span style="color: #4338ca; font-size: 13px;">Test your webcam before exam time:</span><br>
+            <a href="${verifyFaceUrl}" style="color: #4f46e5; font-weight: bold; font-size: 13px; display: inline-block; margin-top: 6px;">Test Face Enrollment Status →</a>
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
+        </div>
+      `;
+
+      await this.sendEmail({
+        to: candidate.email,
+        subject: `[24-Hour Reminder] ${exam.name} Starts Tomorrow!`,
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send 24h reminder email:', error);
+    }
+  }
+
+  async sendExamReConductNotification(candidate, exam, loginUrl) {
+    try {
+      const examDateStr = exam.exam_start_date ? new Date(exam.exam_start_date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'Scheduled Soon';
+
+      const html = `
+        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #0284c7; color: #ffffff; font-size: 28px;">📢</div>
+            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">New Exam Schedule Announced</h2>
+            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+          </div>
+          
+          <p>Dear <strong>${candidate.name}</strong>,</p>
+          <p>The examination administrator has re-scheduled <strong>${exam.name}</strong> for registered candidates. You can log in and take the exam on the new schedule below.</p>
+
+          <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 16px; margin: 20px 0; border-radius: 8px;">
+            <div style="margin-bottom: 6px;"><strong>New Exam Date/Time:</strong> ${examDateStr}</div>
+            <div style="margin-bottom: 6px;"><strong>Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
+            <div><strong>Registered Account:</strong> ${candidate.email}</div>
+          </div>
+
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #0284c7; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
+              Log In to Write Exam →
+            </a>
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
+        </div>
+      `;
+
+      await this.sendEmail({
+        to: candidate.email,
+        subject: `[Important] New Schedule for ${exam.name}`,
+        html
+      });
+    } catch (error) {
+      console.error('Failed to send exam re-conduct email:', error);
+    }
+  }
 }
 
 export default new EmailService();

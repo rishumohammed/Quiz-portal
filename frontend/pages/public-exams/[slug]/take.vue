@@ -578,7 +578,7 @@ const proctoringConfig = computed(() => {
     capture_on_violation: true,
     face_missing_alert: true,
     multiple_faces_alert: true,
-    record_full_video: true,
+    record_full_video: false,
     face_missing_threshold: 5
   };
 });
@@ -603,7 +603,32 @@ async function setupCamera() {
   }
 }
 
-function onVideoReady(videoEl: HTMLVideoElement) {
+async function onVideoReady(videoEl: HTMLVideoElement) {
+  if (!faceDetection.referenceDescriptor.value) {
+    const candStr = localStorage.getItem(`public_exam_candidate_${examSlug.value}`);
+    if (candStr) {
+      try {
+        const candObj = JSON.parse(candStr);
+        if (candObj.facial_descriptor) {
+          faceDetection.setReferenceDescriptor(candObj.facial_descriptor);
+          console.info('[Public Proctoring] Loaded candidate reference face profile from registration.');
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Fallback if no registration descriptor found
+  if (!faceDetection.referenceDescriptor.value) {
+    const descriptor = await faceDetection.captureReferenceDescriptor(videoEl, 3);
+    if (descriptor) {
+      console.info('[Public Proctoring] 3-sample candidate reference face profile registered.');
+      const selfieUrl = await recorder.captureScreenshot(attemptId.value, authHeaders());
+      if (selfieUrl) {
+        proctoring.logEvent('reference_face_registered', { screenshot: selfieUrl, samples_count: 3 });
+      }
+    }
+  }
+
   faceDetection.startDetection(
     videoEl, 
     proctoring.logEvent, 

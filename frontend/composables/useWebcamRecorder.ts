@@ -82,20 +82,38 @@ export const useWebcamRecorder = () => {
     }
   };
 
+  const uploadedScreenshotCount = ref(0);
+  const MAX_SCREENSHOTS_PER_ATTEMPT = 15;
+
   const captureScreenshot = async (attemptId: string, customHeaders?: any): Promise<string | null> => {
     if (!stream.value) return null;
+    if (uploadedScreenshotCount.value >= MAX_SCREENSHOTS_PER_ATTEMPT) {
+      console.info(`[Proctoring] Max screenshot cap reached (${MAX_SCREENSHOTS_PER_ATTEMPT}). Skipping upload to conserve bandwidth.`);
+      return null;
+    }
+
     const videoEl = document.querySelector('video');
     if (!videoEl) return null;
 
     try {
+      // Downscale image resolution to max width 480 to drastically reduce image file size
+      const maxTargetWidth = 480;
+      const rawWidth = videoEl.videoWidth || 640;
+      const rawHeight = videoEl.videoHeight || 480;
+      
+      const scaleRatio = Math.min(1, maxTargetWidth / rawWidth);
+      const targetWidth = Math.round(rawWidth * scaleRatio);
+      const targetHeight = Math.round(rawHeight * scaleRatio);
+
       const canvas = document.createElement('canvas');
-      canvas.width = videoEl.videoWidth || 640;
-      canvas.height = videoEl.videoHeight || 480;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
-      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
 
       return new Promise((resolve) => {
+        // Compress JPEG to 0.50 quality (drastically cuts size to ~15-25KB per image)
         canvas.toBlob(async (blob) => {
           if (!blob) {
             resolve(null);
@@ -110,12 +128,13 @@ export const useWebcamRecorder = () => {
             const res = await api.post('/proctoring/violation-screenshot', formData, {
               headers: requestHeaders
             });
+            uploadedScreenshotCount.value++;
             resolve(res.data?.url || null);
           } catch (err) {
             console.error('Failed to upload screenshot', err);
             resolve(null);
           }
-        }, 'image/jpeg', 0.85);
+        }, 'image/jpeg', 0.50);
       });
     } catch (e) {
       console.error('Error in captureScreenshot', e);
@@ -141,6 +160,7 @@ export const useWebcamRecorder = () => {
     stream,
     cameraError,
     isRecording,
+    uploadedScreenshotCount,
     requestCamera,
     startRecording,
     captureScreenshot,
