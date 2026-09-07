@@ -77,14 +77,19 @@ const menu = ref(false);
 const notifications = ref([]);
 const { socket } = useSocket();
 
-const unreadCount = computed(() => notifications.value.filter(n => !n.is_read).length);
+const unreadCount = computed(() => {
+  if (!Array.isArray(notifications.value)) return 0;
+  return notifications.value.filter(n => n && !n.is_read).length;
+});
 
 const fetchNotifications = async () => {
   try {
     const res = await api.get('/notifications');
-    notifications.value = res.data || res || [];
+    const data = res.data ?? res;
+    notifications.value = Array.isArray(data) ? data : (Array.isArray(data?.notifications) ? data.notifications : []);
   } catch (error) {
     console.error('Failed to fetch notifications:', error);
+    notifications.value = [];
   }
 };
 

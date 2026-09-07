@@ -511,7 +511,7 @@ const api = useApi();
 
 const exams = ref<any[]>([]);
 const selectedExamId = ref('');
-const selectedExam = computed(() => exams.value.find(e => e.id === selectedExamId.value));
+const selectedExam = computed(() => Array.isArray(exams.value) ? exams.value.find(e => e && e.id === selectedExamId.value) : null);
 
 const selectedBankGroup = ref('Default Bank');
 const availableBankGroups = ref<string[]>(['Default Bank']);
@@ -553,7 +553,9 @@ const questionFields = ref<any>({
 });
 
 const filteredOptions = computed(() => {
-  return (questionFields.value.options || []).filter((o: string) => !!o.trim());
+  const opts = questionFields.value?.options;
+  if (!Array.isArray(opts)) return [];
+  return opts.filter((o: string) => typeof o === 'string' && !!o.trim());
 });
 
 // Delete State
@@ -574,7 +576,9 @@ const filteredQuestions = computed(() => {
 });
 
 const totalCalculatedMarks = computed(() => {
-  return (filteredQuestions.value || []).reduce((acc, q) => acc + (parseInt(q?.marks) || 0), 0);
+  const list = filteredQuestions.value;
+  if (!Array.isArray(list)) return 0;
+  return list.reduce((acc, q) => acc + (parseInt(q?.marks) || 0), 0);
 });
 
 function onExamSelected(id: string) {
@@ -586,7 +590,7 @@ function onExamSelected(id: string) {
 async function loadExams() {
   try {
     const { data } = await api.get('/admin/public-exams');
-    exams.value = Array.isArray(data) ? data : [];
+    exams.value = Array.isArray(data) ? data : (Array.isArray(data?.exams) ? data.exams : []);
     
     if (route.query.examId) {
       selectedExamId.value = route.query.examId as string;
@@ -599,6 +603,7 @@ async function loadExams() {
     }
   } catch (err) {
     console.error('Failed to load exams:', err);
+    exams.value = [];
   }
 }
 
@@ -609,11 +614,12 @@ async function fetchQuestions() {
     const { data } = await api.get(`/admin/public-exams/${selectedExamId.value}/questions`, {
       params: { bank_name: selectedBankGroup.value }
     });
-    questionsList.value = data.questions || [];
-    availableBankGroups.value = data.banks || ['Default Bank'];
-    activeExamBank.value = data.active_bank || 'Default Bank';
+    questionsList.value = Array.isArray(data?.questions) ? data.questions : [];
+    availableBankGroups.value = Array.isArray(data?.banks) ? data.banks : ['Default Bank'];
+    activeExamBank.value = data?.active_bank || 'Default Bank';
   } catch (err) {
     console.error('Failed to load questions:', err);
+    questionsList.value = [];
   } finally {
     loadingQuestions.value = false;
   }
