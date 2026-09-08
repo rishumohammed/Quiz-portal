@@ -82,7 +82,7 @@
 
         <!-- Video Stream Box with Live Readiness Indicator -->
         <div class="position-relative mx-auto rounded-xl overflow-hidden border mb-4 bg-black" style="max-width: 380px; height: 260px;">
-          <video ref="videoEl" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover;"></video>
+          <video ref="videoEl" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover; transform: scaleX(-1);"></video>
           
           <!-- Face Oval Guide (Glows Green when Ready) -->
           <div class="face-oval-frame" :class="isFaceReady ? 'oval-ready' : 'oval-not-ready'"></div>
@@ -467,6 +467,7 @@ useSeoMeta({ title: 'Face Re-Enrollment - AEMS Exam Portal' });
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scaleX(-1);
 }
 .face-oval-frame {
   position: absolute;

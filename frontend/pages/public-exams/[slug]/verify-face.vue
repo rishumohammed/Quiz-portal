@@ -311,6 +311,7 @@ useSeoMeta({ title: 'Face Verification Status Check - AEMS Exam Portal' });
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scaleX(-1);
 }
 .face-oval-guide {
   position: absolute;
