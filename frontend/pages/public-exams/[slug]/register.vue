@@ -208,27 +208,46 @@
                 <div class="text-body-2 text-dark mt-1">{{ currentPoseInfo.instruction }}</div>
               </v-alert>
 
-              <!-- Video Stream Box -->
+              <!-- Video Stream Box with Live Readiness Indicator -->
               <div class="position-relative mx-auto rounded-xl overflow-hidden border mb-4 bg-black" style="max-width: 380px; height: 260px;">
                 <video ref="regVideoRef" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover;"></video>
-                <!-- Visual Direction Badge -->
+                
+                <!-- Face Oval Guide (Glows Green when Ready) -->
+                <div class="face-oval-frame" :class="isFaceReady ? 'oval-ready' : 'oval-not-ready'"></div>
+
+                <!-- Pose Counter Badge -->
                 <div class="position-absolute top-0 right-0 ma-3">
-                  <v-chip color="primary" size="small" variant="flat" class="font-weight-bold">
+                  <v-chip color="primary" size="small" variant="flat" class="font-weight-bold shadow-sm">
                     Pose {{ currentPoseIndex + 1 }} of 3
+                  </v-chip>
+                </div>
+
+                <!-- Live Readiness Status Chip Overlay -->
+                <div class="position-absolute bottom-0 left-0 right-0 text-center pb-3 px-2" style="background: linear-gradient(transparent, rgba(0,0,0,0.8));">
+                  <v-chip
+                    :color="readinessColor"
+                    size="small"
+                    variant="flat"
+                    class="font-weight-bold shadow-sm"
+                  >
+                    <v-icon start size="14">{{ readinessIcon }}</v-icon>
+                    {{ readinessText }}
                   </v-chip>
                 </div>
               </div>
 
-              <!-- Action Button -->
+              <!-- Action Button (Gated by Live Face Readiness) -->
               <v-btn
-                :color="currentPoseInfo.btnColor"
+                :color="isFaceReady ? 'success' : 'grey-darken-1'"
                 size="large"
                 rounded="lg"
-                class="font-weight-bold text-capitalize px-8 mb-4"
+                class="font-weight-bold text-capitalize px-8 mb-4 shadow-sm"
                 @click="captureCurrentPosePhoto"
                 :loading="isCapturingSelfie"
+                :disabled="!isFaceReady"
               >
-                <v-icon start>mdi-camera-iris</v-icon> {{ currentPoseInfo.btnText }}
+                <v-icon start>{{ isFaceReady ? 'mdi-camera-iris' : 'mdi-camera-off' }}</v-icon>
+                {{ isFaceReady ? currentPoseInfo.btnText : 'Waiting for Face Alignment...' }}
               </v-btn>
             </div>
 
@@ -523,6 +542,58 @@ const capturedFacialDescriptor = computed(() => {
   return avg;
 });
 
+const isFaceReady = ref(false);
+const readinessText = ref('Align face in camera view...');
+const readinessColor = ref('warning');
+const readinessIcon = ref('mdi-account-search-outline');
+let readinessInterval: any = null;
+
+function startReadinessMonitoring() {
+  stopReadinessMonitoring();
+  readinessInterval = setInterval(async () => {
+    if (!regVideoRef.value || !cameraActive.value || allPhotosCaptured.value) return;
+    const video = regVideoRef.value;
+    if (video.readyState !== 4) return;
+
+    try {
+      const faces = await (faceDetection as any).estimateFaces?.(video, { flipHorizontal: false }) || [];
+      if (faces.length === 1) {
+        const desc = extractFacialDescriptor(faces[0]);
+        if (desc) {
+          isFaceReady.value = true;
+          readinessText.value = '✓ Face Ready for Capture!';
+          readinessColor.value = 'success';
+          readinessIcon.value = 'mdi-check-circle-outline';
+        } else {
+          isFaceReady.value = false;
+          readinessText.value = 'Align face clearly in frame...';
+          readinessColor.value = 'warning';
+          readinessIcon.value = 'mdi-face-man-profile';
+        }
+      } else if (faces.length > 1) {
+        isFaceReady.value = false;
+        readinessText.value = 'Multiple faces detected! Ensure only you are in view.';
+        readinessColor.value = 'warning';
+        readinessIcon.value = 'mdi-account-multiple';
+      } else {
+        isFaceReady.value = false;
+        readinessText.value = 'No face detected. Position your face in camera view.';
+        readinessColor.value = 'grey-darken-2';
+        readinessIcon.value = 'mdi-account-off';
+      }
+    } catch (e) {
+      console.warn('Readiness check error', e);
+    }
+  }, 350);
+}
+
+function stopReadinessMonitoring() {
+  if (readinessInterval) {
+    clearInterval(readinessInterval);
+    readinessInterval = null;
+  }
+}
+
 const backendUrl = (path: string) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
@@ -543,6 +614,7 @@ async function startRegistrationCamera() {
     setTimeout(() => {
       if (regVideoRef.value && regStream) {
         regVideoRef.value.srcObject = regStream;
+        startReadinessMonitoring();
       }
     }, 200);
   } catch (e) {
@@ -641,6 +713,8 @@ function resetAllPhotos() {
 }
 
 function stopRegistrationCamera() {
+  stopReadinessMonitoring();
+  isFaceReady.value = false;
   if (regStream) {
     regStream.getTracks().forEach(t => t.stop());
     regStream = null;
@@ -728,6 +802,10 @@ onMounted(() => {
   loadTermsPrivacy();
 });
 
+onBeforeUnmount(() => {
+  stopRegistrationCamera();
+});
+
 useSeoMeta({
   title: computed(() => exam.value?.name ? `${exam.value.name} - Registration` : 'Exam Registration')
 });
@@ -754,6 +832,26 @@ useSeoMeta({
   
   animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   border: 1px solid var(--border);
+}
+.face-oval-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 170px;
+  height: 220px;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 2;
+}
+.oval-ready {
+  border: 4px solid #22c55e;
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.6), inset 0 0 15px rgba(34, 197, 94, 0.3);
+}
+.oval-not-ready {
+  border: 3px dashed #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
 }
 @keyframes pop-in {
   0% { transform: scale(0); opacity: 0; }
