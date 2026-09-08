@@ -51,6 +51,8 @@ export const useFaceDetection = () => {
   let lastProxyMismatchLogTime = 0;
   let mismatchCount = 0;
 
+  let isEstimatingFaces = false;
+
   const loadModel = async () => {
     if (typeof window === 'undefined' || !process.client) return;
     try {
@@ -58,12 +60,14 @@ export const useFaceDetection = () => {
       faceDetectionError.value = '';
       
       if (!faceDetectionApi) {
-        await import('@tensorflow/tfjs');
+        const tf = await import('@tensorflow/tfjs');
+        await tf.ready();
         faceDetectionApi = await import('@tensorflow-models/face-detection');
       }
       
       const detectorConfig: faceDetection.MediaPipeFaceDetectorTfjsModelConfig = {
         runtime: 'tfjs',
+        modelType: 'short',
         maxFaces: 5,
       };
       
@@ -218,12 +222,16 @@ export const useFaceDetection = () => {
   };
 
   const estimateFaces = async (videoElement: HTMLVideoElement, config: any = { flipHorizontal: false }) => {
-    if (!model.value || !videoElement || videoElement.readyState !== 4) return [];
+    if (isEstimatingFaces) return [];
+    if (!model.value || !videoElement || videoElement.readyState < 2) return [];
     try {
+      isEstimatingFaces = true;
       return await model.value.estimateFaces(videoElement, config);
     } catch (e) {
       console.warn('estimateFaces error:', e);
       return [];
+    } finally {
+      isEstimatingFaces = false;
     }
   };
 

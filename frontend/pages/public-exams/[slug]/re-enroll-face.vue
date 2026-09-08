@@ -61,7 +61,7 @@
         <v-icon size="48" color="primary" class="mb-3">mdi-camera-account</v-icon>
         <div class="text-body-1 font-weight-bold mb-2">3 Reference Selfie Photos Required *</div>
         <p class="text-caption text-secondary mb-4">You will be guided to capture 3 pose photos: Center/Front, Slight Left, and Slight Right.</p>
-        <v-btn color="primary" rounded="lg" size="large" class="font-weight-bold text-capitalize" :loading="startingCamera" @click="setupCamera">
+        <v-btn color="primary" rounded="lg" size="large" class="font-weight-bold text-capitalize text-wrap px-4 py-3" height="auto" :loading="startingCamera" @click="setupCamera">
           <v-icon start>mdi-camera</v-icon> Enable Camera &amp; Start 3-Photo Capture
         </v-btn>
       </div>
@@ -275,16 +275,20 @@ function getImageUrl(path: string) {
   return apiBase + (path.startsWith('/') ? path : '/' + path);
 }
 
+let isProcessingFrame = false;
+
 function startReadinessMonitoring() {
   stopReadinessMonitoring();
   readinessInterval = setInterval(async () => {
+    if (isProcessingFrame) return;
     if (!videoEl.value || !cameraStarted.value || allPhotosCaptured.value) return;
     const video = videoEl.value;
-    if (video.readyState !== 4) return;
+    if (video.readyState < 2 || !video.videoWidth) return;
 
+    isProcessingFrame = true;
     try {
       const faces = await faceDetection.estimateFaces(video, { flipHorizontal: false });
-      if (faces.length === 1) {
+      if (faces && faces.length >= 1) {
         const desc = extractFacialDescriptor(faces[0]);
         if (desc) {
           isFaceReady.value = true;
@@ -297,11 +301,6 @@ function startReadinessMonitoring() {
           readinessColor.value = 'warning';
           readinessIcon.value = 'mdi-face-man-profile';
         }
-      } else if (faces.length > 1) {
-        isFaceReady.value = false;
-        readinessText.value = 'Multiple faces detected! Ensure only you are in view.';
-        readinessColor.value = 'warning';
-        readinessIcon.value = 'mdi-account-multiple';
       } else {
         isFaceReady.value = false;
         readinessText.value = 'No face detected. Position your face in camera view.';
@@ -310,8 +309,10 @@ function startReadinessMonitoring() {
       }
     } catch (e) {
       console.warn('Readiness check error', e);
+    } finally {
+      isProcessingFrame = false;
     }
-  }, 350);
+  }, 250);
 }
 
 function stopReadinessMonitoring() {
