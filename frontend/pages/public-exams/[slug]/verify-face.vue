@@ -198,7 +198,8 @@ async function handleCandidateLogin() {
     const { data } = await api.post('/public/exams/candidates/login', {
       email: form.value.email.trim().toLowerCase(),
       password: form.value.password,
-      exam_slug: route.params.slug
+      exam_slug: route.params.slug,
+      is_status_check: true
     });
 
     candidate.value = data.candidate;
@@ -210,7 +211,7 @@ async function handleCandidateLogin() {
 }
 
 async function startLiveVerificationTest() {
-  if (!candidate.value?.facial_descriptor) return;
+  if (!candidate.value?.facial_descriptor && !candidate.value?.facial_descriptors) return;
   isTesting.value = true;
   isMatchVerified.value = false;
   matchScore.value = 0;
@@ -232,7 +233,8 @@ async function startLiveVerificationTest() {
     }
 
     await faceDetection.loadModel();
-    faceDetection.setReferenceDescriptor(candidate.value.facial_descriptor);
+    const refDescriptors = candidate.value.facial_descriptors || candidate.value.facial_descriptor;
+    faceDetection.setReferenceDescriptor(refDescriptors);
 
     statusText.value = 'Scanning Face...';
     statusChipClass.value = 'bg-info';
@@ -245,8 +247,12 @@ async function startLiveVerificationTest() {
       const faces = await (faceDetection as any).estimateFaces?.(video, { flipHorizontal: false }) || [];
       if (faces.length === 1) {
         const liveDesc = extractFacialDescriptor(faces[0]);
-        if (liveDesc && candidate.value.facial_descriptor) {
-          const dist = calculateDescriptorDistance(liveDesc, candidate.value.facial_descriptor);
+        if (liveDesc) {
+          const descriptorsList: number[][] = (candidate.value.facial_descriptors && Array.isArray(candidate.value.facial_descriptors[0]))
+            ? candidate.value.facial_descriptors
+            : [candidate.value.facial_descriptor];
+          const distances = descriptorsList.map((refDesc: number[]) => calculateDescriptorDistance(liveDesc, refDesc));
+          const dist = Math.min(...distances);
           const conf = Math.max(0, Math.min(100, Math.round((1 - dist / 0.50) * 100)));
           matchScore.value = conf;
 

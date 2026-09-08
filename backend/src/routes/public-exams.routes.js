@@ -186,7 +186,7 @@ router.get('/:slug', async (req, res) => {
 // CANDIDATE LOGIN — POST /api/public/candidates/login
 router.post('/candidates/login', async (req, res) => {
   try {
-    const { email, password, exam_slug } = req.body;
+    const { email, password, exam_slug, is_status_check } = req.body;
 
     if (!email || !password || !exam_slug) {
       return res.status(400).json({ message: 'Email, password, and exam slug are required.' });
@@ -202,8 +202,8 @@ router.post('/candidates/login', async (req, res) => {
     }
     const exam = exams[0];
 
-    // Check exam start date
-    if (exam.exam_start_date && new Date() < new Date(exam.exam_start_date)) {
+    // Check exam start date (Only for exam attempt login, NOT for face verification status check)
+    if (!is_status_check && exam.exam_start_date && new Date() < new Date(exam.exam_start_date)) {
       const formattedDate = new Date(exam.exam_start_date).toLocaleString('en-US', {
         dateStyle: 'full',
         timeStyle: 'short'
@@ -214,8 +214,8 @@ router.post('/candidates/login', async (req, res) => {
       });
     }
 
-    // Check exam end date
-    if (exam.exam_end_date && new Date() > new Date(exam.exam_end_date)) {
+    // Check exam end date (Only for exam attempt login, NOT for face verification status check)
+    if (!is_status_check && exam.exam_end_date && new Date() > new Date(exam.exam_end_date)) {
       const formattedDate = new Date(exam.exam_end_date).toLocaleString('en-US', {
         dateStyle: 'full',
         timeStyle: 'short'
@@ -264,6 +264,8 @@ router.post('/candidates/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
+    const candMeta = (candidate.metadata && typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata) || {};
+
     res.json({
       message: 'Login successful',
       token,
@@ -272,8 +274,10 @@ router.post('/candidates/login', async (req, res) => {
         name: candidate.name,
         email: candidate.email,
         phone: candidate.phone,
-        reference_photo_url: (candidate.metadata && typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata)?.reference_photo_url || null,
-        facial_descriptor: (candidate.metadata && typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata)?.facial_descriptor || null
+        reference_photo_url: candMeta.reference_photo_url || null,
+        reference_photo_urls: candMeta.reference_photo_urls || (candMeta.reference_photo_url ? [candMeta.reference_photo_url] : []),
+        facial_descriptor: candMeta.facial_descriptor || null,
+        facial_descriptors: candMeta.facial_descriptors || (candMeta.facial_descriptor ? [candMeta.facial_descriptor] : null)
       },
       exam: { id: exam.id, name: exam.name, slug: exam.slug }
     });
@@ -1041,7 +1045,7 @@ router.get('/candidates/validate-re-enroll-token', async (req, res) => {
 // 12. POST /api/public/exams/candidates/re-enroll-face
 router.post('/candidates/re-enroll-face', async (req, res) => {
   try {
-    const { token, reference_photo_url, facial_descriptor } = req.body;
+    const { token, reference_photo_url, reference_photo_urls, facial_descriptor, facial_descriptors } = req.body;
     if (!token || !facial_descriptor) {
       return res.status(400).json({ message: 'Token and facial descriptor are required.' });
     }
@@ -1070,7 +1074,9 @@ router.post('/candidates/re-enroll-face', async (req, res) => {
 
     // Update candidate metadata with new face profile and IMMEDIATELY CONSUME TOKEN
     targetMeta.reference_photo_url = reference_photo_url || targetMeta.reference_photo_url;
+    if (reference_photo_urls) targetMeta.reference_photo_urls = reference_photo_urls;
     targetMeta.facial_descriptor = facial_descriptor;
+    if (facial_descriptors) targetMeta.facial_descriptors = facial_descriptors;
     targetMeta.re_enroll_token_used = true;
     delete targetMeta.re_enroll_token; // Permanently consume token
 

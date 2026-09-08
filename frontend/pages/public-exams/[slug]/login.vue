@@ -341,7 +341,8 @@ async function startFaceVerificationStep() {
     }
 
     await faceDetection.loadModel();
-    let refDescriptor = pendingCandidateData.value.candidate.facial_descriptor;
+    let candObj = pendingCandidateData.value.candidate;
+    let refDescriptor = candObj.facial_descriptors || candObj.facial_descriptor;
     if (typeof refDescriptor === 'string') {
       try { refDescriptor = JSON.parse(refDescriptor); } catch (e) {}
     }
@@ -364,9 +365,17 @@ async function startFaceVerificationStep() {
         
         if (faces.length === 1) {
           const liveDescriptor = extractFacialDescriptor(faces[0]);
-          if (liveDescriptor && refDescriptor && Array.isArray(refDescriptor)) {
-            const dist = calculateDescriptorDistance(liveDescriptor, refDescriptor);
-            // Distance score: <=0.35 is excellent match, >0.55 is mismatch
+          if (liveDescriptor && refDescriptor) {
+            let descriptorsList: number[][] = [];
+            if (Array.isArray(refDescriptor) && Array.isArray(refDescriptor[0])) {
+              descriptorsList = refDescriptor as number[][];
+            } else if (Array.isArray(refDescriptor)) {
+              descriptorsList = [refDescriptor as number[]];
+            }
+
+            const distances = descriptorsList.map(vec => calculateDescriptorDistance(liveDescriptor, vec));
+            const dist = Math.min(...distances);
+            // Distance score: <=0.38 is match
             const rawConfidence = Math.max(0, Math.min(100, Math.round((1 - dist / 0.50) * 100)));
             matchConfidence.value = rawConfidence;
 

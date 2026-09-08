@@ -179,37 +179,95 @@
 
           <v-divider class="my-6 opacity-20"></v-divider>
 
-          <!-- Face Verification Photo -->
-          <h3 class="text-h6 font-weight-bold mb-1 text-grey-darken-3">Face Verification Photo</h3>
-          <p class="text-body-2 text-secondary mb-4">Enable your camera and capture reference selfie photos for candidate identity verification during the exam.</p>
+          <!-- Face Verification Photo (3 Poses Required) -->
+          <h3 class="text-h6 font-weight-bold mb-1 text-grey-darken-3">Face Verification Enrollment (3 Photos Required)</h3>
+          <p class="text-body-2 text-secondary mb-4">To ensure maximum accuracy, please capture 3 reference photos of your face from different angles as directed below.</p>
 
           <v-card class="pa-6 border rounded-xl mb-6 bg-grey-lighten-5 text-center" flat>
-            <div v-if="!cameraActive && !capturedSelfieUrl">
+            <!-- Camera Disabled State -->
+            <div v-if="!cameraActive && !allPhotosCaptured">
               <v-icon size="48" color="primary" class="mb-3">mdi-camera-account</v-icon>
-              <div class="text-body-1 font-weight-bold mb-2">Reference Selfie Required *</div>
-              <p class="text-caption text-secondary mb-4">Ensure your face is clearly visible in a well-lit area.</p>
+              <div class="text-body-1 font-weight-bold mb-2">3 Reference Selfie Photos Required *</div>
+              <p class="text-caption text-secondary mb-4">You will be guided to capture 3 pose photos: Center/Front, Slight Left, and Slight Right.</p>
               <v-btn color="primary" rounded="lg" class="font-weight-bold text-capitalize" @click="startRegistrationCamera" :loading="isCameraLoading">
-                <v-icon start>mdi-camera</v-icon> Enable Camera &amp; Take Photo
+                <v-icon start>mdi-camera</v-icon> Enable Camera &amp; Start 3-Photo Capture
               </v-btn>
             </div>
 
-            <div v-else-if="cameraActive && !capturedSelfieUrl">
+            <!-- Active Camera Capture State -->
+            <div v-else-if="cameraActive && !allPhotosCaptured">
+              <!-- Text Guidance Banner -->
+              <v-alert
+                :color="currentPoseInfo.color"
+                variant="tonal"
+                rounded="lg"
+                class="mb-4 text-left font-weight-bold"
+                :prepend-icon="currentPoseInfo.icon"
+              >
+                <div class="text-subtitle-1 font-weight-black">{{ currentPoseInfo.title }}</div>
+                <div class="text-body-2 text-dark mt-1">{{ currentPoseInfo.instruction }}</div>
+              </v-alert>
+
+              <!-- Video Stream Box -->
               <div class="position-relative mx-auto rounded-xl overflow-hidden border mb-4 bg-black" style="max-width: 380px; height: 260px;">
                 <video ref="regVideoRef" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover;"></video>
+                <!-- Visual Direction Badge -->
+                <div class="position-absolute top-0 right-0 ma-3">
+                  <v-chip color="primary" size="small" variant="flat" class="font-weight-bold">
+                    Pose {{ currentPoseIndex + 1 }} of 3
+                  </v-chip>
+                </div>
               </div>
-              <v-btn color="success" size="large" rounded="lg" class="font-weight-bold text-capitalize px-8" @click="captureRegistrationSelfie" :loading="isCapturingSelfie">
-                <v-icon start>mdi-camera-iris</v-icon> Capture Reference Selfie
+
+              <!-- Action Button -->
+              <v-btn
+                :color="currentPoseInfo.btnColor"
+                size="large"
+                rounded="lg"
+                class="font-weight-bold text-capitalize px-8 mb-4"
+                @click="captureCurrentPosePhoto"
+                :loading="isCapturingSelfie"
+              >
+                <v-icon start>mdi-camera-iris</v-icon> {{ currentPoseInfo.btnText }}
               </v-btn>
             </div>
 
-            <div v-else-if="capturedSelfieUrl">
-              <div class="d-flex align-center justify-center flex-column">
-                <v-img :src="backendUrl(capturedSelfieUrl)" width="140" height="140" class="rounded-circle border mb-3 shadow-sm bg-white" cover></v-img>
-                <div class="d-flex align-center gap-1 text-success font-weight-bold text-body-2 mb-3">
-                  <v-icon color="success" size="18">mdi-check-circle</v-icon> Face Photo Registered Successfully
-                </div>
-                <v-btn variant="outlined" color="primary" size="small" rounded="lg" class="text-capitalize font-weight-bold" @click="retakeRegistrationSelfie">
-                  <v-icon start size="16">mdi-refresh</v-icon> Retake Photo
+            <!-- All 3 Photos Captured Success State -->
+            <div v-else-if="allPhotosCaptured">
+              <div class="d-flex align-center justify-center flex-column mb-4">
+                <v-avatar color="green-lighten-5" size="56" class="mb-2">
+                  <v-icon color="success" size="32">mdi-check-decagram</v-icon>
+                </v-avatar>
+                <div class="text-body-1 font-weight-black text-success">All 3 Reference Photos Captured Successfully!</div>
+                <p class="text-caption text-secondary">Your 3-pose facial landmark profile has been generated.</p>
+              </div>
+            </div>
+
+            <!-- 3 Thumbnails Grid (Always shown when active or completed) -->
+            <div v-if="cameraActive || allPhotosCaptured" class="mt-4 pt-4 border-t">
+              <div class="text-caption font-weight-bold text-secondary mb-3">Enrolled Photo Samples (Minimum 3 Required):</div>
+              <v-row justify="center" dense>
+                <v-col v-for="(pose, idx) in poseList" :key="idx" cols="4" sm="4">
+                  <v-card class="pa-2 border rounded-lg text-center" :class="{ 'border-primary border-2': currentPoseIndex === idx && !allPhotosCaptured }" flat>
+                    <div class="text-caption font-weight-bold mb-1 truncate">{{ pose.label }}</div>
+                    
+                    <div v-if="capturedPhotos[idx]?.url" class="position-relative mx-auto rounded-lg overflow-hidden" style="width: 70px; height: 70px;">
+                      <v-img :src="backendUrl(capturedPhotos[idx].url)" width="70" height="70" cover></v-img>
+                      <v-chip color="success" size="x-small" icon class="position-absolute bottom-0 right-0 ma-1 px-1">
+                        <v-icon size="12">mdi-check</v-icon>
+                      </v-chip>
+                    </div>
+
+                    <div v-else class="d-flex align-center justify-center bg-grey-lighten-3 rounded-lg mx-auto text-caption text-grey-darken-1 font-weight-bold" style="width: 70px; height: 70px;">
+                      Pose {{ idx + 1 }}
+                    </div>
+                  </v-card>
+                </v-col>
+              </v-row>
+
+              <div v-if="allPhotosCaptured" class="mt-4">
+                <v-btn variant="outlined" color="primary" size="small" rounded="lg" class="text-capitalize font-weight-bold" @click="resetAllPhotos">
+                  <v-icon start size="16">mdi-refresh</v-icon> Retake All 3 Photos
                 </v-btn>
               </div>
             </div>
@@ -407,11 +465,67 @@ const regVideoRef = ref<HTMLVideoElement | null>(null);
 const cameraActive = ref(false);
 const isCameraLoading = ref(false);
 const isCapturingSelfie = ref(false);
-const capturedSelfieUrl = ref('');
-const capturedFacialDescriptor = ref<number[] | null>(null);
 let regStream: MediaStream | null = null;
 
+const currentPoseIndex = ref(0);
+const poseList = [
+  {
+    label: 'Front / Center',
+    title: 'Step 1 of 3: Look Directly into the Camera (Front Pose)',
+    instruction: 'Please center your face and look straight at the camera lens with a neutral expression.',
+    icon: 'mdi-account-box-outline',
+    color: 'primary',
+    btnText: 'Capture Photo 1 (Front Pose)',
+    btnColor: 'primary'
+  },
+  {
+    label: 'Slight Left',
+    title: 'Step 2 of 3: Turn Your Head Slightly Left',
+    instruction: 'Please turn your head slightly to your LEFT while keeping your face visible to the camera.',
+    icon: 'mdi-format-horizontal-align-left',
+    color: 'info',
+    btnText: 'Capture Photo 2 (Slight Left)',
+    btnColor: 'info'
+  },
+  {
+    label: 'Slight Right',
+    title: 'Step 3 of 3: Turn Your Head Slightly Right',
+    instruction: 'Please turn your head slightly to your RIGHT while keeping your face visible to the camera.',
+    icon: 'mdi-format-horizontal-align-right',
+    color: 'indigo',
+    btnText: 'Capture Photo 3 (Slight Right)',
+    btnColor: 'indigo'
+  }
+];
+
+const currentPoseInfo = computed(() => poseList[currentPoseIndex.value] || poseList[0]);
+
+const capturedPhotos = ref<Array<{ label: string; url: string; descriptor: number[] | null }>>([
+  { label: 'Front / Center', url: '', descriptor: null },
+  { label: 'Slight Left', url: '', descriptor: null },
+  { label: 'Slight Right', url: '', descriptor: null }
+]);
+
+const allPhotosCaptured = computed(() => capturedPhotos.value.every(p => !!p.url && !!p.descriptor));
+const capturedSelfieUrl = computed(() => capturedPhotos.value[0]?.url || '');
+const capturedPhotoUrls = computed(() => capturedPhotos.value.map(p => p.url));
+const capturedFacialDescriptors = computed(() => capturedPhotos.value.map(p => p.descriptor).filter(Boolean) as number[][]);
+const capturedFacialDescriptor = computed(() => {
+  const list = capturedFacialDescriptors.value;
+  if (list.length === 0) return null;
+  const len = list[0].length;
+  const avg: number[] = new Array(len).fill(0);
+  for (const d of list) {
+    for (let i = 0; i < len; i++) {
+      avg[i] += d[i] / list.length;
+    }
+  }
+  return avg;
+});
+
 const backendUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
   const config = useRuntimeConfig();
   return `${config.public.apiBase.replace('/api', '')}${path}`;
 };
@@ -441,14 +555,29 @@ async function startRegistrationCamera() {
   }
 }
 
-async function captureRegistrationSelfie() {
+async function captureCurrentPosePhoto() {
   if (!regVideoRef.value) return;
   try {
     isCapturingSelfie.value = true;
 
-    // Capture 3-sample facial geometry descriptor using useFaceDetection
-    const descriptor = await faceDetection.captureReferenceDescriptor(regVideoRef.value, 3);
-    capturedFacialDescriptor.value = descriptor;
+    // Check live face in video stream
+    const faces = await (faceDetection as any).estimateFaces?.(regVideoRef.value, { flipHorizontal: false }) || [];
+    if (!faces || faces.length === 0) {
+      snackbarText.value = 'No face detected in camera! Please make sure your face is visible and in good light.';
+      snackbarColor.value = 'warning';
+      snackbar.value = true;
+      isCapturingSelfie.value = false;
+      return;
+    }
+
+    const descriptor = extractFacialDescriptor(faces[0]);
+    if (!descriptor) {
+      snackbarText.value = 'Could not extract facial features. Please align your face clearly with the camera.';
+      snackbarColor.value = 'warning';
+      snackbar.value = true;
+      isCapturingSelfie.value = false;
+      return;
+    }
 
     // Capture photo frame from video canvas
     const canvas = document.createElement('canvas');
@@ -461,16 +590,33 @@ async function captureRegistrationSelfie() {
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const formData = new FormData();
-      formData.append('image', blob, 'selfie.jpg');
+      formData.append('image', blob, `selfie-pose-${currentPoseIndex.value + 1}.jpg`);
 
       try {
         const res = await api.post('/public/exams/upload-selfie', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        capturedSelfieUrl.value = res.data?.url || '';
-        stopRegistrationCamera();
+        const photoUrl = res.data?.url || '';
+
+        capturedPhotos.value[currentPoseIndex.value] = {
+          label: poseList[currentPoseIndex.value].label,
+          url: photoUrl,
+          descriptor: descriptor
+        };
+
+        if (currentPoseIndex.value < 2) {
+          currentPoseIndex.value++;
+          snackbarText.value = `Pose ${currentPoseIndex.value} captured! ${poseList[currentPoseIndex.value].instruction}`;
+          snackbarColor.value = 'info';
+          snackbar.value = true;
+        } else {
+          stopRegistrationCamera();
+          snackbarText.value = 'All 3 reference face photos captured successfully!';
+          snackbarColor.value = 'success';
+          snackbar.value = true;
+        }
       } catch (err) {
-        console.error('Failed to upload registration selfie', err);
+        console.error('Failed to upload pose photo', err);
         snackbarText.value = 'Failed to save selfie photo. Please try again.';
         snackbarColor.value = 'error';
         snackbar.value = true;
@@ -484,9 +630,13 @@ async function captureRegistrationSelfie() {
   }
 }
 
-function retakeRegistrationSelfie() {
-  capturedSelfieUrl.value = '';
-  capturedFacialDescriptor.value = null;
+function resetAllPhotos() {
+  capturedPhotos.value = [
+    { label: 'Front / Center', url: '', descriptor: null },
+    { label: 'Slight Left', url: '', descriptor: null },
+    { label: 'Slight Right', url: '', descriptor: null }
+  ];
+  currentPoseIndex.value = 0;
   startRegistrationCamera();
 }
 
@@ -512,8 +662,8 @@ function resendOtp() {
 }
 
 async function openOtpModal() {
-  if (!capturedSelfieUrl.value) {
-    snackbarText.value = 'Please enable your camera and take a reference selfie photo before registering.';
+  if (!allPhotosCaptured.value) {
+    snackbarText.value = 'Please capture all 3 reference photos (Front, Left, and Right pose) before registering.';
     snackbarColor.value = 'error';
     snackbar.value = true;
     return;
@@ -555,7 +705,9 @@ async function submitForm() {
       ...form.value,
       qualification: form.value.category,
       reference_photo_url: capturedSelfieUrl.value,
-      facial_descriptor: capturedFacialDescriptor.value
+      reference_photo_urls: capturedPhotoUrls.value,
+      facial_descriptor: capturedFacialDescriptor.value,
+      facial_descriptors: capturedFacialDescriptors.value
     };
     const { data } = await api.post(`/public/exams/${route.params.slug}/register`, payload);
     registeredCandidate.value = data.candidate;

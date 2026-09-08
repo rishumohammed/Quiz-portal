@@ -1620,7 +1620,9 @@ router.delete('/candidates/:id/face', async (req, res) => {
     }
 
     delete metadata.reference_photo_url;
+    delete metadata.reference_photo_urls;
     delete metadata.facial_descriptor;
+    delete metadata.facial_descriptors;
     delete metadata.re_enroll_token;
     delete metadata.re_enroll_token_used;
     delete metadata.re_enroll_token_expires_at;
@@ -1648,7 +1650,9 @@ router.post('/candidates/:id/generate-re-enroll-token', async (req, res) => {
 
     // Clear old face profile
     delete metadata.reference_photo_url;
+    delete metadata.reference_photo_urls;
     delete metadata.facial_descriptor;
+    delete metadata.facial_descriptors;
 
     // Generate single-use token valid for 48 hours
     const token = uuidv4();

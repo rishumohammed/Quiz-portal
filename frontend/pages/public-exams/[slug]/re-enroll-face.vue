@@ -220,7 +220,9 @@ async function submitNewFaceProfile() {
     await api.post('/public/exams/candidates/re-enroll-face', {
       token,
       reference_photo_url: capturedPhotoUrl.value,
-      facial_descriptor: capturedDescriptor.value
+      reference_photo_urls: capturedPhotoUrl.value ? [capturedPhotoUrl.value] : [],
+      facial_descriptor: capturedDescriptor.value,
+      facial_descriptors: capturedDescriptor.value ? [capturedDescriptor.value] : []
     });
 
     enrollSuccess.value = true;
