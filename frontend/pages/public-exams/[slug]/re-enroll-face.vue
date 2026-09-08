@@ -182,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 import { useWebcamRecorder } from '@/composables/useWebcamRecorder';
@@ -283,7 +283,7 @@ function startReadinessMonitoring() {
     if (video.readyState !== 4) return;
 
     try {
-      const faces = await (faceDetection as any).estimateFaces?.(video, { flipHorizontal: false }) || [];
+      const faces = await faceDetection.estimateFaces(video, { flipHorizontal: false });
       if (faces.length === 1) {
         const desc = extractFacialDescriptor(faces[0]);
         if (desc) {
@@ -354,10 +354,16 @@ async function setupCamera() {
   startingCamera.value = true;
   try {
     const granted = await recorder.requestCamera();
-    if (granted && videoEl.value && recorder.stream.value) {
-      videoEl.value.srcObject = recorder.stream.value;
-      await videoEl.value.play();
+    if (granted && recorder.stream.value) {
       cameraStarted.value = true;
+      await nextTick();
+      
+      setTimeout(async () => {
+        if (videoEl.value && recorder.stream.value) {
+          videoEl.value.srcObject = recorder.stream.value;
+          await videoEl.value.play();
+        }
+      }, 150);
 
       await faceDetection.loadModel();
       startReadinessMonitoring();
@@ -373,7 +379,7 @@ async function captureCurrentPosePhoto() {
   if (!videoEl.value) return;
   try {
     isCapturing.value = true;
-    const faces = await (faceDetection as any).estimateFaces?.(videoEl.value, { flipHorizontal: false }) || [];
+    const faces = await faceDetection.estimateFaces(videoEl.value, { flipHorizontal: false });
     if (!faces || faces.length === 0) {
       isCapturing.value = false;
       return;

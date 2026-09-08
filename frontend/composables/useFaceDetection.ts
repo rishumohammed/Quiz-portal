@@ -217,6 +217,16 @@ export const useFaceDetection = () => {
     }, 1000);
   };
 
+  const estimateFaces = async (videoElement: HTMLVideoElement, config: any = { flipHorizontal: false }) => {
+    if (!model.value || !videoElement || videoElement.readyState !== 4) return [];
+    try {
+      return await model.value.estimateFaces(videoElement, config);
+    } catch (e) {
+      console.warn('estimateFaces error:', e);
+      return [];
+    }
+  };
+
   const stopDetection = () => {
     if (detectionInterval) {
       clearInterval(detectionInterval);
@@ -226,6 +236,7 @@ export const useFaceDetection = () => {
 
   return {
     loadModel,
+    estimateFaces,
     captureReferenceDescriptor,
     setReferenceDescriptor,
     referenceDescriptor,

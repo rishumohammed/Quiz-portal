@@ -556,7 +556,7 @@ function startReadinessMonitoring() {
     if (video.readyState !== 4) return;
 
     try {
-      const faces = await (faceDetection as any).estimateFaces?.(video, { flipHorizontal: false }) || [];
+      const faces = await faceDetection.estimateFaces(video, { flipHorizontal: false });
       if (faces.length === 1) {
         const desc = extractFacialDescriptor(faces[0]);
         if (desc) {
@@ -633,7 +633,7 @@ async function captureCurrentPosePhoto() {
     isCapturingSelfie.value = true;
 
     // Check live face in video stream
-    const faces = await (faceDetection as any).estimateFaces?.(regVideoRef.value, { flipHorizontal: false }) || [];
+    const faces = await faceDetection.estimateFaces(regVideoRef.value, { flipHorizontal: false });
     if (!faces || faces.length === 0) {
       snackbarText.value = 'No face detected in camera! Please make sure your face is visible and in good light.';
       snackbarColor.value = 'warning';
