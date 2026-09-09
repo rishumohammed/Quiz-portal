@@ -106,6 +106,19 @@
                   density="comfortable"
                 ></v-select>
               </v-col>
+              <v-col cols="12" sm="6">
+                <v-select
+                  v-model="form.timezone"
+                  :items="timezoneOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Time Zone"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-clock-outline"
+                ></v-select>
+              </v-col>
               <v-col cols="12">
                 <v-textarea
                   v-model="form.address"
@@ -425,6 +438,7 @@ const form = ref({
   phone: '',
   date_of_birth: '',
   gender: '',
+  timezone: 'Asia/Kolkata',
   address: '',
   linkedin_url: '',
   github_url: '',
@@ -436,6 +450,21 @@ const form = ref({
   skills: [],
   preferred_job_categories: [] as string[]
 });
+
+const timezoneOptions = [
+  { title: 'Asia/Kolkata (IST - UTC+05:30)', value: 'Asia/Kolkata' },
+  { title: 'UTC (Coordinated Universal Time)', value: 'UTC' },
+  { title: 'America/New_York (EST/EDT - UTC-05:00/04:00)', value: 'America/New_York' },
+  { title: 'America/Chicago (CST/CDT - UTC-06:00/05:00)', value: 'America/Chicago' },
+  { title: 'America/Denver (MST/MDT - UTC-07:00/06:00)', value: 'America/Denver' },
+  { title: 'America/Los_Angeles (PST/PDT - UTC-08:00/07:00)', value: 'America/Los_Angeles' },
+  { title: 'Europe/London (GMT/BST - UTC+00:00/01:00)', value: 'Europe/London' },
+  { title: 'Europe/Paris (CET/CEST - UTC+01:00/02:00)', value: 'Europe/Paris' },
+  { title: 'Asia/Dubai (GST - UTC+04:00)', value: 'Asia/Dubai' },
+  { title: 'Asia/Singapore (SGT - UTC+08:00)', value: 'Asia/Singapore' },
+  { title: 'Asia/Tokyo (JST - UTC+09:00)', value: 'Asia/Tokyo' },
+  { title: 'Australia/Sydney (AEST/AEDT - UTC+10:00/11:00)', value: 'Australia/Sydney' }
+];
 
 const jobCategories = ref<any[]>([]);
 
@@ -475,6 +504,7 @@ const loadProfile = async () => {
       phone: data.phone || '',
       date_of_birth: data.profile?.date_of_birth ? data.profile.date_of_birth.substring(0, 10) : '',
       gender: data.profile?.gender || '',
+      timezone: data.timezone || authStore.user?.timezone || 'Asia/Kolkata',
       address: data.profile?.address || '',
       linkedin_url: data.profile?.linkedin_url || '',
       github_url: data.profile?.github_url || '',
@@ -515,12 +545,18 @@ const saveProfile = async () => {
   saving.value = true;
   try {
     await api.put('/lms/student/profile', form.value);
-    snackbarText.value = 'Profile updated successfully!';
+    const { data: authData } = await api.put('/auth/profile', {
+      name: form.value.name,
+      phone: form.value.phone,
+      timezone: form.value.timezone
+    });
+    snackbarText.value = 'Profile and settings updated successfully!';
     snackbarColor.value = 'success';
     snackbar.value = true;
     
     if (authStore.user) {
-      authStore.user.name = form.value.name;
+      if (authData?.user) authStore.setUser(authData.user);
+      else authStore.user.name = form.value.name;
     }
   } catch (error: any) {
     snackbarText.value = error.response?.data?.message || 'Failed to update profile.';

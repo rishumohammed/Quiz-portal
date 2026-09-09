@@ -329,7 +329,7 @@ router.post('/logout', authenticateJWT, async (req, res) => {
 router.get('/me', authenticateJWT, async (req, res) => {
   try {
     const [users] = await pool.query(`
-      SELECT u.id, u.name, u.email, u.role, u.status, u.force_password_change, up.avatar_url
+      SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.timezone, u.force_password_change, up.avatar_url
       FROM users u
       LEFT JOIN user_profiles up ON u.id = up.user_id
       WHERE u.id = ?
@@ -337,9 +337,35 @@ router.get('/me', authenticateJWT, async (req, res) => {
     const user = users[0];
     if (!user) return res.status(404).json({ message: 'User not found' });
     user.force_password_change = !!user.force_password_change;
+    user.timezone = user.timezone || 'Asia/Kolkata';
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user profile' });
+  }
+});
+
+router.put('/profile', authenticateJWT, async (req, res) => {
+  const { name, phone, timezone } = req.body;
+  try {
+    await pool.query(
+      `UPDATE users SET 
+        name = COALESCE(?, name), 
+        phone = COALESCE(?, phone), 
+        timezone = COALESCE(?, timezone) 
+       WHERE id = ?`,
+      [name, phone, timezone, req.user.id]
+    );
+
+    const [users] = await pool.query(`
+      SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.timezone, u.force_password_change, up.avatar_url
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      WHERE u.id = ?
+    `, [req.user.id]);
+
+    res.json({ message: 'Profile updated successfully', user: users[0] });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

@@ -1,249 +1,198 @@
 <template>
   <v-container fluid class="pa-6">
-    <!-- Header -->
+    <!-- Clean Header with Back Button and Exam Name -->
     <div class="d-flex align-center justify-space-between mb-6 flex-wrap gap-4">
-      <div>
-        <h1 class="text-h4 font-weight-bold mb-1">Question Bank Studio</h1>
-        <p class="text-subtitle-2 text-secondary">Manage question groups, switch active exam question banks, export in standard CSV format, and bulk import.</p>
+      <div class="d-flex align-center gap-3">
+        <v-btn icon="mdi-arrow-left" variant="tonal" size="small" color="secondary" to="/dashboard/admin/public-exams" title="Back to Exams" class="rounded-lg"></v-btn>
+        <div>
+          <h1 class="text-h4 font-weight-bold mb-0">
+            Question Bank <span v-if="selectedExam" class="text-subtitle-1 text-secondary font-weight-medium">&mdash; {{ selectedExam.name }}</span>
+          </h1>
+          <p class="text-subtitle-2 text-secondary mb-0">Manage question groups, switch active exam bank, export, and bulk import.</p>
+        </div>
+      </div>
+
+      <!-- Header Action Buttons -->
+      <div class="d-flex align-center gap-3 flex-wrap" v-if="selectedExamId">
+        <!-- Export Dropdown Menu -->
+        <v-menu offset-y transition="slide-y-transition">
+          <template v-slot:activator="{ props }">
+            <v-btn
+              v-bind="props"
+              variant="tonal"
+              color="primary"
+              rounded="lg"
+              height="40"
+              prepend-icon="mdi-export-variant"
+              append-icon="mdi-chevron-down"
+              class="text-none font-weight-bold px-5"
+            >
+              Export
+            </v-btn>
+          </template>
+          <v-list density="compact" rounded="lg" class="py-1 shadow-apple">
+            <v-list-item @click="exportQuestions('csv')">
+              <template v-slot:prepend>
+                <v-icon size="18" color="success">mdi-file-delimited-outline</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Export CSV</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click="exportQuestions('json')">
+              <template v-slot:prepend>
+                <v-icon size="18" color="info">mdi-code-json</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Export JSON</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <!-- Bulk Import Menu -->
+        <v-menu offset-y transition="slide-y-transition">
+          <template v-slot:activator="{ props }">
+            <v-btn
+              v-bind="props"
+              variant="tonal"
+              color="indigo"
+              rounded="lg"
+              height="40"
+              prepend-icon="mdi-tray-arrow-down"
+              append-icon="mdi-chevron-down"
+              class="text-none font-weight-bold px-5"
+            >
+              Bulk Import
+            </v-btn>
+          </template>
+          <v-list density="compact" rounded="lg" class="py-1 shadow-apple">
+            <v-list-item @click="openImportSection('csv')">
+              <template v-slot:prepend>
+                <v-icon size="18" color="indigo">mdi-file-delimited-outline</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Import CSV</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click="openImportSection('json')">
+              <template v-slot:prepend>
+                <v-icon size="18" color="indigo">mdi-code-json</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Import JSON</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <!-- Add Question Button -->
+        <v-btn
+          color="primary"
+          variant="flat"
+          rounded="lg"
+          height="40"
+          prepend-icon="mdi-plus"
+          elevation="0"
+          class="text-none font-weight-bold px-6 shadow-apple"
+          @click="openQuestionDialog()"
+        >
+          Add Question
+        </v-btn>
       </div>
     </div>
 
-    <!-- Exam Title & Action Controls -->
-    <v-card class="pa-4 pa-md-6 border rounded-xl mb-6 bg-white" flat>
-      <v-row align="center">
-        <v-col cols="12" md="4" lg="4">
-          <div class="d-flex align-center gap-3">
-            <v-btn icon="mdi-arrow-left" variant="tonal" size="small" color="secondary" to="/dashboard/admin/public-exams" title="Back to Exams"></v-btn>
-            <div class="flex-grow-1">
-              <v-select
-                v-model="selectedExamId"
-                :items="exams"
-                item-title="name"
-                item-value="id"
-                label="Select Exam"
-                density="compact"
-                variant="outlined"
-                hide-details
-                rounded="lg"
-                class="font-weight-bold"
-                @update:model-value="onExamSelected"
-              ></v-select>
-            </div>
-          </div>
-        </v-col>
-        <v-col cols="12" md="8" lg="8" class="d-flex align-center justify-start justify-md-end gap-2 flex-wrap" v-if="selectedExamId">
-          <!-- Export Options -->
-          <v-btn
-            variant="tonal"
-            color="success"
-            rounded="lg"
-            size="small"
-            prepend-icon="mdi-export-variant"
-            @click="exportQuestions('csv')"
-          >
-            Export CSV
-          </v-btn>
-          <v-btn
-            variant="tonal"
-            color="info"
-            rounded="lg"
-            size="small"
-            prepend-icon="mdi-code-json"
-            @click="exportQuestions('json')"
-          >
-            Export JSON
-          </v-btn>
-
-          <v-divider vertical inset class="mx-1 d-none d-sm-flex" style="height: 24px;" />
-
-          <!-- Import Toggle Buttons -->
-          <v-btn
+    <!-- SINGLE MINIMAL TOOLBAR CARD -->
+    <v-card class="pa-4 border rounded-xl mb-6 bg-white shadow-sm" flat v-if="selectedExamId">
+      <v-row align="center" no-gutters class="gap-3 flex-wrap">
+        <!-- Question Bank Selector -->
+        <v-col cols="12" md="4" lg="3" class="pa-0">
+          <v-select
+            v-model="selectedBankGroup"
+            :items="bankOptionsList"
+            item-title="title"
+            item-value="value"
+            :return-object="false"
+            hide-details
+            density="compact"
             variant="outlined"
-            color="indigo"
             rounded="lg"
-            size="small"
-            prepend-icon="mdi-file-import-outline"
-            @click="openImportSection('json')"
+            @update:model-value="onBankGroupChanged"
           >
-            Bulk JSON
-          </v-btn>
-          <v-btn
-            variant="outlined"
-            color="indigo"
-            rounded="lg"
-            size="small"
-            prepend-icon="mdi-file-delimited-outline"
-            @click="openImportSection('csv')"
-          >
-            Bulk CSV
-          </v-btn>
-
-          <!-- Add Question -->
-          <v-btn
-            color="primary"
-            rounded="lg"
-            size="small"
-            prepend-icon="mdi-plus"
-            elevation="0"
-            class="font-weight-bold"
-            @click="openQuestionDialog()"
-          >
-            Add Question
-          </v-btn>
+            <template v-slot:item="{ props, item }">
+              <v-list-item v-bind="props">
+                <template v-slot:append>
+                  <v-chip
+                    v-if="item.raw.value === activeExamBank"
+                    color="success"
+                    size="x-small"
+                    variant="tonal"
+                    class="font-weight-bold ml-2"
+                  >
+                    <v-icon start size="12">mdi-check-decagram</v-icon> Active
+                  </v-chip>
+                </template>
+              </v-list-item>
+            </template>
+          </v-select>
         </v-col>
-      </v-row>
-    </v-card>
 
-    <!-- QUESTION BANK GROUPS SELECTION BAR -->
-    <v-card class="pa-4 border rounded-xl mb-6 bg-white" flat v-if="selectedExamId">
-      <div class="d-flex align-center justify-space-between flex-wrap gap-4">
+        <!-- Active Status / Set Active Action & New Bank -->
         <div class="d-flex align-center gap-2 flex-wrap">
-          <span class="text-caption font-weight-bold text-uppercase text-secondary mr-2">Question Bank:</span>
-          
-          <v-chip
-            :color="selectedBankGroup === 'ALL' ? 'primary' : 'grey-lighten-3'"
-            variant="flat"
-            class="font-weight-bold cursor-pointer px-4"
-            @click="switchBankGroup('ALL')"
-          >
-            <v-icon start size="16">mdi-buffer</v-icon>
-            All Bank Groups
-          </v-chip>
-
-          <v-chip
-            v-for="bank in availableBankGroups"
-            :key="bank"
-            :color="selectedBankGroup === bank ? 'primary' : 'grey-lighten-3'"
-            :variant="selectedBankGroup === bank ? 'flat' : 'flat'"
-            class="font-weight-bold cursor-pointer px-4"
-            @click="switchBankGroup(bank)"
-          >
-            <v-icon start size="16" v-if="activeExamBank === bank" color="success">mdi-check-decagram</v-icon>
-            {{ bank }}
-            <span v-if="activeExamBank === bank" class="ml-1 opacity-70 text-caption">(Active)</span>
-          </v-chip>
-
           <v-btn
-            variant="text"
-            color="primary"
-            size="small"
-            class="text-capitalize font-weight-bold pa-1"
-            prepend-icon="mdi-folder-plus-outline"
-            @click="showCreateBankModal = true"
-          >
-            + Create New Bank Group
-          </v-btn>
-        </div>
-
-        <!-- Active Bank Action Control -->
-        <div>
-          <v-btn
-            v-if="selectedBankGroup !== activeExamBank"
+            v-if="selectedBankGroup !== activeExamBank && selectedBankGroup !== 'ALL'"
             color="success"
             variant="tonal"
             rounded="lg"
-            size="small"
+            height="40"
             prepend-icon="mdi-check-decagram"
-            class="text-capitalize font-weight-bold"
+            class="text-none font-weight-bold px-4"
             :loading="activatingBank"
             @click="setActiveBankForExam"
           >
-            Set "{{ selectedBankGroup }}" as Active Bank for Exam
+            Set Active
           </v-btn>
-          <v-chip v-else color="success" variant="tonal" class="font-weight-bold">
-            <v-icon start size="16">mdi-shield-check</v-icon> Currently Serving Candidate Attempts
-          </v-chip>
+
+          <v-btn
+            icon="mdi-folder-plus-outline"
+            color="primary"
+            variant="tonal"
+            height="40"
+            width="40"
+            rounded="lg"
+            title="Create New Question Bank"
+            @click="showCreateBankModal = true"
+          ></v-btn>
         </div>
-      </div>
-    </v-card>
 
-    <!-- Bulk Import Section (JSON / CSV) -->
-    <v-expand-transition>
-      <div v-show="importOpen && selectedExamId" class="mb-6">
-        <v-card class="pa-6 border rounded-xl" flat color="grey-lighten-4">
-          <div class="d-flex justify-space-between align-center mb-2">
-            <h3 class="text-h6 font-weight-bold text-dark">
-              Bulk Import Questions into "{{ selectedBankGroup }}" ({{ importMode.toUpperCase() }} Mode)
-            </h3>
-            <v-btn icon="mdi-close" variant="text" size="small" color="grey" @click="importOpen = false"></v-btn>
-          </div>
+        <v-spacer class="d-none d-md-flex"></v-spacer>
 
-          <div v-if="importMode === 'json'">
-            <p class="text-caption text-secondary mb-4 leading-relaxed">
-              Paste a valid JSON array of question objects.<br/>
-              <code>[ { "question_text": "Solve 2+2?", "type": "mcq", "options": ["3", "4", "5"], "correct_answer": "4", "explanation": "2+2 equals 4", "marks": 4, "difficulty_level": "Easy" } ]</code>
-            </p>
-            <v-textarea
-              v-model="importJsonText"
-              placeholder='[ { "question_text": "...", "type": "mcq", "options": [...], "correct_answer": "...", "marks": 4 } ]'
-              variant="outlined"
-              bg-color="white"
-              rows="8"
-              class="font-mono mb-4"
-            ></v-textarea>
-          </div>
-
-          <div v-else>
-            <p class="text-caption text-secondary mb-4 leading-relaxed">
-              Upload a CSV file. Columns must map to: <strong class="text-dark">Type, Question, Options (separated by |), Correct Answer, Explanation, Marks, Difficulty</strong>.<br/>
-              Valid Types: <code>mcq, msq, truefalse, fib</code>. Example:<br/>
-              <code>Type,Question,Options,Correct Answer,Explanation,Marks,Difficulty<br/>"mcq","Which is a prime number?","2|4|6|8","2","2 is the only even prime.",4,"Easy"</code>
-            </p>
-            <div class="d-flex gap-2 mb-4">
-              <v-btn color="primary" variant="outlined" class="text-none py-6 flex-grow-1" style="border-style: dashed" @click="triggerCsvSelect">
-                <v-icon left size="24" class="mr-2">mdi-cloud-upload</v-icon> Click to Select CSV File
-              </v-btn>
-              <v-btn color="info" variant="tonal" class="text-none py-6" @click="downloadSampleCsv">
-                <v-icon left size="24" class="mr-2">mdi-download</v-icon> Sample CSV
-              </v-btn>
-            </div>
-            <input type="file" ref="csvFileInput" accept=".csv" class="d-none" @change="handleCsvUpload" />
-            <div v-if="selectedCsvFileName" class="text-center text-caption text-success font-weight-bold mb-4">
-              <v-icon left>mdi-check-circle</v-icon> {{ selectedCsvFileName }} Selected
-            </div>
-          </div>
-
-          <div class="d-flex gap-2">
-            <v-btn color="success" rounded="lg" class="text-white font-weight-bold px-6" elevation="0" :loading="importing" @click="runBulkImport">
-              Import Questions into {{ selectedBankGroup }}
-            </v-btn>
-            <v-btn variant="text" color="grey" @click="importOpen = false">Cancel</v-btn>
-          </div>
-        </v-card>
-      </div>
-    </v-expand-transition>
-
-    <!-- Search, Filter & Summary Bar -->
-    <v-card flat border class="pa-4 mb-6 rounded-xl" v-if="selectedExamId && !loadingQuestions">
-      <v-row align="center" no-gutters class="gap-4 flex-wrap">
-        <v-col cols="12" md="4" class="pa-0">
+        <!-- Search Bar -->
+        <div style="min-width: 220px;" class="flex-grow-1 flex-md-grow-0">
           <v-text-field
             v-model="search"
-            placeholder="Search questions by text..."
+            placeholder="Search questions..."
             prepend-inner-icon="mdi-magnify"
             hide-details
             clearable
-            density="comfortable"
+            density="compact"
             variant="outlined"
             rounded="lg"
           ></v-text-field>
-        </v-col>
-        <v-col cols="12" md="3" class="pa-0">
+        </div>
+
+        <!-- Difficulty Filter -->
+        <div style="width: 160px;">
           <v-select
             v-model="difficultyFilter"
             :items="['All Difficulties', 'Easy', 'Medium', 'Hard']"
-            label="Filter by Difficulty"
             hide-details
-            density="comfortable"
+            density="compact"
             variant="outlined"
             rounded="lg"
           ></v-select>
-        </v-col>
-        <v-spacer></v-spacer>
-        <div class="d-flex text-caption text-secondary gap-4 pr-2">
-          <div>Bank Group: <strong class="text-primary">{{ selectedBankGroup }}</strong></div>
-          <div>Total Questions: <strong class="text-dark">{{ filteredQuestions.length }}</strong></div>
-          <div>Total Marks: <strong class="text-dark">{{ totalCalculatedMarks }}</strong></div>
+        </div>
+
+        <!-- Summary Stats Pills -->
+        <div class="d-flex align-center gap-2">
+          <v-chip color="primary" variant="tonal" size="small" class="font-weight-bold">
+            {{ filteredQuestions.length }} Qs
+          </v-chip>
+          <v-chip color="indigo" variant="tonal" size="small" class="font-weight-bold">
+            {{ totalCalculatedMarks }} Marks
+          </v-chip>
         </div>
       </v-row>
     </v-card>
@@ -658,6 +607,30 @@ const totalCalculatedMarks = computed(() => {
   if (!Array.isArray(list)) return 0;
   return list.reduce((acc, q) => acc + (parseInt(q?.marks) || 0), 0);
 });
+
+const bankOptionsList = computed(() => {
+  const list: { title: string; value: string }[] = [
+    { title: 'All Bank Groups (View Everything)', value: 'ALL' }
+  ];
+  if (Array.isArray(availableBankGroups.value)) {
+    availableBankGroups.value.forEach(b => {
+      list.push({
+        title: b === activeExamBank.value ? `${b} (Active)` : b,
+        value: b
+      });
+    });
+  }
+  return list;
+});
+
+function onBankGroupChanged(val: any) {
+  if (typeof val === 'object' && val !== null) {
+    selectedBankGroup.value = val.value || val.title || 'Default Bank';
+  } else if (typeof val === 'string' && val) {
+    selectedBankGroup.value = val;
+  }
+  fetchQuestions();
+}
 
 function onExamSelected(id: string) {
   selectedExamId.value = id;
@@ -1129,4 +1102,12 @@ onMounted(() => {
 .cursor-pointer { cursor: pointer; }
 .gap-2 { gap: 8px; }
 .gap-4 { gap: 16px; }
+
+:deep(.v-select .v-field__input),
+:deep(.v-select .v-select__selection),
+:deep(.v-select .v-select__selection-text) {
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  color: #1e293b !important;
+}
 </style>

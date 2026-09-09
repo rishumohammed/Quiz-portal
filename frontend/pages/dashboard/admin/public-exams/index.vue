@@ -151,8 +151,8 @@
             <div class="d-flex flex-column gap-1">
               <!-- First Row of Actions (6 Icons: Portal Navigation & Candidate Records) -->
               <div class="d-flex gap-1 justify-end">
-                <!-- Manage Questions -->
-                <v-btn icon="mdi-database-outline" variant="tonal" size="small" color="blue-grey" :to="`/dashboard/admin/public-exams/questions?examId=${item.id}`" title="Manage Questions" />
+                <!-- Question Bank -->
+                <v-btn icon="mdi-database-outline" variant="tonal" size="small" color="blue-grey" :to="`/dashboard/admin/public-exams/questions?examId=${item.id}`" title="Question Bank" />
                 <!-- Registration Form -->
                 <v-btn icon="mdi-link-variant" variant="tonal" size="small" color="teal" :to="`/public-exams/${item.slug}/register`" target="_blank" title="Registration Form" />
                 <!-- Candidates -->
@@ -360,8 +360,12 @@
           label="Send email notification to all registered candidates now"
           color="purple"
           hide-details
-          class="mb-6"
+          class="mb-1"
         ></v-checkbox>
+
+        <div class="text-caption text-secondary mb-6 pl-8">
+          Uses the <router-link to="/dashboard/admin/settings" class="text-primary font-weight-bold" style="text-decoration: underline;">Exam Re-Conduct Notification</router-link> email template.
+        </div>
 
         <div class="d-flex justify-end gap-2">
           <v-btn variant="text" color="grey" @click="reConductDialog = false">Cancel</v-btn>

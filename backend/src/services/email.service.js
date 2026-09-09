@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ConfigService } from './config.service.js';
+import { pool } from '../db/connection.js';
 import axios from 'axios';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -297,44 +298,79 @@ class EmailService {
     try {
       const examDateStr = exam.exam_start_date ? new Date(exam.exam_start_date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'Tomorrow';
       const verifyFaceUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public-exams/${exam.slug}/verify-face`;
+      
+      const logoConfig = await ConfigService.getByKey('app_logo').catch(() => null);
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
 
-      const html = `
-        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-          <div style="text-align: center; margin-bottom: 24px;">
-            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #eab308; color: #ffffff; font-size: 28px;">⏰</div>
-            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">Exam Starts in 24 Hours!</h2>
-            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+      let subject = `[24-Hour Reminder] ${exam.name} Starts Tomorrow!`;
+      let html = '';
+
+      try {
+        const [tplRows] = await pool.query('SELECT subject, body FROM email_templates WHERE id = ?', ['exam_reminder_1day']);
+        if (tplRows && tplRows.length > 0) {
+          subject = tplRows[0].subject.replace(/{{exam_name}}/g, exam.name);
+          html = tplRows[0].body
+            .replace(/{{name}}/g, candidate.name || 'Candidate')
+            .replace(/{{exam_name}}/g, exam.name)
+            .replace(/{{exam_date}}/g, examDateStr)
+            .replace(/{{exam_duration}}/g, exam.duration_minutes || 60)
+            .replace(/{{email}}/g, candidate.email)
+            .replace(/{{exam_link}}/g, loginUrl)
+            .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+        }
+      } catch (err) {
+        console.warn('Could not load exam_reminder_1day template from DB, using fallback:', err.message);
+      }
+
+      if (!html) {
+        html = `
+          <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : ''}
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #eab308; color: #ffffff; font-size: 28px;">⏰</div>
+              <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">Exam Starts in 24 Hours!</h2>
+              <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+            </div>
+            
+            <p>Dear <strong>${candidate.name}</strong>,</p>
+            <p>This is a friendly reminder that your upcoming examination <strong>${exam.name}</strong> is scheduled to begin in 24 hours.</p>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; margin: 20px 0; border-radius: 10px;">
+              <div style="margin-bottom: 8px;"><strong>Exam Schedule:</strong> ${examDateStr}</div>
+              <div style="margin-bottom: 8px;"><strong>Exam Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
+              <div><strong>Registered Email:</strong> ${candidate.email}</div>
+            </div>
+
+            <div style="text-align: center; margin: 24px 0;">
+              <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
+                Access Exam Portal →
+              </a>
+            </div>
+
+            <div style="background: #eef2ff; border-radius: 10px; padding: 16px; text-align: center; margin-top: 20px;">
+              <strong style="color: #3730a3; display: block; margin-bottom: 4px;">Camera & Face Verification Check</strong>
+              <span style="color: #4338ca; font-size: 13px;">Test your webcam before exam time:</span><br>
+              <a href="${verifyFaceUrl}" style="color: #4f46e5; font-weight: bold; font-size: 13px; display: inline-block; margin-top: 6px;">Test Face Enrollment Status →</a>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+            <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
           </div>
-          
-          <p>Dear <strong>${candidate.name}</strong>,</p>
-          <p>This is a friendly reminder that your upcoming examination <strong>${exam.name}</strong> is scheduled to begin in 24 hours.</p>
-
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; margin: 20px 0; border-radius: 10px;">
-            <div style="margin-bottom: 8px;"><strong>Exam Schedule:</strong> ${examDateStr}</div>
-            <div style="margin-bottom: 8px;"><strong>Exam Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
-            <div><strong>Registered Email:</strong> ${candidate.email}</div>
+        `;
+      } else {
+        html += `
+          <div style="margin-top: 20px; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; text-align: center;">
+            <strong style="color: #334155; display: block; margin-bottom: 4px;">Camera & Face Verification Check</strong>
+            <span style="color: #64748b; font-size: 13px;">Test your webcam before exam day:</span><br>
+            <a href="${verifyFaceUrl}" style="color: #6366f1; font-weight: bold; font-size: 13px; display: inline-block; margin-top: 8px;">Test Face Enrollment Status →</a>
           </div>
-
-          <div style="text-align: center; margin: 24px 0;">
-            <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
-              Access Exam Portal →
-            </a>
-          </div>
-
-          <div style="background: #eef2ff; border-radius: 10px; padding: 16px; text-align: center; margin-top: 20px;">
-            <strong style="color: #3730a3; display: block; margin-bottom: 4px;">Camera & Face Verification Check</strong>
-            <span style="color: #4338ca; font-size: 13px;">Test your webcam before exam time:</span><br>
-            <a href="${verifyFaceUrl}" style="color: #4f46e5; font-weight: bold; font-size: 13px; display: inline-block; margin-top: 6px;">Test Face Enrollment Status →</a>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
-        </div>
-      `;
+        `;
+      }
 
       await this.sendEmail({
         to: candidate.email,
-        subject: `[24-Hour Reminder] ${exam.name} Starts Tomorrow!`,
+        subject,
         html
       });
     } catch (error) {
@@ -345,38 +381,65 @@ class EmailService {
   async sendExamReConductNotification(candidate, exam, loginUrl) {
     try {
       const examDateStr = exam.exam_start_date ? new Date(exam.exam_start_date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'Scheduled Soon';
+      
+      const logoConfig = await ConfigService.getByKey('app_logo').catch(() => null);
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+      const logoUrl = logoConfig?.value ? (logoConfig.value.startsWith('http') ? logoConfig.value : `${backendUrl}${logoConfig.value}`) : '';
 
-      const html = `
-        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
-          <div style="text-align: center; margin-bottom: 24px;">
-            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #0284c7; color: #ffffff; font-size: 28px;">📢</div>
-            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">New Exam Schedule Announced</h2>
-            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+      let subject = `[Important] New Schedule for ${exam.name}`;
+      let html = '';
+
+      try {
+        const [tplRows] = await pool.query('SELECT subject, body FROM email_templates WHERE id = ?', ['exam_reconduct']);
+        if (tplRows && tplRows.length > 0) {
+          subject = tplRows[0].subject.replace(/{{exam_name}}/g, exam.name);
+          html = tplRows[0].body
+            .replace(/{{name}}/g, candidate.name || 'Candidate')
+            .replace(/{{exam_name}}/g, exam.name)
+            .replace(/{{exam_date}}/g, examDateStr)
+            .replace(/{{exam_duration}}/g, exam.duration_minutes || 60)
+            .replace(/{{email}}/g, candidate.email)
+            .replace(/{{exam_link}}/g, loginUrl)
+            .replace(/{{brand_logo}}/g, logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : '');
+        }
+      } catch (err) {
+        console.warn('Could not load exam_reconduct template from DB, using default fallback:', err.message);
+      }
+
+      if (!html) {
+        html = `
+          <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : ''}
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #0284c7; color: #ffffff; font-size: 28px;">📢</div>
+              <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">New Exam Schedule Announced</h2>
+              <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+            </div>
+            
+            <p>Dear <strong>${candidate.name}</strong>,</p>
+            <p>The examination administrator has re-scheduled <strong>${exam.name}</strong> for registered candidates. You can log in and take the exam on the new schedule below.</p>
+
+            <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 16px; margin: 20px 0; border-radius: 8px;">
+              <div style="margin-bottom: 6px;"><strong>New Exam Date/Time:</strong> ${examDateStr}</div>
+              <div style="margin-bottom: 6px;"><strong>Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
+              <div><strong>Registered Account:</strong> ${candidate.email}</div>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #0284c7; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
+                Log In to Write Exam →
+              </a>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+            <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
           </div>
-          
-          <p>Dear <strong>${candidate.name}</strong>,</p>
-          <p>The examination administrator has re-scheduled <strong>${exam.name}</strong> for registered candidates. You can log in and take the exam on the new schedule below.</p>
-
-          <div style="background: #f0f9ff; border-left: 4px solid #0284c7; padding: 16px; margin: 20px 0; border-radius: 8px;">
-            <div style="margin-bottom: 6px;"><strong>New Exam Date/Time:</strong> ${examDateStr}</div>
-            <div style="margin-bottom: 6px;"><strong>Duration:</strong> ${exam.duration_minutes || 60} Minutes</div>
-            <div><strong>Registered Account:</strong> ${candidate.email}</div>
-          </div>
-
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: #0284c7; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px;">
-              Log In to Write Exam →
-            </a>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Examination Team</p>
-        </div>
-      `;
+        `;
+      }
 
       await this.sendEmail({
         to: candidate.email,
-        subject: `[Important] New Schedule for ${exam.name}`,
+        subject,
         html
       });
     } catch (error) {

@@ -111,17 +111,17 @@
           </div>
 
           <v-btn
-            color="primary"
+            :color="isMatchVerified ? 'success' : 'primary'"
             rounded="lg"
             size="large"
             block
             height="48"
             class="text-capitalize font-weight-bold mb-4"
-            :loading="isTesting"
+            :loading="isTesting && !isMatchVerified"
             @click="startLiveVerificationTest"
           >
-            <v-icon start>mdi-camera</v-icon>
-            {{ isTesting ? 'Testing Camera...' : 'Test Live Webcam Verification' }}
+            <v-icon start>{{ isMatchVerified ? 'mdi-check-circle' : 'mdi-camera' }}</v-icon>
+            {{ isMatchVerified ? `Verification Successful (${matchScore}% Match)` : (isTesting ? 'Testing Camera...' : 'Test Live Webcam Verification') }}
           </v-btn>
 
           <!-- Security Note -->
@@ -258,6 +258,7 @@ async function startLiveVerificationTest() {
 
           if (dist <= 0.38) {
             isMatchVerified.value = true;
+            isTesting.value = false;
             statusText.value = `Verified! Match ${conf}%`;
             statusChipClass.value = 'bg-success';
             statusIcon.value = 'mdi-check-circle';

@@ -977,8 +977,8 @@ router.post('/:id/re-conduct', async (req, res) => {
     // Recalculate totals for active bank
     await recalculateExamTotals(examId);
 
-    // Reset candidates reminder flag
-    await pool.query('UPDATE public_exam_candidates SET reminder_24h_sent = 0 WHERE exam_id = ?', [examId]);
+    // Reset candidate reminder flags so automated 24h & 10min reminders re-arm for the new schedule
+    await pool.query('UPDATE public_exam_candidates SET reminder_24h_sent = 0, notified_1day_before = 0, notified_10min_before = 0 WHERE exam_id = ?', [examId]);
 
     // Send email notification to all registered candidates if requested
     if (send_email_notification !== false) {

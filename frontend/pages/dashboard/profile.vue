@@ -7,7 +7,7 @@
           <span class="text-h4 font-weight-black text-white">{{ userInitials }}</span>
         </v-avatar>
         <div>
-          <h1 class="text-h4 font-weight-bold mb-1">{{ userName }}</h1>
+          <h1 class="text-h4 font-weight-bold mb-1 text-white">{{ userName }}</h1>
           <div class="d-flex align-center flex-wrap gap-2">
             <v-chip size="small" class="font-weight-black text-uppercase mr-2 text-white" :color="roleColor">
               {{ userRoleName }}
@@ -28,40 +28,90 @@
         size="large"
       >
         <v-icon start icon="mdi-cog-outline" class="mr-1"></v-icon>
-        Edit Profile & Settings
+        System Settings
       </v-btn>
     </div>
 
     <v-row>
-      <!-- Main Profile Card -->
+      <!-- Main Settings Card -->
       <v-col cols="12" md="8">
         <v-card rounded="xl" class="pa-8 border-0 shadow-apple mb-6">
           <h2 class="text-h5 font-weight-black mb-6 d-flex align-center">
-            <v-icon icon="mdi-account-circle-outline" class="mr-2" color="primary"></v-icon>
-            Profile Information
+            <v-icon icon="mdi-cog-outline" class="mr-2" color="primary"></v-icon>
+            Account Settings & Preferences
           </h2>
           
-          <v-row class="profile-details-grid">
-            <v-col cols="12" sm="6">
-              <div class="detail-label">Full Name</div>
-              <div class="detail-value">{{ userName }}</div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="detail-label">Email Address</div>
-              <div class="detail-value">{{ userEmail }}</div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="detail-label">User Role</div>
-              <div class="detail-value text-capitalize">{{ authStore.user?.role }}</div>
-            </v-col>
-            <v-col cols="12" sm="6">
-              <div class="detail-label">Account Status</div>
-              <div class="detail-value text-capitalize d-flex align-center">
-                <span class="status-indicator success mr-2"></span>
-                {{ userStatus }}
+          <v-form @submit.prevent="saveSettings" :disabled="saving">
+            <v-row class="mb-4">
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="form.name"
+                  label="Full Name"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-account"
+                  hide-details="auto"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  :model-value="userEmail"
+                  label="Email Address"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-email"
+                  disabled
+                  hide-details="auto"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="form.phone"
+                  label="Phone Number"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-phone"
+                  hide-details="auto"
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-select
+                  v-model="form.timezone"
+                  :items="timezoneOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="Time Zone"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-clock-outline"
+                  hint="Exam times & reminders align with your chosen time zone"
+                  persistent-hint
+                ></v-select>
+              </v-col>
+            </v-row>
+
+            <div class="d-flex align-center justify-space-between flex-wrap gap-4 mt-6 pt-6 border-t">
+              <div class="text-caption text-secondary d-flex align-center">
+                <v-icon icon="mdi-earth" size="18" color="primary" class="mr-1"></v-icon>
+                Current Time Zone: <strong class="ml-1 text-primary">{{ form.timezone }}</strong>
               </div>
-            </v-col>
-          </v-row>
+              <v-btn
+                type="submit"
+                color="primary"
+                rounded="xl"
+                size="large"
+                class="font-weight-black px-8"
+                :loading="saving"
+              >
+                <v-icon start icon="mdi-check"></v-icon>
+                Save Settings
+              </v-btn>
+            </div>
+          </v-form>
 
           <v-divider class="my-8" opacity="0.08"></v-divider>
 
@@ -70,7 +120,7 @@
             <v-icon icon="mdi-information-outline" class="mr-3" color="primary" size="24"></v-icon>
             <div class="text-body-2 text-secondary">
               <strong class="text-primary">Need to change your password or security settings?</strong> 
-              Please navigate to the <nuxt-link :to="settingsLink" class="settings-highlight font-weight-bold text-primary text-decoration-none">Settings Panel</nuxt-link> to customize your preferences.
+              Please navigate to the <nuxt-link :to="settingsLink" class="settings-highlight font-weight-bold text-primary text-decoration-none">System Settings Panel</nuxt-link> to customize your security options.
             </div>
           </div>
         </v-card>
@@ -78,59 +128,9 @@
 
       <!-- Sidebar Status & Quick Links -->
       <v-col cols="12" md="4">
-        <!-- Payment Summary Card -->
-        <v-card 
-          v-if="authStore.userRole === 'student' && studentPaymentSummary" 
-          rounded="xl" 
-          class="pa-6 border-0 shadow-apple mb-6 text-left"
-          :loading="loadingPayments"
-        >
-          <div class="d-flex align-center justify-space-between mb-4">
-            <h3 class="text-h6 font-weight-black d-flex align-center">
-              <v-icon icon="mdi-credit-card-outline" class="mr-2" color="primary"></v-icon>
-              Payment Summary
-            </h3>
-            <v-chip 
-              size="small" 
-              class="font-weight-black text-uppercase text-white" 
-              :color="studentPaymentSummary.color"
-            >
-              {{ studentPaymentSummary.status }}
-            </v-chip>
-          </div>
-          
-          <div class="d-flex flex-column gap-3">
-            <div class="d-flex justify-space-between align-center">
-              <span class="text-body-2 text-secondary">Total Fees</span>
-              <span class="text-body-2 font-weight-bold">₹{{ studentPaymentSummary.totalFees.toLocaleString('en-IN') }}</span>
-            </div>
-            <div class="d-flex justify-space-between align-center">
-              <span class="text-body-2 text-secondary">Amount Paid</span>
-              <span class="text-body-2 font-weight-bold text-success">₹{{ studentPaymentSummary.paidAmount.toLocaleString('en-IN') }}</span>
-            </div>
-            <div class="d-flex justify-space-between align-center">
-              <span class="text-body-2 text-secondary">Balance Due</span>
-              <span class="text-body-2 font-weight-bold text-error">₹{{ studentPaymentSummary.pendingAmount.toLocaleString('en-IN') }}</span>
-            </div>
-          </div>
-          
-          <v-divider class="my-4" opacity="0.08"></v-divider>
-          
-          <v-btn 
-            to="/dashboard/student/payments" 
-            color="primary" 
-            block 
-            rounded="lg" 
-            class="font-weight-black text-white"
-            variant="flat"
-          >
-            Manage Payments
-          </v-btn>
-        </v-card>
-
         <v-card rounded="xl" class="pa-6 border-0 shadow-apple text-center mb-6">
           <div class="pa-4 bg-grey-lighten-4 rounded-xl mb-6">
-            <div class="text-caption text-secondary font-weight-black mb-1">AEMS SECURITY ID</div>
+            <div class="text-caption text-secondary font-weight-black mb-1">SECURITY ID</div>
             <code class="text-body-2 font-weight-bold text-primary">{{ authStore.user?.id || 'N/A' }}</code>
           </div>
 
@@ -139,7 +139,7 @@
               v-if="hasSettings"
               :to="settingsLink" 
               prepend-icon="mdi-cog-outline" 
-              title="Account Settings" 
+              title="System Settings" 
               value="settings" 
               rounded="lg" 
               class="mb-2 text-left"
@@ -164,11 +164,15 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg" timeout="3000">
+      {{ snackbarText }}
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useUIStore } from '@/stores/ui';
 import { useApi } from '@/composables/useApi';
@@ -182,48 +186,67 @@ const authStore = useAuthStore();
 const uiStore = useUIStore();
 const api = useApi();
 
-const invoices = ref<any[]>([]);
-const loadingPayments = ref(false);
+const saving = ref(false);
+const snackbar = ref(false);
+const snackbarText = ref('');
+const snackbarColor = ref('success');
 
-const loadPaymentSummary = async () => {
-  // Billing module has been removed in this Talent Hunt port.
-  // Safely returning to prevent 404 errors.
-  return;
+const form = ref({
+  name: '',
+  phone: '',
+  timezone: 'Asia/Kolkata'
+});
+
+const timezoneOptions = [
+  { title: 'Asia/Kolkata (IST - UTC+05:30)', value: 'Asia/Kolkata' },
+  { title: 'UTC (Coordinated Universal Time)', value: 'UTC' },
+  { title: 'America/New_York (EST/EDT - UTC-05:00/04:00)', value: 'America/New_York' },
+  { title: 'America/Chicago (CST/CDT - UTC-06:00/05:00)', value: 'America/Chicago' },
+  { title: 'America/Denver (MST/MDT - UTC-07:00/06:00)', value: 'America/Denver' },
+  { title: 'America/Los_Angeles (PST/PDT - UTC-08:00/07:00)', value: 'America/Los_Angeles' },
+  { title: 'Europe/London (GMT/BST - UTC+00:00/01:00)', value: 'Europe/London' },
+  { title: 'Europe/Paris (CET/CEST - UTC+01:00/02:00)', value: 'Europe/Paris' },
+  { title: 'Asia/Dubai (GST - UTC+04:00)', value: 'Asia/Dubai' },
+  { title: 'Asia/Singapore (SGT - UTC+08:00)', value: 'Asia/Singapore' },
+  { title: 'Asia/Tokyo (JST - UTC+09:00)', value: 'Asia/Tokyo' },
+  { title: 'Australia/Sydney (AEST/AEDT - UTC+10:00/11:00)', value: 'Australia/Sydney' }
+];
+
+// Set Page Title to Settings
+uiStore.setPageTitle('Settings');
+
+const loadUserData = () => {
+  if (authStore.user) {
+    form.value.name = authStore.user.name || '';
+    form.value.phone = authStore.user.phone || '';
+    form.value.timezone = authStore.user.timezone || 'Asia/Kolkata';
+  }
 };
 
-onMounted(() => {
-  loadPaymentSummary();
-});
+watch(() => authStore.user, loadUserData, { immediate: true });
 
-const studentPaymentSummary = computed(() => {
-  if (authStore.userRole !== 'student') return null;
-  const totalFees = invoices.value.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
-  const pendingAmount = invoices.value.reduce((sum, inv) => sum + Number(inv.balance_due || 0), 0);
-  const paidAmount = totalFees - pendingAmount;
-  
-  let status = 'Fully Paid';
-  let color = 'success';
-  if (pendingAmount > 0) {
-    if (paidAmount > 0) {
-      status = 'Partially Paid';
-      color = 'warning';
-    } else {
-      status = 'Pending Payment';
-      color = 'info';
-    }
+onMounted(async () => {
+  const role = authStore.userRole;
+  if (['super_admin', 'sub_admin', 'crm_agent', 'lms_user', 'placement_coordinator', 'finance_staff', 'support_staff'].includes(role)) {
+    return navigateTo('/dashboard/admin/settings');
+  } else if (role === 'student') {
+    return navigateTo('/dashboard/student/settings');
+  } else if (role === 'tutor') {
+    return navigateTo('/dashboard/tutor/settings');
   }
-  
-  return {
-    totalFees,
-    paidAmount,
-    pendingAmount,
-    status,
-    color
-  };
+  loadUserData();
+  try {
+    const { data } = await api.get('/auth/me');
+    if (data) {
+      authStore.setUser(data);
+      form.value.name = data.name || '';
+      form.value.phone = data.phone || '';
+      form.value.timezone = data.timezone || 'Asia/Kolkata';
+    }
+  } catch (e) {
+    console.error('Failed to refresh user profile data:', e);
+  }
 });
-
-// Set Page Title
-uiStore.setPageTitle('My Profile');
 
 const userName = computed(() => authStore.user?.name || 'User Profile');
 const userEmail = computed(() => authStore.user?.email || 'N/A');
@@ -256,19 +279,40 @@ const roleColor = computed(() => {
 
 const hasSettings = computed(() => {
   const role = authStore.userRole;
-  return ['super_admin', 'tutor', 'student'].includes(role);
+  return ['super_admin', 'tutor'].includes(role);
 });
 
 const settingsLink = computed(() => {
   const role = authStore.userRole;
   if (role === 'super_admin') return '/dashboard/admin/settings';
   if (role === 'tutor') return '/dashboard/tutor/settings';
-  if (role === 'student') return '/dashboard/student/settings';
   return '/dashboard';
 });
 
+const saveSettings = async () => {
+  saving.value = true;
+  try {
+    const { data } = await api.put('/auth/profile', {
+      name: form.value.name,
+      phone: form.value.phone,
+      timezone: form.value.timezone
+    });
+    if (data?.user) {
+      authStore.setUser(data.user);
+    }
+    snackbarText.value = 'Settings and timezone updated successfully!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to update settings.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    saving.value = false;
+  }
+};
+
 const openSupport = () => {
-  // Dispatches a global event or logs
   console.log('Support clicked');
 };
 </script>
@@ -277,37 +321,15 @@ const openSupport = () => {
 .profile-header {
   background: linear-gradient(135deg, #5c24d0 0%, #1e1b4b 100%);
   border: 1px solid var(--border);
-  
 }
 
 .profile-avatar {
   background: linear-gradient(135deg, #007aff, #8a2be2);
   border: 3px solid rgba(255, 255, 255, 0.3);
-  
 }
 
 .shadow-apple {
-  
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
-}
-
-.profile-details-grid {
-  margin-top: 10px;
-}
-
-.detail-label {
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #94a3b8;
-  margin-bottom: 4px;
-  letter-spacing: 0.5px;
-}
-
-.detail-value {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1e293b;
 }
 
 .status-indicator {
@@ -319,7 +341,6 @@ const openSupport = () => {
 .status-indicator.success {
   background-color: #34c759;
   border: 1px solid var(--border);
-  
 }
 
 .info-alert {
@@ -327,11 +348,10 @@ const openSupport = () => {
   border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-.settings-highlight:hover {
-  text-decoration: underline !important;
+.border-t {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
 .gap-4 { gap: 16px; }
 </style>

@@ -183,6 +183,57 @@
             </div>
           </div>
 
+          <!-- Time Zone Tab -->
+          <div v-if="activeTab[0] === 'timezone'" class="fade-in">
+            <h2 class="text-h6 font-weight-bold mb-2">Time Zone &amp; Regional Settings</h2>
+            <p class="text-caption text-secondary mb-6">
+              Configure your system default and account time zone preferences. All exam schedules, 24-hour reminders, and automated notification dispatches will calculate based on this time zone.
+            </p>
+
+            <v-alert type="info" variant="tonal" class="mb-6 rounded-xl text-body-2" density="comfortable">
+              <div class="d-flex align-center gap-2 mb-1">
+                <v-icon icon="mdi-clock-check-outline" size="20" color="primary"></v-icon>
+                <strong>Time Zone Alignment</strong>
+              </div>
+              <div>
+                Active System Time Zone: <strong class="text-primary">{{ form.default_timezone || 'Asia/Kolkata' }}</strong> | My Account Time Zone: <strong class="text-primary">{{ userTimezone }}</strong>
+              </div>
+            </v-alert>
+
+            <v-row class="mb-4">
+              <v-col cols="12" md="6">
+                <v-select
+                  v-model="form.default_timezone"
+                  :items="timezoneOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="System Default Time Zone"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-earth"
+                  hint="Global time zone applied across exams and background cron jobs"
+                  persistent-hint
+                ></v-select>
+              </v-col>
+              <v-col cols="12" md="6">
+                <v-select
+                  v-model="userTimezone"
+                  :items="timezoneOptions"
+                  item-title="title"
+                  item-value="value"
+                  label="My Account Time Zone"
+                  variant="outlined"
+                  rounded="lg"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-account-clock-outline"
+                  hint="Personal account preference for displaying date &amp; time values"
+                  persistent-hint
+                ></v-select>
+              </v-col>
+            </v-row>
+          </div>
+
 
           <!-- Payments Tab -->
           <div v-if="activeTab[0] === 'payments'" class="fade-in">
@@ -412,6 +463,8 @@ import TalentHuntSettingsTab from '@/components/admin/settings/TalentHuntSetting
 import DatabaseBackupsTab from '@/components/admin/settings/DatabaseBackupsTab.vue';
 import { provide } from 'vue';
 
+import { useAuthStore } from '@/stores/auth';
+
 definePageMeta({
   layout: 'dashboard',
   middleware: ['auth', 'role'],
@@ -419,6 +472,7 @@ definePageMeta({
 });
 
 const api = useApi();
+const authStore = useAuthStore();
 const config = useRuntimeConfig();
 const baseUrl = computed(() => config.public.apiBase.replace('/api', ''));
 
@@ -428,6 +482,23 @@ const testingEmail = ref(false);
 const regenerating = ref(false);
 const form = ref<any>({});
 provide('configForm', form); // Provide the form so child tabs can mutate it directly
+
+const userTimezone = ref(authStore.user?.timezone || 'Asia/Kolkata');
+
+const timezoneOptions = [
+  { title: 'Asia/Kolkata (IST - UTC+05:30)', value: 'Asia/Kolkata' },
+  { title: 'UTC (Coordinated Universal Time)', value: 'UTC' },
+  { title: 'America/New_York (EST/EDT - UTC-05:00/04:00)', value: 'America/New_York' },
+  { title: 'America/Chicago (CST/CDT - UTC-06:00/05:00)', value: 'America/Chicago' },
+  { title: 'America/Denver (MST/MDT - UTC-07:00/06:00)', value: 'America/Denver' },
+  { title: 'America/Los_Angeles (PST/PDT - UTC-08:00/07:00)', value: 'America/Los_Angeles' },
+  { title: 'Europe/London (GMT/BST - UTC+00:00/01:00)', value: 'Europe/London' },
+  { title: 'Europe/Paris (CET/CEST - UTC+01:00/02:00)', value: 'Europe/Paris' },
+  { title: 'Asia/Dubai (GST - UTC+04:00)', value: 'Asia/Dubai' },
+  { title: 'Asia/Singapore (SGT - UTC+08:00)', value: 'Asia/Singapore' },
+  { title: 'Asia/Tokyo (JST - UTC+09:00)', value: 'Asia/Tokyo' },
+  { title: 'Australia/Sydney (AEST/AEDT - UTC+10:00/11:00)', value: 'Australia/Sydney' }
+];
 
 const logoFile = ref(null);
 const faviconFile = ref(null);
@@ -443,7 +514,8 @@ const tabs = [
   { label: 'Branding', value: 'branding', icon: 'mdi-palette-outline' },
   { label: 'Homepage', value: 'homepage', icon: 'mdi-home-outline' },
   { label: 'Contact Info', value: 'contact', icon: 'mdi-map-marker-outline' },
-  { label: 'Email (Resend)', value: 'email', icon: 'mdi-email-fast-outline' },
+  { label: 'Time Zone', value: 'timezone', icon: 'mdi-clock-outline' },
+  { label: 'Email (Resend)', value: 'email', icon: 'mdi-email-outline' },
   { label: 'Email Templates', value: 'email_templates', icon: 'mdi-email-edit-outline' },
   { label: 'Terms & Privacy', value: 'terms_privacy', icon: 'mdi-shield-lock-outline' },
   { label: 'Talent Hunt', value: 'talent_hunt', icon: 'mdi-account-star-outline' },
@@ -562,6 +634,14 @@ const save = async () => {
     });
 
     await api.put('/admin/config', payload);
+
+    try {
+      const { data: authData } = await api.put('/auth/profile', { timezone: userTimezone.value });
+      if (authData?.user) authStore.setUser(authData.user);
+    } catch (authErr) {
+      console.warn('Failed to save user timezone:', authErr);
+    }
+
     snackbarMessage.value = 'Settings saved successfully. Reloading to apply changes...';
     snackbarColor.value = 'success';
     snackbar.value = true;

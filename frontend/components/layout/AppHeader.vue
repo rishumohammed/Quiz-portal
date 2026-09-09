@@ -52,10 +52,7 @@
             </div>
             <v-divider opacity="0.05"></v-divider>
             <v-list density="compact" class="pa-1">
-              <v-list-item link :to="profileLink" prepend-icon="mdi-account-circle-outline">
-                <v-list-item-title class="text-caption font-weight-bold">My Profile</v-list-item-title>
-              </v-list-item>
-              <v-list-item link :to="settingsLink" prepend-icon="mdi-cog-outline">
+              <v-list-item link to="/dashboard/profile" prepend-icon="mdi-cog-outline">
                 <v-list-item-title class="text-caption font-weight-bold">Settings</v-list-item-title>
               </v-list-item>
               <v-divider class="my-1" opacity="0.05"></v-divider>

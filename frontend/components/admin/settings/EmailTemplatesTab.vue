@@ -60,6 +60,9 @@
               <div v-else-if="selectedTemplate.id === 'exam_registration_success'">
                 <code v-pre>{{brand_logo}}</code>, <code v-pre>{{name}}</code>, <code v-pre>{{exam_name}}</code>, <code v-pre>{{exam_date}}</code>, <code v-pre>{{exam_duration}}</code>, <code v-pre>{{email}}</code>, <code v-pre>{{password}}</code>, <code v-pre>{{exam_link}}</code>
               </div>
+              <div v-else-if="selectedTemplate.id === 'exam_reconduct'">
+                <code v-pre>{{brand_logo}}</code>, <code v-pre>{{name}}</code>, <code v-pre>{{exam_name}}</code>, <code v-pre>{{exam_date}}</code>, <code v-pre>{{exam_duration}}</code>, <code v-pre>{{email}}</code>, <code v-pre>{{exam_link}}</code>
+              </div>
               <div v-else>
                 <code v-pre>{{brand_logo}}</code>, <code v-pre>{{name}}</code>, <code v-pre>{{exam_name}}</code>, <code v-pre>{{exam_link}}</code>
               </div>
