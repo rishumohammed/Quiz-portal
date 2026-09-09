@@ -362,7 +362,7 @@
           <v-btn color="primary" variant="flat" rounded="lg" class="text-capitalize px-6" :loading="savingCandidate" @click="saveInlineEdit">Save Changes</v-btn>
         </v-card-actions>
       </v-card>
-    </dialog>
+    </v-dialog>
 
     <!-- Delete Candidate Dialog -->
     <v-dialog v-model="showDeleteModal" max-width="450">
