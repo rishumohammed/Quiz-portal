@@ -1313,7 +1313,7 @@ router.delete('/candidates/:id', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const candidateId = req.params.id;
-    const [existing] = await connection.query('SELECT id FROM public_exam_candidates WHERE id = ?', [candidateId]);
+    const [existing] = await connection.query('SELECT id, email FROM public_exam_candidates WHERE id = ?', [candidateId]);
     if (existing.length === 0) {
       connection.release();
       return res.status(404).json({ message: 'Candidate not found' });
@@ -1321,24 +1321,42 @@ router.delete('/candidates/:id', async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Delete certificates linked to candidate attempts
-    await connection.query(`
-      DELETE c FROM certificates c
-      JOIN public_exam_attempts a ON c.exam_attempt_id = a.id
-      WHERE a.candidate_id = ? OR c.candidate_id = ?
-    `, [candidateId, candidateId]);
+    // 1. Delete terms privacy acceptances
+    try {
+      await connection.query('DELETE FROM terms_privacy_acceptances WHERE candidate_id = ?', [candidateId]);
+    } catch (_) {}
 
-    // Delete results for candidate's attempts
-    await connection.query(`
-      DELETE r FROM public_exam_results r
-      JOIN public_exam_attempts a ON r.attempt_id = a.id
-      WHERE a.candidate_id = ?
-    `, [candidateId]);
+    // 2. Delete certificates linked to candidate attempts
+    try {
+      await connection.query(`
+        DELETE c FROM public_exam_issued_certificates c
+        JOIN public_exam_attempts a ON c.attempt_id = a.id
+        WHERE a.candidate_id = ?
+      `, [candidateId]);
+    } catch (_) {}
 
-    // Delete attempts for candidate
+    // 3. Delete proctoring events linked to candidate attempts
+    try {
+      await connection.query(`
+        DELETE pe FROM proctoring_events pe
+        JOIN public_exam_attempts a ON pe.attempt_id = a.id
+        WHERE a.candidate_id = ?
+      `, [candidateId]);
+    } catch (_) {}
+
+    // 4. Delete results for candidate's attempts
+    try {
+      await connection.query(`
+        DELETE r FROM public_exam_results r
+        JOIN public_exam_attempts a ON r.attempt_id = a.id
+        WHERE a.candidate_id = ?
+      `, [candidateId]);
+    } catch (_) {}
+
+    // 5. Delete attempts for candidate
     await connection.query('DELETE FROM public_exam_attempts WHERE candidate_id = ?', [candidateId]);
 
-    // Delete candidate record
+    // 6. Delete candidate record
     await connection.query('DELETE FROM public_exam_candidates WHERE id = ?', [candidateId]);
 
     await connection.commit();
@@ -1349,7 +1367,7 @@ router.delete('/candidates/:id', async (req, res) => {
     await connection.rollback();
     connection.release();
     console.error('Delete candidate error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: error.message || 'Internal server error' });
   }
 });
 
