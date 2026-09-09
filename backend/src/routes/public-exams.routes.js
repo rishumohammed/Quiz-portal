@@ -434,6 +434,9 @@ router.post('/:slug/register', async (req, res) => {
       await connection.commit();
     } catch (e) {
       await connection.rollback();
+      if (e.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ message: 'You have already registered for this exam. Please log in to take your exam.' });
+      }
       throw e;
     } finally {
       connection.release();
