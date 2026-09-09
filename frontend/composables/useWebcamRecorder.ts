@@ -15,10 +15,33 @@ export const useWebcamRecorder = () => {
   const requestCamera = async (): Promise<boolean> => {
     try {
       cameraError.value = '';
-      stream.value = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 640, height: 480, frameRate: 15 },
-        audio: false // Depending on privacy policies, audio might not be allowed. Assuming video only.
-      });
+      const videoConstraints: any = {
+        facingMode: 'user',
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 15, max: 30 }
+      };
+
+      try {
+        stream.value = await navigator.mediaDevices.getUserMedia({ 
+          video: videoConstraints,
+          audio: false
+        });
+      } catch (err1) {
+        console.warn('[useWebcamRecorder] Flexible constraints failed, trying facingMode fallback:', err1);
+        try {
+          stream.value = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false
+          });
+        } catch (err2) {
+          console.warn('[useWebcamRecorder] facingMode fallback failed, trying basic video:', err2);
+          stream.value = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        }
+      }
       return true;
     } catch (err: any) {
       console.error('Camera access denied or failed', err);
@@ -85,21 +108,34 @@ export const useWebcamRecorder = () => {
   const uploadedScreenshotCount = ref(0);
   const MAX_SCREENSHOTS_PER_ATTEMPT = 15;
 
-  const captureScreenshot = async (attemptId: string, customHeaders?: any): Promise<string | null> => {
+  const captureScreenshot = async (attemptId: string, customHeaders?: any, targetVideoEl?: HTMLVideoElement | null): Promise<string | null> => {
     if (!stream.value) return null;
     if (uploadedScreenshotCount.value >= MAX_SCREENSHOTS_PER_ATTEMPT) {
       console.info(`[Proctoring] Max screenshot cap reached (${MAX_SCREENSHOTS_PER_ATTEMPT}). Skipping upload to conserve bandwidth.`);
       return null;
     }
 
-    const videoEl = document.querySelector('video');
+    const videoEl = targetVideoEl || document.querySelector('video');
     if (!videoEl) return null;
 
     try {
       // Downscale image resolution to max width 480 to drastically reduce image file size
       const maxTargetWidth = 480;
-      const rawWidth = videoEl.videoWidth || 640;
-      const rawHeight = videoEl.videoHeight || 480;
+      let rawWidth = videoEl.videoWidth || 0;
+      let rawHeight = videoEl.videoHeight || 0;
+
+      // Fallback for mobile devices if videoWidth/videoHeight isn't populated yet
+      if (!rawWidth || !rawHeight) {
+        const track = stream.value.getVideoTracks()[0];
+        if (track) {
+          const settings = track.getSettings();
+          rawWidth = settings.width || 640;
+          rawHeight = settings.height || 480;
+        } else {
+          rawWidth = 640;
+          rawHeight = 480;
+        }
+      }
       
       const scaleRatio = Math.min(1, maxTargetWidth / rawWidth);
       const targetWidth = Math.round(rawWidth * scaleRatio);
@@ -110,10 +146,11 @@ export const useWebcamRecorder = () => {
       canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
+
       ctx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
 
       return new Promise((resolve) => {
-        // Compress JPEG to 0.50 quality (drastically cuts size to ~15-25KB per image)
+        // Compress JPEG to 0.60 quality (~20-30KB per image)
         canvas.toBlob(async (blob) => {
           if (!blob) {
             resolve(null);
@@ -134,7 +171,7 @@ export const useWebcamRecorder = () => {
             console.error('Failed to upload screenshot', err);
             resolve(null);
           }
-        }, 'image/jpeg', 0.50);
+        }, 'image/jpeg', 0.60);
       });
     } catch (e) {
       console.error('Error in captureScreenshot', e);

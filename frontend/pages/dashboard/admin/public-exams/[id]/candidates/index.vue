@@ -146,6 +146,8 @@
           <template v-slot:item.actions="{ item }">
             <div class="d-flex justify-end gap-1 px-2">
               <v-btn icon="mdi-eye-outline" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${route.params.id}/candidates/${item.id}`" title="View Details"></v-btn>
+              <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="indigo" @click="openInlineEdit(item)" title="Edit Candidate"></v-btn>
+              <v-btn icon="mdi-delete-outline" variant="tonal" size="small" color="error" @click="confirmInlineDelete(item)" title="Delete Candidate"></v-btn>
             </div>
           </template>
         </v-data-table>
@@ -278,6 +280,110 @@
       </v-card>
     </v-dialog>
 
+    <!-- Edit Candidate Dialog -->
+    <v-dialog v-model="showEditModal" max-width="650" scrollable>
+      <v-card rounded="xl" class="pa-4 bg-white">
+        <v-card-title class="d-flex justify-space-between align-center px-4 pt-2">
+          <span class="text-h6 font-weight-bold">Edit Candidate Profile</span>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showEditModal = false" />
+        </v-card-title>
+        <v-card-text style="max-height: 500px;" class="px-4 py-2">
+          <h4 class="text-subtitle-2 font-weight-bold mb-3 text-primary">Personal Details</h4>
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.name" label="Full Name *" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.email" label="Email Address *" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.phone" label="Phone Number *" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.qualification" label="Qualification" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.college" label="College / Institution" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.course_stream" label="Course / Stream" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.year_of_study" label="Year of Study" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.city" label="City" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+          </v-row>
+
+          <h4 class="text-subtitle-2 font-weight-bold mt-4 mb-3 text-primary">Talent Hunt / Registration Details</h4>
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.whatsappNumber" label="WhatsApp Number" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.category" label="Category" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.parentName" label="Parent / Guardian Name" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.parentContact" label="Parent / Guardian Contact" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.schoolName" label="School Name" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.levelOfStudy1" label="Level of Study" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.collegeName2" label="College Name (Degree)" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.degreeYear" label="Degree Year" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.courseName2" label="Course Name (Degree)" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.collegeName3" label="University Name (Masters/PhD)" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.industryName" label="Industry Name" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="editForm.currentRole" label="Current Role" variant="outlined" density="comfortable" rounded="lg"></v-text-field>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions class="px-4 pb-2">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showEditModal = false" class="text-capitalize">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" rounded="lg" class="text-capitalize px-6" :loading="savingCandidate" @click="saveInlineEdit">Save Changes</v-btn>
+        </v-card-actions>
+      </v-card>
+    </dialog>
+
+    <!-- Delete Candidate Dialog -->
+    <v-dialog v-model="showDeleteModal" max-width="450">
+      <v-card class="rounded-xl pa-4 bg-white">
+        <div class="text-center pt-4">
+          <v-avatar color="red-lighten-5" size="64" class="mb-3">
+            <v-icon size="36" color="error">mdi-account-remove-outline</v-icon>
+          </v-avatar>
+          <h3 class="text-h6 font-weight-bold mb-2">Delete Candidate Profile?</h3>
+          <p class="text-body-2 text-secondary px-2 mb-4">
+            Are you sure you want to delete <strong>{{ selectedCandidate?.name }}</strong> ({{ selectedCandidate?.email }})?
+            This will permanently delete candidate profile, exam attempts, and results.
+          </p>
+        </div>
+        <v-card-actions class="justify-center pb-2">
+          <v-btn variant="text" @click="showDeleteModal = false" class="text-capitalize px-6">Cancel</v-btn>
+          <v-btn color="error" variant="flat" rounded="lg" class="text-capitalize px-6" :loading="deletingCandidate" @click="deleteInlineCandidate">Delete Candidate</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
       {{ snackbarText }}
@@ -305,6 +411,122 @@ const candidates = ref<any[]>([]);
 const stats = ref<any>({});
 const search = ref('');
 const exam = ref<any>(null);
+
+// Inline Edit & Delete Candidate State
+const showEditModal = ref(false);
+const savingCandidate = ref(false);
+const showDeleteModal = ref(false);
+const deletingCandidate = ref(false);
+const selectedCandidate = ref<any>(null);
+
+const editForm = ref({
+  id: '', name: '', email: '', phone: '', qualification: '', college: '', course_stream: '', year_of_study: '', city: '',
+  whatsappNumber: '', category: '', parentName: '', parentContact: '', schoolName: '', levelOfStudy1: '',
+  collegeName2: '', degreeYear: '', courseName2: '', collegeName3: '', studyLevel3: '', courseName3: '', industryName: '', currentRole: ''
+});
+
+function openInlineEdit(item: any) {
+  selectedCandidate.value = item;
+  let meta: any = {};
+  if (item.metadata) {
+    meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+  }
+  editForm.value = {
+    id: item.id,
+    name: item.name || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    qualification: meta.Qualification || item.qualification || '',
+    college: meta.College || item.college || '',
+    course_stream: meta.CourseStream || item.course_stream || '',
+    year_of_study: meta.YearOfStudy || item.year_of_study || '',
+    city: meta.City || item.city || '',
+    whatsappNumber: meta.whatsappNumber || '',
+    category: meta.category || '',
+    parentName: meta.parentName || '',
+    parentContact: meta.parentContact || '',
+    schoolName: meta.schoolName || '',
+    levelOfStudy1: meta.levelOfStudy1 || '',
+    collegeName2: meta.collegeName2 || '',
+    degreeYear: meta.degreeYear || '',
+    courseName2: meta.courseName2 || '',
+    collegeName3: meta.collegeName3 || '',
+    studyLevel3: meta.studyLevel3 || '',
+    courseName3: meta.courseName3 || '',
+    industryName: meta.industryName || '',
+    currentRole: meta.currentRole || ''
+  };
+  showEditModal.value = true;
+}
+
+async function saveInlineEdit() {
+  if (!editForm.value.id) return;
+  savingCandidate.value = true;
+  try {
+    const payload = {
+      name: editForm.value.name,
+      email: editForm.value.email,
+      phone: editForm.value.phone,
+      qualification: editForm.value.qualification,
+      college: editForm.value.college,
+      course_stream: editForm.value.course_stream,
+      year_of_study: editForm.value.year_of_study,
+      city: editForm.value.city,
+      metadata: {
+        whatsappNumber: editForm.value.whatsappNumber,
+        category: editForm.value.category,
+        parentName: editForm.value.parentName,
+        parentContact: editForm.value.parentContact,
+        schoolName: editForm.value.schoolName,
+        levelOfStudy1: editForm.value.levelOfStudy1,
+        collegeName2: editForm.value.collegeName2,
+        degreeYear: editForm.value.degreeYear,
+        courseName2: editForm.value.courseName2,
+        collegeName3: editForm.value.collegeName3,
+        studyLevel3: editForm.value.studyLevel3,
+        courseName3: editForm.value.courseName3,
+        industryName: editForm.value.industryName,
+        currentRole: editForm.value.currentRole
+      }
+    };
+    await api.put(`/admin/public-exams/candidates/${editForm.value.id}`, payload);
+    showEditModal.value = false;
+    snackbarText.value = 'Candidate updated successfully';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to update candidate';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    savingCandidate.value = false;
+  }
+}
+
+function confirmInlineDelete(item: any) {
+  selectedCandidate.value = item;
+  showDeleteModal.value = true;
+}
+
+async function deleteInlineCandidate() {
+  if (!selectedCandidate.value?.id) return;
+  deletingCandidate.value = true;
+  try {
+    await api.delete(`/admin/public-exams/candidates/${selectedCandidate.value.id}`);
+    showDeleteModal.value = false;
+    snackbarText.value = 'Candidate deleted successfully';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    loadData();
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to delete candidate';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    deletingCandidate.value = false;
+  }
+}
 
 // Custom Email State
 const showEmailModal = ref(false);

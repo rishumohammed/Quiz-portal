@@ -1254,6 +1254,105 @@ router.get('/candidates/:id', async (req, res) => {
   }
 });
 
+// PUT /api/admin/public-exams/candidates/:id
+router.put('/candidates/:id', async (req, res) => {
+  try {
+    const candidateId = req.params.id;
+    const {
+      name, email, phone, qualification, college, course_stream, year_of_study,
+      country, state, city, registration_status, metadata
+    } = req.body;
+
+    const [existing] = await pool.query('SELECT * FROM public_exam_candidates WHERE id = ?', [candidateId]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    let existingMeta = {};
+    if (existing[0].metadata) {
+      existingMeta = typeof existing[0].metadata === 'string' ? JSON.parse(existing[0].metadata) : existing[0].metadata;
+    }
+
+    let updatedMeta = { ...existingMeta };
+    if (metadata && typeof metadata === 'object') {
+      updatedMeta = { ...updatedMeta, ...metadata };
+    }
+
+    const fields = [];
+    const values = [];
+
+    if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+    if (email !== undefined) { fields.push('email = ?'); values.push(email); }
+    if (phone !== undefined) { fields.push('phone = ?'); values.push(phone); }
+    if (qualification !== undefined) { fields.push('qualification = ?'); values.push(qualification); }
+    if (college !== undefined) { fields.push('college = ?'); values.push(college); }
+    if (course_stream !== undefined) { fields.push('course_stream = ?'); values.push(course_stream); }
+    if (year_of_study !== undefined) { fields.push('year_of_study = ?'); values.push(year_of_study); }
+    if (country !== undefined) { fields.push('country = ?'); values.push(country); }
+    if (state !== undefined) { fields.push('state = ?'); values.push(state); }
+    if (city !== undefined) { fields.push('city = ?'); values.push(city); }
+    if (registration_status !== undefined) { fields.push('registration_status = ?'); values.push(registration_status); }
+
+    fields.push('metadata = ?');
+    values.push(JSON.stringify(updatedMeta));
+
+    if (fields.length > 0) {
+      values.push(candidateId);
+      await pool.query(`UPDATE public_exam_candidates SET ${fields.join(', ')} WHERE id = ?`, values);
+    }
+
+    res.json({ message: 'Candidate updated successfully' });
+  } catch (error) {
+    console.error('Update candidate error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/public-exams/candidates/:id
+router.delete('/candidates/:id', async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const candidateId = req.params.id;
+    const [existing] = await connection.query('SELECT id FROM public_exam_candidates WHERE id = ?', [candidateId]);
+    if (existing.length === 0) {
+      connection.release();
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    await connection.beginTransaction();
+
+    // Delete certificates linked to candidate attempts
+    await connection.query(`
+      DELETE c FROM certificates c
+      JOIN public_exam_attempts a ON c.exam_attempt_id = a.id
+      WHERE a.candidate_id = ? OR c.candidate_id = ?
+    `, [candidateId, candidateId]);
+
+    // Delete results for candidate's attempts
+    await connection.query(`
+      DELETE r FROM public_exam_results r
+      JOIN public_exam_attempts a ON r.attempt_id = a.id
+      WHERE a.candidate_id = ?
+    `, [candidateId]);
+
+    // Delete attempts for candidate
+    await connection.query('DELETE FROM public_exam_attempts WHERE candidate_id = ?', [candidateId]);
+
+    // Delete candidate record
+    await connection.query('DELETE FROM public_exam_candidates WHERE id = ?', [candidateId]);
+
+    await connection.commit();
+    connection.release();
+
+    res.json({ message: 'Candidate deleted successfully' });
+  } catch (error) {
+    await connection.rollback();
+    connection.release();
+    console.error('Delete candidate error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // POST /api/admin/public-exams/candidates/:id/reset-password
 router.post('/candidates/:id/reset-password', async (req, res) => {
   try {

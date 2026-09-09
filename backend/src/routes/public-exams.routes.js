@@ -390,14 +390,16 @@ router.post('/:slug/register', async (req, res) => {
       return res.status(403).json({ message: 'Registrations for this examination are currently closed. Please contact the administrator.' });
     }
 
+    const cleanEmail = email ? email.toLowerCase().trim() : '';
+
     // Check if candidate already registered for THIS exam
-    const [existing] = await pool.query('SELECT id FROM public_exam_candidates WHERE email = ? AND exam_id = ?', [email, exam.id]);
+    const [existing] = await pool.query('SELECT id FROM public_exam_candidates WHERE LOWER(TRIM(email)) = ? AND exam_id = ?', [cleanEmail, exam.id]);
     if (existing.length > 0) {
-      return res.status(400).json({ message: 'You have already registered for this exam.' });
+      return res.status(400).json({ message: 'You have already registered for this exam. Please log in to take your exam.' });
     }
 
     // Verify OTP
-    const redisKey = `exam_reg_otp:${slug}:${email.toLowerCase().trim()}`;
+    const redisKey = `exam_reg_otp:${slug}:${cleanEmail}`;
     const storedOtp = await redis.get(redisKey);
     if (!storedOtp || storedOtp !== otp) {
       return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
@@ -422,7 +424,7 @@ router.post('/:slug/register', async (req, res) => {
         INSERT INTO public_exam_candidates 
         (id, exam_id, name, email, phone, password_hash, country, state, city, qualification, college, course_stream, year_of_study, agreed_to_terms, metadata, registration_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved')
-      `, [candidateId, exam.id, name, email, phone, password_hash, country || null, state || null, city || null, qualification || null, college || null, course_stream || null, year_of_study || null, !!agreed_to_terms, Object.keys(metadata).length ? JSON.stringify(metadata) : null]);
+      `, [candidateId, exam.id, name, cleanEmail, phone, password_hash, country || null, state || null, city || null, qualification || null, college || null, course_stream || null, year_of_study || null, !!agreed_to_terms, Object.keys(metadata).length ? JSON.stringify(metadata) : null]);
 
       await connection.query(`
         INSERT INTO terms_privacy_acceptances (id, candidate_id, accepted_terms_version, accepted_privacy_version, ip_address)

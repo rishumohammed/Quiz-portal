@@ -596,10 +596,32 @@ const backendUrl = (path: string) => {
 async function startRegistrationCamera() {
   try {
     isCameraLoading.value = true;
-    regStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, frameRate: 15 },
-      audio: false
-    });
+    const videoConstraints: any = {
+      facingMode: 'user',
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      frameRate: { ideal: 15, max: 30 }
+    };
+
+    try {
+      regStream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false
+      });
+    } catch (e1) {
+      try {
+        regStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false
+        });
+      } catch (e2) {
+        regStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+    }
+
     cameraActive.value = true;
     await faceDetection.loadModel();
 

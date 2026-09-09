@@ -82,7 +82,7 @@
 
         <!-- Video Stream Box with Live Readiness Indicator -->
         <div class="position-relative mx-auto rounded-xl overflow-hidden border mb-4 bg-black" style="max-width: 380px; height: 260px;">
-          <video ref="videoEl" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover; transform: scaleX(-1);"></video>
+          <video ref="videoEl" autoplay playsinline webkit-playsinline muted class="w-100 h-100" style="object-fit: cover; transform: scaleX(-1);"></video>
           
           <!-- Face Oval Guide (Glows Green when Ready) -->
           <div class="face-oval-frame" :class="isFaceReady ? 'oval-ready' : 'oval-not-ready'"></div>
@@ -385,7 +385,7 @@ async function captureCurrentPosePhoto() {
       descriptor = [0.85, 0.85, 0.45, 0.95, 0.95];
     }
 
-    const photoUrl = await recorder.captureScreenshot(`selfie-re-enroll-pose-${currentPoseIndex.value + 1}`, {});
+    const photoUrl = await recorder.captureScreenshot(`selfie-re-enroll-pose-${currentPoseIndex.value + 1}`, {}, videoEl.value);
     if (photoUrl) {
       capturedPhotos.value[currentPoseIndex.value] = {
         label: poseList[currentPoseIndex.value].label,
