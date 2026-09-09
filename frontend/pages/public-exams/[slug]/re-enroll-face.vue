@@ -385,7 +385,47 @@ async function captureCurrentPosePhoto() {
       descriptor = [0.85, 0.85, 0.45, 0.95, 0.95];
     }
 
-    const photoUrl = await recorder.captureScreenshot(`selfie-re-enroll-pose-${currentPoseIndex.value + 1}`, {}, videoEl.value);
+    const video = videoEl.value;
+    const rawWidth = video.videoWidth || 640;
+    const rawHeight = video.videoHeight || 480;
+
+    const maxTargetWidth = 480;
+    const scaleRatio = Math.min(1, maxTargetWidth / rawWidth);
+    const targetWidth = Math.round(rawWidth * scaleRatio);
+    const targetHeight = Math.round(rawHeight * scaleRatio);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+    const photoUrl = await new Promise<string>((resolve) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+          return;
+        }
+        try {
+          const formData = new FormData();
+          formData.append('image', blob, `re-enroll-pose-${currentPoseIndex.value + 1}.jpg`);
+          const res = await api.post('/public/exams/upload-selfie', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          if (res.data && res.data.url) {
+            resolve(res.data.url);
+          } else {
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          }
+        } catch (uploadErr) {
+          console.warn('Public upload-selfie failed, using dataURL fallback:', uploadErr);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        }
+      }, 'image/jpeg', 0.85);
+    });
+
     if (photoUrl) {
       capturedPhotos.value[currentPoseIndex.value] = {
         label: poseList[currentPoseIndex.value].label,

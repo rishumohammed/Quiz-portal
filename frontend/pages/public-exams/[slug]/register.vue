@@ -675,10 +675,16 @@ async function captureCurrentPosePhoto() {
       formData.append('image', blob, `selfie-pose-${currentPoseIndex.value + 1}.jpg`);
 
       try {
-        const res = await api.post('/public/exams/upload-selfie', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        const photoUrl = res.data?.url || '';
+        let photoUrl = '';
+        try {
+          const res = await api.post('/public/exams/upload-selfie', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          photoUrl = res.data?.url || canvas.toDataURL('image/jpeg', 0.85);
+        } catch (uploadErr) {
+          console.warn('Public upload-selfie failed, using dataURL fallback:', uploadErr);
+          photoUrl = canvas.toDataURL('image/jpeg', 0.85);
+        }
 
         capturedPhotos.value[currentPoseIndex.value] = {
           label: poseList[currentPoseIndex.value].label,
@@ -698,14 +704,14 @@ async function captureCurrentPosePhoto() {
           snackbar.value = true;
         }
       } catch (err) {
-        console.error('Failed to upload pose photo', err);
+        console.error('Failed to save pose photo', err);
         snackbarText.value = 'Failed to save selfie photo. Please try again.';
         snackbarColor.value = 'error';
         snackbar.value = true;
       } finally {
         isCapturingSelfie.value = false;
       }
-    }, 'image/jpeg', 0.65);
+    }, 'image/jpeg', 0.85);
   } catch (e) {
     console.error('Selfie capture error', e);
     isCapturingSelfie.value = false;
