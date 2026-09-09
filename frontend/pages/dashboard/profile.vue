@@ -179,7 +179,22 @@ import { useApi } from '@/composables/useApi';
 
 definePageMeta({
   layout: 'dashboard',
-  middleware: ['auth']
+  middleware: [
+    'auth',
+    function (to, from) {
+      const authStore = useAuthStore();
+      const role = authStore.userRole;
+      if (['super_admin', 'sub_admin', 'crm_agent', 'lms_user', 'placement_coordinator', 'finance_staff', 'support_staff'].includes(role)) {
+        return navigateTo('/dashboard/admin/settings');
+      } else if (role === 'student') {
+        return navigateTo('/dashboard/student/settings');
+      } else if (role === 'tutor') {
+        return navigateTo('/dashboard/tutor/settings');
+      } else if (role === 'employer') {
+        return navigateTo('/dashboard/employer/company/profile');
+      }
+    }
+  ]
 });
 
 const authStore = useAuthStore();

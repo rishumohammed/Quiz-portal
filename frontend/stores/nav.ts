@@ -27,7 +27,7 @@ export const useNavStore = defineStore('nav', {
       // SETTINGS
       { label: 'Manage FAQs', icon: 'mdi-frequently-asked-questions', route: '/dashboard/admin/faqs', roles: ['super_admin'], section: 'SETTINGS' },
       { label: 'System Users', icon: 'mdi-account-group', route: '/dashboard/admin/settings/system-users', roles: ['super_admin'], section: 'SETTINGS' },
-      { label: 'Settings', icon: 'mdi-cog-outline', route: '/dashboard/profile', roles: ['super_admin', 'sub_admin', 'tutor', 'student', 'employer', 'crm_agent', 'placement_coordinator', 'finance_staff', 'lms_user', 'support_staff'], section: 'SETTINGS' },
+      { label: 'Settings', icon: 'mdi-cog-outline', route: '/dashboard/admin/settings', roles: ['super_admin', 'sub_admin', 'tutor', 'student', 'employer', 'crm_agent', 'placement_coordinator', 'finance_staff', 'lms_user', 'support_staff'], section: 'SETTINGS' },
       { label: 'Logout', icon: 'mdi-logout', action: 'logout', roles: ['super_admin', 'sub_admin', 'tutor', 'student', 'employer', 'crm_agent', 'placement_coordinator', 'finance_staff', 'lms_user', 'support_staff'], section: 'SETTINGS' },
     ] as NavItem[]
   }),
@@ -80,11 +80,11 @@ export const useNavStore = defineStore('nav', {
           }
 
           // Dynamically point "Settings" to the role-specific profile/settings page
-          if (item.label === 'Settings' && item.route === '/dashboard/profile') {
-            let profileRoute = '/dashboard/profile';
+          if (item.label === 'Settings') {
+            let profileRoute = '/dashboard/admin/settings';
             if (role === 'student') profileRoute = '/dashboard/student/settings';
             else if (role === 'tutor') profileRoute = '/dashboard/tutor/settings';
-            else if (role === 'super_admin' || role === 'sub_admin' || role === 'crm_agent' || role === 'placement_coordinator' || role === 'finance_staff' || role === 'lms_user' || role === 'support_staff') profileRoute = '/dashboard/profile';
+            else if (role === 'super_admin' || role === 'sub_admin' || role === 'crm_agent' || role === 'placement_coordinator' || role === 'finance_staff' || role === 'lms_user' || role === 'support_staff') profileRoute = '/dashboard/admin/settings';
             else if (role === 'employer') profileRoute = '/dashboard/employer/company/profile';
             return { ...item, route: profileRoute };
           }
