@@ -64,7 +64,7 @@
                   <div class="text-h6 font-weight-bold text-dark">{{ exam.total_marks }} Marks</div>
                 </v-card>
               </v-col>
-              <v-col v-if="exam.pass_percentage && exam.pass_percentage > 0" cols="6" sm="3" class="mb-4">
+              <v-col v-if="exam.pass_percentage && Number(exam.pass_percentage) > 0" cols="6" sm="3" class="mb-4">
                 <v-card class="pa-4 bg-grey-lighten-4 rounded-lg text-center" flat>
                   <div class="text-caption text-secondary mb-1">Passing Percentage</div>
                   <div class="text-h6 font-weight-bold text-dark">{{ exam.pass_percentage }}%</div>

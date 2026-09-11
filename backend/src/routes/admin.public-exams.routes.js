@@ -14,12 +14,13 @@ const router = express.Router();
 
 async function clearPublicExamCache(slug) {
   try {
-    if (slug) {
-      await redis.del(`cache:public_exam_detail:${slug}`);
+    const detailKeys = await redis.keys('cache:public_exam_detail:*');
+    if (detailKeys && detailKeys.length > 0) {
+      await redis.del(detailKeys);
     }
-    const keys = await redis.keys('cache:public_exams:*');
-    if (keys && keys.length > 0) {
-      await redis.del(keys);
+    const listKeys = await redis.keys('cache:public_exams:*');
+    if (listKeys && listKeys.length > 0) {
+      await redis.del(listKeys);
     }
   } catch (e) {
     console.warn('Failed to clear public exam cache:', e.message);
