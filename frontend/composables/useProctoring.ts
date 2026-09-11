@@ -122,17 +122,23 @@ export const useProctoring = () => {
     }
   };
 
+  const getMaxTabSwitches = () => {
+    return proctoringConfig.value?.max_tab_switches || 5;
+  };
+
   const handleViolation = (type: string) => {
     tabSwitchCount.value++;
     logEvent(type, { count: tabSwitchCount.value });
 
-    if (tabSwitchCount.value >= maxTabSwitches) {
+    const max = getMaxTabSwitches();
+
+    if (tabSwitchCount.value >= max) {
       const msg = 'You have exceeded the maximum allowed tab switches. Your exam is being automatically submitted.';
       violationWarning.value = { show: true, message: msg };
       speakWarning(msg);
       if (submitCallback) submitCallback('tab_switch_limit_exceeded');
     } else {
-      const msg = `Warning ${tabSwitchCount.value} out of ${maxTabSwitches}: Please do not leave the exam window. Doing so again may result in auto-submission.`;
+      const msg = `Warning ${tabSwitchCount.value} out of ${max}: Please do not leave the exam window. Doing so again may result in auto-submission.`;
       violationWarning.value = { show: true, message: msg };
       speakWarning(msg);
     }

@@ -203,7 +203,7 @@ export const useFaceDetection = () => {
               
               logEventCallback('face_absent');
               
-              if (enableFaceMissingAlert && now - lastFaceWarningTime.value > 15000) {
+              if (enableFaceMissingAlert && now - lastFaceWarningTime.value > 5000) {
                 warningCallback('Please ensure your face is visible to the camera.');
                 lastFaceWarningTime.value = now;
               }
@@ -211,13 +211,13 @@ export const useFaceDetection = () => {
           } else if (faces.length > 1) {
             consecutiveNoFaceSeconds = 0;
             
-            // Throttle multiple_faces event to at most once every 15 seconds
-            if (now - lastMultipleFacesLogTime >= 15000) {
+            // Throttle multiple_faces event to at most once every 5 seconds
+            if (now - lastMultipleFacesLogTime >= 5000) {
               logEventCallback('multiple_faces', { count: faces.length });
               lastMultipleFacesLogTime = now;
             }
             
-            if (enableMultipleFacesAlert && now - lastFaceWarningTime.value > 15000) {
+            if (enableMultipleFacesAlert && now - lastFaceWarningTime.value > 5000) {
               warningCallback('Multiple faces detected. Ensure you are alone.');
               lastFaceWarningTime.value = now;
             }
@@ -229,12 +229,12 @@ export const useFaceDetection = () => {
             if (liveDescriptor) {
               const noseToMouthRatio = liveDescriptor[2];
               // Detect looking down or away from screen
-              if (noseToMouthRatio < 0.28 || noseToMouthRatio > 0.68) {
+              if (noseToMouthRatio < 0.32 || noseToMouthRatio > 0.64) {
                 consecutiveGazeDeviationSeconds++;
-                if (consecutiveGazeDeviationSeconds >= 3) {
+                if (consecutiveGazeDeviationSeconds >= 2) { // 2 consecutive checks (approx 1.5s)
                   consecutiveGazeDeviationSeconds = 0;
                   logEventCallback('gaze_deviation', { ratio: noseToMouthRatio });
-                  if (now - lastFaceWarningTime.value > 15000) {
+                  if (now - lastFaceWarningTime.value > 5000) { // 5s warning throttle
                     warningCallback('Please look directly at your exam screen.');
                     lastFaceWarningTime.value = now;
                   }

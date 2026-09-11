@@ -596,7 +596,8 @@ const proctoringConfig = computed(() => {
     face_missing_alert: true,
     multiple_faces_alert: true,
     record_full_video: false,
-    face_missing_threshold: 5
+    face_missing_threshold: 3,
+    max_tab_switches: examConfig.value?.max_proctoring_warnings || 5
   };
 });
 
