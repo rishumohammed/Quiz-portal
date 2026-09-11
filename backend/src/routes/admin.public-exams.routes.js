@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { pool } from '../db/connection.js';
+import { pool, redis } from '../db/connection.js';
 import { authenticateJWT, authorizeRoles, requirePermission } from '../middleware/auth.js';
 import EmailService from '../services/email.service.js';
 import bcrypt from 'bcryptjs';
@@ -11,6 +11,20 @@ import { gradeQuestion } from '../services/exam-grading.service.js';
 import { CertificateService } from '../services/certificate.service.js';
 
 const router = express.Router();
+
+async function clearPublicExamCache(slug) {
+  try {
+    if (slug) {
+      await redis.del(`cache:public_exam_detail:${slug}`);
+    }
+    const keys = await redis.keys('cache:public_exams:*');
+    if (keys && keys.length > 0) {
+      await redis.del(keys);
+    }
+  } catch (e) {
+    console.warn('Failed to clear public exam cache:', e.message);
+  }
+}
 
 // Ensure exams upload directory exists
 const __filename = new URL(import.meta.url).pathname;
@@ -576,6 +590,7 @@ router.post('/', async (req, res) => {
       registration_start_date || null, registration_end_date || null, exam_start_date || null, exam_end_date || null, image_url || null
     ]);
 
+    await clearPublicExamCache(slug);
     res.status(201).json({ id, message: 'Exam created successfully' });
   } catch (error) {
     console.error('Create admin exam error:', error);
@@ -631,6 +646,7 @@ router.put('/:id', async (req, res) => {
     });
 
     await pool.query(`UPDATE public_exams SET ${setClause} WHERE id = ?`, [...values, req.params.id]);
+    await clearPublicExamCache(req.body.slug);
     res.json({ message: 'Exam updated successfully' });
   } catch (error) {
     console.error('Update admin exam error:', error);
@@ -641,7 +657,11 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/admin/public-exams/:id
 router.delete('/:id', async (req, res) => {
   try {
+    const [existing] = await pool.query('SELECT slug FROM public_exams WHERE id = ?', [req.params.id]);
     await pool.query('UPDATE public_exams SET deleted_at = NOW(), registration_status = "closed" WHERE id = ?', [req.params.id]);
+    if (existing.length > 0) {
+      await clearPublicExamCache(existing[0].slug);
+    }
     res.json({ message: 'Exam deleted successfully' });
   } catch (error) {
     console.error('Delete admin exam error:', error);
