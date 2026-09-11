@@ -133,11 +133,24 @@ export async function submitExamAttempt(attemptId, guestAnswers = []) {
     const initialProctoringStatus = attempt.enable_proctoring ? 'pending_review' : 'not_applicable';
 
     // Update attempt
-    await connection.query(`
-      UPDATE public_exam_attempts 
-      SET status = 'submitted', submitted_at = ?, answers_json = ?, proctoring_status = ?
-      WHERE id = ?
-    `, [new Date(), JSON.stringify(guestAnswers), initialProctoringStatus, attemptId]);
+    try {
+      await connection.query(`
+        UPDATE public_exam_attempts 
+        SET status = 'submitted', submitted_at = ?, answers_json = ?, proctoring_status = ?
+        WHERE id = ?
+      `, [new Date(), JSON.stringify(guestAnswers), initialProctoringStatus, attemptId]);
+    } catch (updateErr) {
+      if (updateErr.code === 'ER_BAD_FIELD_ERROR' || updateErr.errno === 1054) {
+        // Fallback if proctoring_status column does not exist on DB schema yet
+        await connection.query(`
+          UPDATE public_exam_attempts 
+          SET status = 'submitted', submitted_at = ?, answers_json = ?
+          WHERE id = ?
+        `, [new Date(), JSON.stringify(guestAnswers), attemptId]);
+      } else {
+        throw updateErr;
+      }
+    }
 
     // Create result
     const resultId = uuidv4();

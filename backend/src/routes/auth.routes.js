@@ -21,7 +21,7 @@ const generateTokens = (user) => {
   const accessToken = jwt.sign(
     { id: user.id, role: user.role, email: user.email, permissions },
     process.env.JWT_ACCESS_SECRET,
-    { expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' }
+    { expiresIn: process.env.JWT_ACCESS_EXPIRY || '8h' }
   );
 
   const refreshToken = jwt.sign(
@@ -328,18 +328,33 @@ router.post('/logout', authenticateJWT, async (req, res) => {
 
 router.get('/me', authenticateJWT, async (req, res) => {
   try {
-    const [users] = await pool.query(`
-      SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.timezone, u.force_password_change, up.avatar_url
-      FROM users u
-      LEFT JOIN user_profiles up ON u.id = up.user_id
-      WHERE u.id = ?
-    `, [req.user.id]);
+    let users;
+    try {
+      [users] = await pool.query(`
+        SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.timezone, u.force_password_change, up.avatar_url
+        FROM users u
+        LEFT JOIN user_profiles up ON u.id = up.user_id
+        WHERE u.id = ?
+      `, [req.user.id]);
+    } catch (dbErr) {
+      if (dbErr.code === 'ER_BAD_FIELD_ERROR' || dbErr.errno === 1054) {
+        [users] = await pool.query(`
+          SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.force_password_change, up.avatar_url
+          FROM users u
+          LEFT JOIN user_profiles up ON u.id = up.user_id
+          WHERE u.id = ?
+        `, [req.user.id]);
+      } else {
+        throw dbErr;
+      }
+    }
     const user = users[0];
     if (!user) return res.status(404).json({ message: 'User not found' });
     user.force_password_change = !!user.force_password_change;
     user.timezone = user.timezone || 'Asia/Kolkata';
     res.json(user);
   } catch (error) {
+    console.error('Error fetching user profile:', error);
     res.status(500).json({ message: 'Error fetching user profile' });
   }
 });

@@ -52,8 +52,12 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { data } = await api.get('/auth/me');
         this.setUser(data);
-      } catch (error) {
-        this.logout(false);
+      } catch (error: any) {
+        // Only logout on explicit 401/403 authorization failures, ignore transient 500 errors
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          this.logout(false);
+        }
       }
     },
     async initAuth() {
