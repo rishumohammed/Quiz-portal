@@ -24,25 +24,46 @@ export const useObjectDetection = () => {
     }
   };
 
-  const startDetection = (videoElement: HTMLVideoElement, logEventCallback: (type: string, meta?: any) => void, warningCallback: (msg: string) => void) => {
-    if (!model.value) return;
+  const startDetection = async (videoElement: HTMLVideoElement, logEventCallback: (type: string, meta?: any) => void, warningCallback: (msg: string) => void) => {
+    if (detectionInterval) {
+      clearInterval(detectionInterval);
+      detectionInterval = null;
+    }
 
-    // Run every 1 second
+    if (!model.value) {
+      console.info('[ObjectDetection] Model not ready yet. Waiting for COCO-SSD model...');
+      if (isModelLoading.value) {
+        let attempts = 0;
+        while (!model.value && attempts < 30) {
+          await new Promise(res => setTimeout(res, 500));
+          attempts++;
+        }
+      } else {
+        await loadModel();
+      }
+      if (!model.value) {
+        console.error('[ObjectDetection] Failed to start object detection: Model failed to load.');
+        return;
+      }
+    }
+
+    console.info('[ObjectDetection] Object & phone detection loop active.');
+
+    // Run every 800ms
     detectionInterval = setInterval(async () => {
-      if (videoElement.readyState === 4 && model.value) {
+      if (videoElement && videoElement.readyState >= 2 && model.value) {
         try {
           const predictions = await model.value.detect(videoElement);
-          
-          const hasCellPhone = predictions.some(p => p.class === 'cell phone' && p.score > 0.6);
+          const hasCellPhone = predictions.some(p => p.class === 'cell phone' && p.score > 0.5);
           
           if (hasCellPhone) {
             cellPhoneCounter++;
-            if (cellPhoneCounter >= 2) { // Need 2 consecutive hits to avoid false positives
+            if (cellPhoneCounter >= 1) { // Immediate 1-hit detection
               cellPhoneCounter = 0;
               logEventCallback('mobile_phone_detected', { object: 'cell phone' });
               
-              if (Date.now() - lastWarningTime.value > 15000) {
-                warningCallback('Mobile phone detected. Please put away all devices.');
+              if (Date.now() - lastWarningTime.value > 4000) { // 4s warning throttle
+                warningCallback('Mobile phone detected. Please put away all secondary devices.');
                 lastWarningTime.value = Date.now();
               }
             }
@@ -53,7 +74,7 @@ export const useObjectDetection = () => {
           console.warn('Object estimation error', e);
         }
       }
-    }, 1000);
+    }, 800);
   };
 
   const stopDetection = () => {

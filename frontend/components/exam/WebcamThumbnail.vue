@@ -28,14 +28,30 @@ const position = ref({ x: window.innerWidth - 180, y: 20 });
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 
+let hasEmittedReady = false;
+
 watchEffect(() => {
   if (videoEl.value && props.stream) {
-    videoEl.value.srcObject = props.stream;
-    // Wait for video to be playing before emitting ready (for TFjs)
-    videoEl.value.onloadedmetadata = () => {
-      videoEl.value?.play();
-      emit('video-ready', videoEl.value);
+    if (videoEl.value.srcObject !== props.stream) {
+      videoEl.value.srcObject = props.stream;
+      hasEmittedReady = false;
+    }
+    
+    const triggerReady = () => {
+      if (videoEl.value && !hasEmittedReady) {
+        hasEmittedReady = true;
+        videoEl.value.play().catch(() => {});
+        emit('video-ready', videoEl.value);
+      }
     };
+
+    if (videoEl.value.readyState >= 1) {
+      triggerReady();
+    } else {
+      videoEl.value.onloadedmetadata = triggerReady;
+      videoEl.value.onloadeddata = triggerReady;
+      videoEl.value.oncanplay = triggerReady;
+    }
   }
 });
 

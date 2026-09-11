@@ -173,15 +173,36 @@ export const useFaceDetection = () => {
     }
   };
 
-  const startDetection = (
+  const startDetection = async (
     videoElement: HTMLVideoElement, 
     logEventCallback: (type: string, meta?: any) => void, 
     warningCallback: (msg: string) => void, 
     config: any = {}
   ) => {
-    if (!model.value) return;
+    if (detectionInterval) {
+      clearInterval(detectionInterval);
+      detectionInterval = null;
+    }
 
-    const threshold = config.face_missing_threshold || 5;
+    if (!model.value) {
+      console.info('[FaceDetection] Model not ready yet. Waiting for model to finish loading...');
+      if (isModelLoading.value) {
+        let attempts = 0;
+        while (!model.value && attempts < 30) {
+          await new Promise(res => setTimeout(res, 500));
+          attempts++;
+        }
+      } else {
+        await loadModel();
+      }
+      if (!model.value) {
+        console.error('[FaceDetection] Failed to start face detection: Model failed to load.');
+        return;
+      }
+    }
+
+    console.info('[FaceDetection] Face detection loop active and monitoring candidate.');
+    const threshold = config.face_missing_threshold || 3;
     const enableFaceDetection = config.face_detection !== false;
     const enableMultipleFacesAlert = config.multiple_faces_alert !== false;
     const enableFaceMissingAlert = config.face_missing_alert !== false;
@@ -191,7 +212,7 @@ export const useFaceDetection = () => {
     let consecutiveNoFaceSeconds = 0;
 
     detectionInterval = setInterval(async () => {
-      if (videoElement.readyState === 4 && model.value) {
+      if (videoElement && videoElement.readyState >= 2 && model.value) {
         try {
           const faces = await model.value.estimateFaces(videoElement, { flipHorizontal: false });
           const now = Date.now();
