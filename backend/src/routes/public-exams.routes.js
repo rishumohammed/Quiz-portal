@@ -511,14 +511,12 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
     const examId = req.params.id;
     const { guest_name, guest_email, guest_phone, is_anonymous, candidate_id } = req.body;
 
-    // If not anonymous, require valid candidate token
-    if (!is_anonymous) {
-      if (!candidateFromToken) {
-        return res.status(401).json({ message: 'Authentication required. Please login to access this exam.' });
-      }
-      if (candidateFromToken.examId !== examId) {
-        return res.status(403).json({ message: 'You are not authorised to access this exam. Please login with the correct credentials.' });
-      }
+    // Require valid registered candidate token
+    if (!candidateFromToken) {
+      return res.status(401).json({ message: 'Authentication required. Only registered candidates can write this exam.' });
+    }
+    if (candidateFromToken.examId !== examId) {
+      return res.status(403).json({ message: 'You are not authorised to access this exam. Please login with your registered candidate credentials.' });
     }
 
     const [exams] = await pool.query('SELECT * FROM public_exams WHERE id = ? AND status = ?', [examId, 'published']);
@@ -533,11 +531,6 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
     }
     if (exam.exam_end_date && new Date() > new Date(exam.exam_end_date)) {
       return res.status(403).json({ message: 'This exam has already ended.' });
-    }
-
-    // Check Anonymous access restrictions
-    if (!exam.anonymous_access && is_anonymous) {
-      return res.status(400).json({ message: 'Anonymous access is disabled for this exam. Please provide registration details.' });
     }
 
     // Check attempts limit for registered candidates
@@ -566,12 +559,8 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
       }
     }
 
-    // Compute Guest Name if anonymous
-    let finalName = guest_name;
-    if (is_anonymous || !guest_name) {
-      const randNum = Math.floor(10000 + Math.random() * 90000);
-      finalName = `Guest ${randNum}`;
-    }
+    // Compute Candidate Name
+    const finalName = guest_name || candidateFromToken?.name || 'Candidate';
 
     const attemptId = uuidv4();
     const durationSec = exam.duration_minutes * 60;

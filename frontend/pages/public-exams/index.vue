@@ -151,43 +151,9 @@ function getDifficultyColor(diff: string) {
 
 
 
-async function startExamInstance() {
+function startExamInstance() {
   if (!exam.value) return;
-
-  if (!exam.value.anonymous_access) {
-    router.push(`/public-exams/${exam.value.slug}/login`);
-    return;
-  }
-  
-  startingExam.value = true;
-  try {
-    const payload = {
-      guest_name: null,
-      guest_email: null,
-      guest_phone: null,
-      is_anonymous: true
-    };
-
-    const { data } = await api.post(`/public/exams/${exam.value.id}/attempt`, payload);
-    
-    // Store attempt details locally for access inside the take module
-    localStorage.setItem(`exam_attempt_${exam.value.slug}`, JSON.stringify({
-      attempt_id: data.attempt_id,
-      guest_name: data.guest_name,
-      questions: data.questions,
-      duration_seconds: data.duration_seconds
-    }));
-
-    // Redirect to simulator screen
-    router.push(`/public-exams/${exam.value.slug}/take`);
-  } catch (err: any) {
-    console.error('Failed to start exam:', err);
-    snackbarText.value = err.response?.data?.message || err.message || 'Failed to start exam';
-    snackbarColor.value = 'error';
-    snackbar.value = true;
-  } finally {
-    startingExam.value = false;
-  }
+  router.push(`/public-exams/${exam.value.slug}/login`);
 }
 
 onMounted(() => {

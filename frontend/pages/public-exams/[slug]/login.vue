@@ -298,14 +298,15 @@ async function handleCredentialLogin() {
 
     pendingCandidateData.value = data;
 
-    // Check if candidate has registered facial descriptor
-    if (data.candidate?.facial_descriptor) {
+    // Check if candidate has registered facial descriptor or reference photo
+    const hasFaceData = !!(data.candidate?.facial_descriptor || data.candidate?.facial_descriptors || data.candidate?.reference_photo_url);
+    if (hasFaceData) {
       loginStep.value = 'face_verification';
       setTimeout(() => {
         startFaceVerificationStep();
       }, 300);
     } else {
-      // No face descriptor registered, proceed directly
+      // No face descriptor registered, proceed directly to attempt
       await finalizeLoginAndAttempt(data);
     }
   } catch (err: any) {

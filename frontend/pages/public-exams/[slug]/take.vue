@@ -9,7 +9,7 @@
       @dismiss="proctoring.dismissWarning()" 
     />
     <WebcamThumbnail 
-      v-if="examConfig?.enable_proctoring && !requiresCamera" 
+      v-if="examConfig?.enable_proctoring && recorder.stream.value" 
       :stream="recorder.stream.value" 
       @video-ready="onVideoReady"
     />
@@ -17,8 +17,13 @@
     <!-- Header Bar -->
     <v-app-bar flat color="#1A1A2E" class="text-white border-b px-4" height="64">
       <div class="d-flex align-center cursor-pointer" @click="confirmExit">
-        <v-icon color="primary" class="mr-2" size="28">mdi-rhombus-split</v-icon>
-        <span class="font-weight-black tracking-tight text-body-1">AEMS EXAM STUDIO</span>
+        <template v-if="appLogo">
+          <img :src="fullLogoUrl" alt="Logo" style="max-height: 38px; object-fit: contain;" class="mr-3" />
+        </template>
+        <template v-else>
+          <v-icon color="primary" class="mr-2" size="28">mdi-shield-account</v-icon>
+          <span class="font-weight-black tracking-tight text-body-1">{{ instituteName || 'KEFTA TALENT HUNT' }}</span>
+        </template>
       </div>
 
       <v-divider vertical inset class="mx-4 border-grey-darken-3"></v-divider>
@@ -216,7 +221,7 @@
           <v-col cols="12" md="4" lg="3" class="d-flex flex-column h-100 justify-space-between bg-grey-lighten-5">
             <!-- Top sidebar contents -->
             <div class="pa-6">
-              <!-- Guest Metadata -->
+              <!-- Candidate Metadata -->
               <v-card class="pa-4 bg-white border rounded-xl mb-6" flat>
                 <div class="d-flex align-center">
                   <v-avatar color="primary" class="mr-3" size="40">
@@ -224,7 +229,9 @@
                   </v-avatar>
                   <div>
                     <div class="text-body-2 font-weight-black text-dark">{{ guestName }}</div>
-                    <div class="text-caption text-secondary">Guest Candidate</div>
+                    <div class="text-caption text-primary font-weight-bold d-flex align-center">
+                      <v-icon size="14" color="primary" class="mr-1">mdi-check-decagram</v-icon> Registered Candidate
+                    </div>
                   </div>
                 </div>
               </v-card>
@@ -410,6 +417,16 @@ const faceDetection = useFaceDetection();
 const objectDetection = useObjectDetection();
 const recorder = useWebcamRecorder();
 
+const appLogo = useState('appLogo', () => '');
+const instituteName = useState('instituteName', () => '');
+const config = useRuntimeConfig();
+
+const fullLogoUrl = computed(() => {
+  if (!appLogo.value) return '';
+  const baseUrl = config.public.apiBase.replace('/api', '');
+  return `${baseUrl}${appLogo.value}`;
+});
+
 const examSlug = computed(() => route.params.slug as string);
 const examName = computed(() => {
   return examSlug.value.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -589,12 +606,12 @@ async function setupCamera() {
   isRequestingCamera.value = false;
   
   if (granted) {
+    cameraReady.value = true;
     isInitializingProctoring.value = true;
     try {
       await faceDetection.loadModel();
       await objectDetection.loadModel();
       if (!faceDetection.faceDetectionError.value && !objectDetection.objectDetectionError.value) {
-        cameraReady.value = true;
         initAdvancedProctoring();
       }
     } finally {
@@ -866,6 +883,10 @@ onMounted(async () => {
 
   initializeAttempt();
   setupProctoring();
+
+  if (examConfig.value?.enable_proctoring) {
+    setupCamera();
+  }
   
   // Register window event listener to prevent direct closing
   window.addEventListener('beforeunload', handleBeforeUnload);
