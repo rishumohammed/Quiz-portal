@@ -866,14 +866,65 @@ function confirmExitForce() {
   router.push('/public-exams');
 }
 
+function clearCandidateSession() {
+  localStorage.removeItem(`public_exam_token_${examSlug.value}`);
+  localStorage.removeItem(`public_exam_candidate_${examSlug.value}`);
+  localStorage.removeItem(`exam_attempt_${examSlug.value}`);
+}
+
 onMounted(async () => {
-  // Verify JWT before allowing access
+  // 1. Verify JWT token presence
   const token = getAuthToken();
   if (!token) {
+    clearCandidateSession();
     router.replace(`/public-exams/${examSlug.value}/login`);
     return;
   }
 
+  // 2. Verify candidate JWT validity with backend
+  try {
+    await api.get('/public/exams/candidates/verify-session', { headers: authHeaders() });
+  } catch (err) {
+    console.warn('Candidate session verification failed:', err);
+    clearCandidateSession();
+    router.replace(`/public-exams/${examSlug.value}/login`);
+    return;
+  }
+
+  // 3. Verify attempt exists in localStorage
+  const localKey = `exam_attempt_${examSlug.value}`;
+  const dataStr = localStorage.getItem(localKey);
+  if (!dataStr) {
+    clearCandidateSession();
+    router.replace(`/public-exams/${examSlug.value}/login`);
+    return;
+  }
+
+  let attemptData: any = null;
+  try {
+    attemptData = JSON.parse(dataStr);
+  } catch (e) {
+    clearCandidateSession();
+    router.replace(`/public-exams/${examSlug.value}/login`);
+    return;
+  }
+
+  // 4. Verify attempt status with backend
+  try {
+    const { data: verifyRes } = await api.get(`/public/exams/attempts/${attemptData.attempt_id}/verify`, { headers: authHeaders() });
+    if (!verifyRes.valid) {
+      clearCandidateSession();
+      router.replace(`/public-exams/${examSlug.value}/login`);
+      return;
+    }
+  } catch (err) {
+    console.warn('Attempt verification failed:', err);
+    clearCandidateSession();
+    router.replace(`/public-exams/${examSlug.value}/login`);
+    return;
+  }
+
+  // 5. Fetch exam config
   try {
     const { data } = await api.get(`/public/exams/${examSlug.value}`);
     examConfig.value = data;

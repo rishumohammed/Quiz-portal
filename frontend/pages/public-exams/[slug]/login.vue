@@ -485,16 +485,10 @@ async function finalizeLoginAndAttempt(data: any) {
 
 onMounted(() => {
   const slug = route.params.slug as string;
-  const existingToken = localStorage.getItem(`public_exam_token_${slug}`);
-  const existingAttempt = localStorage.getItem(`exam_attempt_${slug}`);
-  
-  if (existingToken && existingAttempt) {
-    router.replace(`/public-exams/${slug}/take`);
-    return;
-  } else if (existingToken && !existingAttempt) {
-    localStorage.removeItem(`public_exam_token_${slug}`);
-    localStorage.removeItem(`public_exam_candidate_${slug}`);
-  }
+  // Always clear cached attempt data on explicit login page load to enforce candidate authentication & face verification
+  localStorage.removeItem(`exam_attempt_${slug}`);
+  localStorage.removeItem(`public_exam_token_${slug}`);
+  localStorage.removeItem(`public_exam_candidate_${slug}`);
   
   fetchExam();
 });

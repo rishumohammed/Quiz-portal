@@ -15,7 +15,7 @@ import { gradeQuestion, submitExamAttempt } from '../services/exam-grading.servi
 
 const PUBLIC_EXAM_JWT_SECRET = process.env.PUBLIC_EXAM_JWT_SECRET || 'aems_public_exam_secret_key_2024';
 
-// Middleware: verify candidate JWT for exam access
+// Middleware: optional candidate JWT parser
 function verifyCandidateToken(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -29,6 +29,22 @@ function verifyCandidateToken(req, res, next) {
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired session. Please login again.' });
+  }
+}
+
+// Middleware: STRICT candidate JWT authentication required
+function requireCandidateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Authentication required. Only logged in candidates can perform this action.' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, PUBLIC_EXAM_JWT_SECRET);
+    req.candidate = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired candidate session. Please login again.' });
   }
 }
 
@@ -287,6 +303,30 @@ router.post('/candidates/login', async (req, res) => {
   }
 });
 
+// CANDIDATE SESSION VERIFICATION — GET /api/public/exams/candidates/verify-session
+router.get('/candidates/verify-session', requireCandidateToken, async (req, res) => {
+  try {
+    const { candidateId, examId, examSlug } = req.candidate;
+    const [candidates] = await pool.query(
+      'SELECT id, name, email, phone FROM public_exam_candidates WHERE id = ? AND exam_id = ?',
+      [candidateId, examId]
+    );
+
+    if (candidates.length === 0) {
+      return res.status(401).json({ valid: false, message: 'Candidate account not found.' });
+    }
+
+    res.json({
+      valid: true,
+      candidate: candidates[0],
+      examSlug
+    });
+  } catch (error) {
+    console.error('Verify session error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Candidate Registration Selfie Upload — POST /api/public/exams/upload-selfie
 const selfieStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -505,7 +545,7 @@ router.post('/:slug/register', async (req, res) => {
 });
 
 // 4. POST /api/public/exams/:id/attempt  (requires candidate JWT)
-router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
+router.post('/:id/attempt', requireCandidateToken, async (req, res) => {
   try {
     const candidateFromToken = req.candidate;
     const examId = req.params.id;
@@ -639,8 +679,43 @@ router.post('/:id/attempt', verifyCandidateToken, async (req, res) => {
   }
 });
 
+// GET /api/public/exams/attempts/:id/verify  (requires candidate JWT)
+router.get('/attempts/:id/verify', requireCandidateToken, async (req, res) => {
+  try {
+    const attemptId = req.params.id;
+    const candidateId = req.candidate?.candidateId;
+
+    const [attempts] = await pool.query(
+      'SELECT id, exam_id, guest_name, status, session_expires_at, candidate_id FROM public_exam_attempts WHERE id = ?',
+      [attemptId]
+    );
+
+    if (attempts.length === 0) {
+      return res.status(404).json({ valid: false, message: 'Exam attempt not found.' });
+    }
+
+    const attempt = attempts[0];
+    if (attempt.candidate_id && candidateId && attempt.candidate_id !== candidateId) {
+      return res.status(403).json({ valid: false, message: 'You are not authorised to view or submit this attempt.' });
+    }
+
+    if (attempt.status !== 'in_progress') {
+      return res.status(400).json({ valid: false, status: attempt.status, message: 'Exam has already been submitted.' });
+    }
+
+    if (new Date() > new Date(attempt.session_expires_at)) {
+      return res.status(400).json({ valid: false, status: 'expired', message: 'Exam session has expired.' });
+    }
+
+    res.json({ valid: true, status: 'in_progress' });
+  } catch (error) {
+    console.error('Verify attempt error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // 5. POST /api/public/exams/attempts/:id/save
-router.post('/attempts/:id/save', async (req, res) => {
+router.post('/attempts/:id/save', requireCandidateToken, async (req, res) => {
   try {
     const { answers } = req.body;
     const attemptId = req.params.id;
@@ -672,7 +747,7 @@ router.post('/attempts/:id/save', async (req, res) => {
 });
 
 // 6. POST /api/public/exams/attempts/:id/submit
-router.post('/attempts/:id/submit', async (req, res) => {
+router.post('/attempts/:id/submit', requireCandidateToken, async (req, res) => {
   try {
     const attemptId = req.params.id;
     const { answers } = req.body; // Array of { question_id, answer }
