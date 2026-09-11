@@ -89,6 +89,7 @@ export const useFaceDetection = () => {
   let lastMultipleFacesLogTime = 0;
   let lastProxyMismatchLogTime = 0;
   let mismatchCount = 0;
+  let consecutiveGazeDeviationSeconds = 0;
 
   let isEstimatingFaces = false;
 
@@ -224,10 +225,26 @@ export const useFaceDetection = () => {
             // Exactly 1 face detected
             consecutiveNoFaceSeconds = 0;
 
-            // Perform Proxy candidate Face Matching against registered 3-sample profile
-            if (referenceDescriptor.value && referenceDescriptorsList.value.length > 0) {
-              const liveDescriptor = extractFacialDescriptor(faces[0]);
-              if (liveDescriptor) {
+            const liveDescriptor = extractFacialDescriptor(faces[0]);
+            if (liveDescriptor) {
+              const noseToMouthRatio = liveDescriptor[2];
+              // Detect looking down or away from screen
+              if (noseToMouthRatio < 0.28 || noseToMouthRatio > 0.68) {
+                consecutiveGazeDeviationSeconds++;
+                if (consecutiveGazeDeviationSeconds >= 3) {
+                  consecutiveGazeDeviationSeconds = 0;
+                  logEventCallback('gaze_deviation', { ratio: noseToMouthRatio });
+                  if (now - lastFaceWarningTime.value > 15000) {
+                    warningCallback('Please look directly at your exam screen.');
+                    lastFaceWarningTime.value = now;
+                  }
+                }
+              } else {
+                consecutiveGazeDeviationSeconds = 0;
+              }
+
+              // Perform Proxy candidate Face Matching against registered 3-sample profile
+              if (referenceDescriptor.value && referenceDescriptorsList.value.length > 0) {
                 // Calculate minimum distance across all 3 selfie reference samples + averaged vector
                 const distances = referenceDescriptorsList.value.map(refVec => calculateDescriptorDistance(refVec, liveDescriptor));
                 distances.push(calculateDescriptorDistance(referenceDescriptor.value, liveDescriptor));
