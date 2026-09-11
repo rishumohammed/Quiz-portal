@@ -62,7 +62,7 @@ export const useObjectDetection = () => {
               cellPhoneCounter = 0;
               logEventCallback('mobile_phone_detected', { object: 'cell phone' });
               
-              if (Date.now() - lastWarningTime.value > 4000) { // 4s warning throttle
+              if (Date.now() - lastWarningTime.value > 8000) { // 8s warning throttle
                 warningCallback('Mobile phone detected. Please put away all secondary devices.');
                 lastWarningTime.value = Date.now();
               }
@@ -84,10 +84,16 @@ export const useObjectDetection = () => {
     }
   };
 
+  const resetWarningTimers = (gracePeriodMs = 5000) => {
+    lastWarningTime.value = Date.now() + gracePeriodMs;
+    cellPhoneCounter = 0;
+  };
+
   return {
     loadModel,
     startDetection,
     stopDetection,
+    resetWarningTimers,
     isModelLoading,
     objectDetectionError
   };

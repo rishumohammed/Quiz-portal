@@ -6,7 +6,7 @@
       :show="violationWarning.show" 
       :message="violationWarning.message" 
       :is-auto-submitting="submittingExam"
-      @dismiss="proctoring.dismissWarning()" 
+      @dismiss="handleDismissWarning" 
     />
     <WebcamThumbnail 
       v-if="examConfig?.enable_proctoring && recorder.stream.value" 
@@ -478,6 +478,15 @@ const isRequestingCamera = ref(false);
 
 const violationWarning = proctoring.violationWarning;
 
+function handleDismissWarning() {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+  faceDetection.resetWarningTimers(5000);
+  objectDetection.resetWarningTimers(5000);
+  proctoring.dismissWarning();
+}
+
 
 const requiresFullscreen = computed(() => {
   return examConfig.value?.enforce_fullscreen && !isFullScreen.value && attemptId.value !== '';
@@ -651,6 +660,7 @@ async function onVideoReady(videoEl: HTMLVideoElement) {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
+      if (proctoring.violationWarning.value.show) return;
       proctoring.violationWarning.value = { show: true, message: msg };
       proctoring.speakWarning(msg);
     },
@@ -660,6 +670,7 @@ async function onVideoReady(videoEl: HTMLVideoElement) {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
+      if (proctoring.violationWarning.value.show) return;
       proctoring.violationWarning.value = { show: true, message: msg };
       proctoring.speakWarning(msg);
     }

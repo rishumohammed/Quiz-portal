@@ -200,6 +200,9 @@ export const useProctoring = () => {
   };
 
   const dismissWarning = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     violationWarning.value.show = false;
     if (!isFullscreen.value) {
       requestFullscreen().catch(e => console.warn('Could not re-enter fullscreen:', e));

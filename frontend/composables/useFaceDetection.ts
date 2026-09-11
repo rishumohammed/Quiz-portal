@@ -94,6 +94,7 @@ export const useFaceDetection = () => {
   let lastProxyMismatchLogTime = 0;
   let mismatchCount = 0;
   let consecutiveGazeDeviationSeconds = 0;
+  let consecutiveNoFaceSeconds = 0;
 
   let isEstimatingFaces = false;
 
@@ -213,7 +214,7 @@ export const useFaceDetection = () => {
 
     if (!enableFaceDetection) return;
 
-    let consecutiveNoFaceSeconds = 0;
+    consecutiveNoFaceSeconds = 0;
 
     detectionInterval = setInterval(async () => {
       if (videoElement && videoElement.readyState >= 2 && model.value) {
@@ -278,11 +279,10 @@ export const useFaceDetection = () => {
 
                 if (isTurningHead || isLookingDown || isLookingUp) {
                   consecutiveGazeDeviationSeconds++;
-                  if (consecutiveGazeDeviationSeconds >= 1) { // Immediate 1-hit detection (~350ms - 700ms)
-                    consecutiveGazeDeviationSeconds = 0;
+                  if (consecutiveGazeDeviationSeconds >= 2) { // 2 consecutive checks (~1.5s) to avoid single-frame false positives
                     logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, pitchRatio: Math.round(pitchRatio * 100)/100 });
                     
-                    if (now - lastGazeWarningTime.value > 3000) { // Dedicated 3s warning throttle
+                    if (now - lastGazeWarningTime.value > 8000) { // 8s warning throttle
                       warningCallback('Please look directly at your exam screen.');
                       lastGazeWarningTime.value = now;
                     }
@@ -354,6 +354,17 @@ export const useFaceDetection = () => {
     }
   };
 
+  const resetWarningTimers = (gracePeriodMs = 5000) => {
+    const futureTime = Date.now() + gracePeriodMs;
+    lastFaceWarningTime.value = futureTime;
+    lastGazeWarningTime.value = futureTime;
+    lastMissingFaceWarningTime.value = futureTime;
+    lastMultipleFacesWarningTime.value = futureTime;
+    lastProxyWarningTime.value = futureTime;
+    consecutiveGazeDeviationSeconds = 0;
+    consecutiveNoFaceSeconds = 0;
+  };
+
   return {
     loadModel,
     estimateFaces,
@@ -362,6 +373,7 @@ export const useFaceDetection = () => {
     referenceDescriptor,
     startDetection,
     stopDetection,
+    resetWarningTimers,
     isModelLoading,
     faceDetectionError
   };

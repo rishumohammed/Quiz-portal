@@ -573,15 +573,26 @@ router.post('/:id/attempt', requireCandidateToken, async (req, res) => {
       return res.status(403).json({ message: 'This exam has already ended.' });
     }
 
+    const effectiveCandidateId = candidate_id || candidateFromToken?.candidateId || null;
+    const effectiveEmail = guest_email || candidateFromToken?.email || null;
+
     // Check attempts limit for registered candidates
-    if (!is_anonymous && candidateFromToken?.candidateId) {
-      const [existingAttempts] = await pool.query('SELECT COUNT(*) as count FROM public_exam_attempts WHERE exam_id = ? AND candidate_id = ?', [examId, candidateFromToken.candidateId]);
-      if (existingAttempts[0].count > 0) {
+    if (!is_anonymous && (effectiveCandidateId || effectiveEmail)) {
+      const [existingAttempts] = await pool.query(
+        'SELECT COUNT(*) as count FROM public_exam_attempts WHERE exam_id = ? AND (candidate_id = ? OR (guest_email = ? AND guest_email IS NOT NULL))',
+        [examId, effectiveCandidateId, effectiveEmail]
+      );
+      
+      const attemptCount = existingAttempts[0].count;
+      if (attemptCount > 0) {
         if (!exam.allow_retake) {
           return res.status(403).json({ message: 'You have already attempted this exam. Retakes are not allowed.' });
         }
-        if (exam.max_retakes > 0 && existingAttempts[0].count >= exam.max_retakes) {
-          return res.status(403).json({ message: `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.` });
+        if (exam.max_retakes > 0) {
+          const totalAllowed = 1 + exam.max_retakes; // 1 initial attempt + max_retakes
+          if (attemptCount >= totalAllowed) {
+            return res.status(403).json({ message: `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.` });
+          }
         }
       }
     }
@@ -614,11 +625,11 @@ router.post('/:id/attempt', requireCandidateToken, async (req, res) => {
       attemptId,
       examId,
       finalName,
-      guest_email || null,
+      effectiveEmail,
       guest_phone || null,
       !!is_anonymous,
       sessionExpiresAt,
-      candidate_id || null
+      effectiveCandidateId
     ]);
 
     // If registered candidate has reference_photo_url, auto-log reference_face_registered event
