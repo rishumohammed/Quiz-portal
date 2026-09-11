@@ -695,6 +695,13 @@ router.get('/attempts/:id/verify', requireCandidateToken, async (req, res) => {
     }
 
     const attempt = attempts[0];
+    if (attempt.candidate_id) {
+      const [cands] = await pool.query('SELECT id FROM public_exam_candidates WHERE id = ?', [attempt.candidate_id]);
+      if (cands.length === 0) {
+        return res.status(401).json({ valid: false, message: 'Candidate account has been deleted.' });
+      }
+    }
+
     if (attempt.candidate_id && candidateId && attempt.candidate_id !== candidateId) {
       return res.status(403).json({ valid: false, message: 'You are not authorised to view or submit this attempt.' });
     }
