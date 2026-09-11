@@ -82,6 +82,10 @@ export const useFaceDetection = () => {
   const isModelLoading = ref(false);
   const faceDetectionError = ref('');
   const lastFaceWarningTime = ref(0);
+  const lastGazeWarningTime = ref(0);
+  const lastMissingFaceWarningTime = ref(0);
+  const lastMultipleFacesWarningTime = ref(0);
+  const lastProxyWarningTime = ref(0);
   const referenceDescriptor = ref<number[] | null>(null);
   const referenceDescriptorsList = ref<number[][]>([]);
   
@@ -224,70 +228,93 @@ export const useFaceDetection = () => {
               
               logEventCallback('face_absent');
               
-              if (enableFaceMissingAlert && now - lastFaceWarningTime.value > 5000) {
+              if (enableFaceMissingAlert && now - lastMissingFaceWarningTime.value > 3000) {
                 warningCallback('Please ensure your face is visible to the camera.');
-                lastFaceWarningTime.value = now;
+                lastMissingFaceWarningTime.value = now;
               }
             }
           } else if (faces.length > 1) {
             consecutiveNoFaceSeconds = 0;
             
-            // Throttle multiple_faces event to at most once every 5 seconds
-            if (now - lastMultipleFacesLogTime >= 5000) {
+            // Throttle multiple_faces event to at most once every 3 seconds
+            if (now - lastMultipleFacesLogTime >= 3000) {
               logEventCallback('multiple_faces', { count: faces.length });
               lastMultipleFacesLogTime = now;
             }
             
-            if (enableMultipleFacesAlert && now - lastFaceWarningTime.value > 5000) {
+            if (enableMultipleFacesAlert && now - lastMultipleFacesWarningTime.value > 3000) {
               warningCallback('Multiple faces detected. Ensure you are alone.');
-              lastFaceWarningTime.value = now;
+              lastMultipleFacesWarningTime.value = now;
             }
           } else {
             // Exactly 1 face detected
             consecutiveNoFaceSeconds = 0;
+            const face = faces[0];
 
-            const liveDescriptor = extractFacialDescriptor(faces[0]);
-            if (liveDescriptor) {
-              const noseToMouthRatio = liveDescriptor[2];
-              // Detect looking down or away from screen
-              if (noseToMouthRatio < 0.32 || noseToMouthRatio > 0.64) {
-                consecutiveGazeDeviationSeconds++;
-                if (consecutiveGazeDeviationSeconds >= 2) { // 2 consecutive checks (approx 1.5s)
-                  consecutiveGazeDeviationSeconds = 0;
-                  logEventCallback('gaze_deviation', { ratio: noseToMouthRatio });
-                  if (now - lastFaceWarningTime.value > 5000) { // 5s warning throttle
-                    warningCallback('Please look directly at your exam screen.');
-                    lastFaceWarningTime.value = now;
-                  }
-                }
-              } else {
-                consecutiveGazeDeviationSeconds = 0;
-              }
+            // 1. Direct 3D Keypoint Head Pose & Gaze Deviation Evaluation (Yaw & Pitch)
+            if (face.keypoints && Array.isArray(face.keypoints) && face.keypoints.length >= 4) {
+              const kps = face.keypoints;
+              const getKp = (name: string) => kps.find((k: any) => k && k.name && (k.name === name || k.name.toLowerCase().includes(name.toLowerCase())));
+              
+              const leftEye = getKp('leftEye') || getKp('eyeLeft') || kps[1] || kps[0];
+              const rightEye = getKp('rightEye') || getKp('eyeRight') || kps[0] || kps[1];
+              const nose = getKp('noseTip') || getKp('nose') || kps[2];
+              const mouth = getKp('mouthCenter') || getKp('mouth') || kps[3];
 
-              // Perform Proxy candidate Face Matching against registered 3-sample profile
-              if (referenceDescriptor.value && referenceDescriptorsList.value.length > 0) {
-                // Calculate minimum distance across all 3 selfie reference samples + averaged vector
-                const distances = referenceDescriptorsList.value.map(refVec => calculateDescriptorDistance(refVec, liveDescriptor));
-                distances.push(calculateDescriptorDistance(referenceDescriptor.value, liveDescriptor));
-                
-                const minDistance = Math.min(...distances);
-                
-                // Mismatch threshold for geometry distance
-                if (minDistance > 0.22) {
-                  mismatchCount++;
-                  if (mismatchCount >= 3) { // Require 3 consecutive mismatch checks (3s) to avoid single frame jitter
-                    if (now - lastProxyMismatchLogTime >= 20000) { // Throttle mismatch events to once every 20s
-                      logEventCallback('proxy_mismatch', { distance: Math.round(minDistance * 100) / 100, samples_compared: referenceDescriptorsList.value.length });
-                      lastProxyMismatchLogTime = now;
-                    }
-                    if (now - lastFaceWarningTime.value > 15000) {
-                      warningCallback('Facial mismatch detected! Please ensure the registered candidate is writing the exam.');
-                      lastFaceWarningTime.value = now;
+              if (leftEye && rightEye && nose && mouth) {
+                const distLeftToNose = Math.hypot(leftEye.x - nose.x, leftEye.y - nose.y);
+                const distRightToNose = Math.hypot(rightEye.x - nose.x, rightEye.y - nose.y);
+                const yawRatio = distLeftToNose / (distRightToNose || 1);
+
+                const eyeCenterY = (leftEye.y + rightEye.y) / 2;
+                const eyeToNoseY = Math.abs(nose.y - eyeCenterY);
+                const noseToMouthY = Math.abs(mouth.y - nose.y);
+                const pitchRatio = eyeToNoseY / (noseToMouthY || 1);
+
+                // Check head turn (yaw) or looking down/up (pitch)
+                const isTurningHead = yawRatio < 0.45 || yawRatio > 2.2;
+                const isLookingDown = pitchRatio > 1.65 || noseToMouthY < 9;
+                const isLookingUp = pitchRatio < 0.38;
+
+                if (isTurningHead || isLookingDown || isLookingUp) {
+                  consecutiveGazeDeviationSeconds++;
+                  if (consecutiveGazeDeviationSeconds >= 1) { // Immediate 1-hit detection (~350ms - 700ms)
+                    consecutiveGazeDeviationSeconds = 0;
+                    logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, pitchRatio: Math.round(pitchRatio * 100)/100 });
+                    
+                    if (now - lastGazeWarningTime.value > 3000) { // Dedicated 3s warning throttle
+                      warningCallback('Please look directly at your exam screen.');
+                      lastGazeWarningTime.value = now;
                     }
                   }
                 } else {
-                  mismatchCount = 0;
+                  consecutiveGazeDeviationSeconds = 0;
                 }
+              }
+            }
+
+            // 2. Perform Proxy candidate Face Matching against registered 3-sample profile
+            const liveDescriptor = extractFacialDescriptor(face);
+            if (liveDescriptor && referenceDescriptor.value && referenceDescriptorsList.value.length > 0) {
+              const distances = referenceDescriptorsList.value.map(refVec => calculateDescriptorDistance(refVec, liveDescriptor));
+              distances.push(calculateDescriptorDistance(referenceDescriptor.value, liveDescriptor));
+              
+              const minDistance = Math.min(...distances);
+              
+              if (minDistance > 0.22) {
+                mismatchCount++;
+                if (mismatchCount >= 3) {
+                  if (now - lastProxyMismatchLogTime >= 15000) {
+                    logEventCallback('proxy_mismatch', { distance: Math.round(minDistance * 100) / 100, samples_compared: referenceDescriptorsList.value.length });
+                    lastProxyMismatchLogTime = now;
+                  }
+                  if (now - lastProxyWarningTime.value > 10000) {
+                    warningCallback('Facial mismatch detected! Please ensure the registered candidate is writing the exam.');
+                    lastProxyWarningTime.value = now;
+                  }
+                }
+              } else {
+                mismatchCount = 0;
               }
             }
           }
