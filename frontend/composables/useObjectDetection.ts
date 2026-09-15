@@ -64,16 +64,17 @@ export const useObjectDetection = () => {
     cellPhoneCounter = 0;
     isDetecting = false;
 
-    // High-frequency 350ms loop for sub-second/fast phone detection
+    // High-frequency 250ms loop for sub-second instant phone & secondary device detection
     detectionInterval = setInterval(async () => {
       if (videoElement && videoElement.readyState >= 2 && model.value && !isDetecting) {
         try {
           isDetecting = true;
-          // maxNumBoxes: 6, minScore: 0.35 (Lower threshold detects phones instantly even at angles or held by hands)
-          const predictions = await model.value.detect(videoElement, 6, 0.35);
+          // maxNumBoxes: 10, minScore: 0.20 (Sensitive threshold detects phones instantly even at angles or held in hand)
+          const predictions = await model.value.detect(videoElement, 10, 0.20);
           
+          const TARGET_CLASSES = ['cell phone', 'phone', 'remote', 'book', 'laptop', 'tablet'];
           const phonePrediction = predictions.find(
-            p => (p.class === 'cell phone' || p.class === 'phone' || p.class === 'remote') && p.score >= 0.35
+            p => p && p.class && TARGET_CLASSES.includes(p.class.toLowerCase()) && p.score >= 0.20
           );
           
           if (phonePrediction) {
@@ -81,10 +82,12 @@ export const useObjectDetection = () => {
             if (cellPhoneCounter >= 1) { // Instant 1-hit detection
               cellPhoneCounter = 0;
               const confidence = Math.round(phonePrediction.score * 100);
-              logEventCallback('mobile_phone_detected', { object: phonePrediction.class, confidence: `${confidence}%` });
+              const objectLabel = phonePrediction.class === 'cell phone' || phonePrediction.class === 'phone' ? 'Mobile Phone' : phonePrediction.class;
               
-              if (Date.now() - lastWarningTime.value > 6000) { // 6s warning throttle
-                warningCallback('Mobile phone detected. Please put away all secondary devices immediately.');
+              logEventCallback('mobile_phone_detected', { object: objectLabel, confidence: `${confidence}%` });
+              
+              if (Date.now() - lastWarningTime.value > 4000) { // 4s warning throttle
+                warningCallback(`Secondary device (${objectLabel}) detected. Please put away all secondary devices immediately.`);
                 lastWarningTime.value = Date.now();
               }
             }
@@ -97,7 +100,7 @@ export const useObjectDetection = () => {
           isDetecting = false;
         }
       }
-    }, 350);
+    }, 250);
   };
 
   const stopDetection = () => {

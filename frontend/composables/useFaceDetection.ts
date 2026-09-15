@@ -215,16 +215,19 @@ export const useFaceDetection = () => {
     if (!enableFaceDetection) return;
 
     consecutiveNoFaceSeconds = 0;
+    let isDetectingFace = false;
 
+    // High-frequency 350ms detection loop for sub-second response
     detectionInterval = setInterval(async () => {
-      if (videoElement && videoElement.readyState >= 2 && model.value) {
+      if (videoElement && videoElement.readyState >= 2 && model.value && !isDetectingFace) {
         try {
+          isDetectingFace = true;
           const faces = await model.value.estimateFaces(videoElement, { flipHorizontal: false });
           const now = Date.now();
           
           if (faces.length === 0) {
             consecutiveNoFaceSeconds++;
-            if (consecutiveNoFaceSeconds >= threshold) {
+            if (consecutiveNoFaceSeconds >= Math.max(2, Math.round(threshold * 2))) {
               consecutiveNoFaceSeconds = 0; // Reset counter after triggering
               
               logEventCallback('face_absent');
@@ -279,10 +282,10 @@ export const useFaceDetection = () => {
 
                 if (isTurningHead || isLookingDown || isLookingUp) {
                   consecutiveGazeDeviationSeconds++;
-                  if (consecutiveGazeDeviationSeconds >= 4) { // 4 consecutive checks (~3.5s) to allow brief on-screen glances (Next/Prev buttons, question palette)
+                  if (consecutiveGazeDeviationSeconds >= 3) { // 3 checks @ 350ms (~1.0s) for instant warning when turning off-screen
                     logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, pitchRatio: Math.round(pitchRatio * 100)/100 });
                     
-                    if (now - lastGazeWarningTime.value > 10000) { // 10s warning throttle
+                    if (now - lastGazeWarningTime.value > 5000) { // 5s warning throttle
                       warningCallback('Please keep your eyes focused on your exam screen.');
                       lastGazeWarningTime.value = now;
                     }
@@ -320,9 +323,11 @@ export const useFaceDetection = () => {
           }
         } catch (e) {
           console.warn('Face estimation error', e);
+        } finally {
+          isDetectingFace = false;
         }
       }
-    }, 1000);
+    }, 300);
   };
 
   const estimateFaces = async (videoElement: HTMLVideoElement, config: any = { flipHorizontal: false }) => {
