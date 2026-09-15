@@ -10,32 +10,45 @@ export const useObjectDetection = () => {
   
   let detectionInterval: NodeJS.Timeout | null = null;
   let cellPhoneCounter = 0;
+  let isDetecting = false;
 
   const loadModel = async () => {
+    if (model.value) return;
     try {
       isModelLoading.value = true;
       objectDetectionError.value = '';
-      model.value = await cocoSsd.load();
+      // Load ultra-lightweight mobile architecture for maximum FPS and speed
+      model.value = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      console.info('[ObjectDetection] COCO-SSD lite model loaded successfully.');
     } catch (err: any) {
       console.error('Object detection model failed to load', err);
-      objectDetectionError.value = 'Failed to load object detection model.';
+      // Fallback load without explicit base config if lite_mobilenet_v2 fails
+      try {
+        model.value = await cocoSsd.load();
+      } catch (fallbackErr) {
+        objectDetectionError.value = 'Failed to load object detection model.';
+      }
     } finally {
       isModelLoading.value = false;
     }
   };
 
-  const startDetection = async (videoElement: HTMLVideoElement, logEventCallback: (type: string, meta?: any) => void, warningCallback: (msg: string) => void) => {
+  const startDetection = async (
+    videoElement: HTMLVideoElement, 
+    logEventCallback: (type: string, meta?: any) => void, 
+    warningCallback: (msg: string) => void
+  ) => {
     if (detectionInterval) {
       clearInterval(detectionInterval);
       detectionInterval = null;
     }
 
     if (!model.value) {
-      console.info('[ObjectDetection] Model not ready yet. Waiting for COCO-SSD model...');
+      console.info('[ObjectDetection] Model not ready yet. Pre-loading COCO-SSD model...');
       if (isModelLoading.value) {
         let attempts = 0;
         while (!model.value && attempts < 30) {
-          await new Promise(res => setTimeout(res, 500));
+          await new Promise(res => setTimeout(res, 300));
           attempts++;
         }
       } else {
@@ -47,23 +60,31 @@ export const useObjectDetection = () => {
       }
     }
 
-    console.info('[ObjectDetection] Object & phone detection loop active.');
+    console.info('[ObjectDetection] Fast secondary device & phone detection loop active.');
+    cellPhoneCounter = 0;
+    isDetecting = false;
 
-    // Run every 800ms
+    // High-frequency 350ms loop for sub-second/fast phone detection
     detectionInterval = setInterval(async () => {
-      if (videoElement && videoElement.readyState >= 2 && model.value) {
+      if (videoElement && videoElement.readyState >= 2 && model.value && !isDetecting) {
         try {
-          const predictions = await model.value.detect(videoElement);
-          const hasCellPhone = predictions.some(p => p.class === 'cell phone' && p.score > 0.5);
+          isDetecting = true;
+          // maxNumBoxes: 6, minScore: 0.35 (Lower threshold detects phones instantly even at angles or held by hands)
+          const predictions = await model.value.detect(videoElement, 6, 0.35);
           
-          if (hasCellPhone) {
+          const phonePrediction = predictions.find(
+            p => (p.class === 'cell phone' || p.class === 'phone' || p.class === 'remote') && p.score >= 0.35
+          );
+          
+          if (phonePrediction) {
             cellPhoneCounter++;
-            if (cellPhoneCounter >= 1) { // Immediate 1-hit detection
+            if (cellPhoneCounter >= 1) { // Instant 1-hit detection
               cellPhoneCounter = 0;
-              logEventCallback('mobile_phone_detected', { object: 'cell phone' });
+              const confidence = Math.round(phonePrediction.score * 100);
+              logEventCallback('mobile_phone_detected', { object: phonePrediction.class, confidence: `${confidence}%` });
               
-              if (Date.now() - lastWarningTime.value > 8000) { // 8s warning throttle
-                warningCallback('Mobile phone detected. Please put away all secondary devices.');
+              if (Date.now() - lastWarningTime.value > 6000) { // 6s warning throttle
+                warningCallback('Mobile phone detected. Please put away all secondary devices immediately.');
                 lastWarningTime.value = Date.now();
               }
             }
@@ -71,10 +92,12 @@ export const useObjectDetection = () => {
             cellPhoneCounter = 0;
           }
         } catch (e) {
-          console.warn('Object estimation error', e);
+          console.warn('Object estimation error:', e);
+        } finally {
+          isDetecting = false;
         }
       }
-    }, 800);
+    }, 350);
   };
 
   const stopDetection = () => {
@@ -82,6 +105,7 @@ export const useObjectDetection = () => {
       clearInterval(detectionInterval);
       detectionInterval = null;
     }
+    isDetecting = false;
   };
 
   const resetWarningTimers = (gracePeriodMs = 5000) => {
@@ -98,3 +122,4 @@ export const useObjectDetection = () => {
     objectDetectionError
   };
 };
+

@@ -940,6 +940,11 @@ onMounted(async () => {
   try {
     const { data } = await api.get(`/public/exams/${examSlug.value}`);
     examConfig.value = data;
+    // Pre-load AI models in background as early as possible to eliminate model download delay
+    if (examConfig.value?.enable_proctoring) {
+      faceDetection.loadModel().catch(() => {});
+      objectDetection.loadModel().catch(() => {});
+    }
   } catch(e) {
     console.error("Failed to fetch exam config", e);
   }

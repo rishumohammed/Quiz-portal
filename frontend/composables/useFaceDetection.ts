@@ -272,18 +272,18 @@ export const useFaceDetection = () => {
                 const noseToMouthY = Math.abs(mouth.y - nose.y);
                 const pitchRatio = eyeToNoseY / (noseToMouthY || 1);
 
-                // Check head turn (yaw) or looking down/up (pitch)
-                const isTurningHead = yawRatio < 0.45 || yawRatio > 2.2;
-                const isLookingDown = pitchRatio > 1.65 || noseToMouthY < 9;
-                const isLookingUp = pitchRatio < 0.38;
+                // Check head turn (yaw) or looking down/up (pitch) with relaxed tolerances for on-screen navigation
+                const isTurningHead = yawRatio < 0.32 || yawRatio > 3.1;
+                const isLookingDown = pitchRatio > 2.2;
+                const isLookingUp = pitchRatio < 0.28;
 
                 if (isTurningHead || isLookingDown || isLookingUp) {
                   consecutiveGazeDeviationSeconds++;
-                  if (consecutiveGazeDeviationSeconds >= 2) { // 2 consecutive checks (~1.5s) to avoid single-frame false positives
+                  if (consecutiveGazeDeviationSeconds >= 4) { // 4 consecutive checks (~3.5s) to allow brief on-screen glances (Next/Prev buttons, question palette)
                     logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, pitchRatio: Math.round(pitchRatio * 100)/100 });
                     
-                    if (now - lastGazeWarningTime.value > 8000) { // 8s warning throttle
-                      warningCallback('Please look directly at your exam screen.');
+                    if (now - lastGazeWarningTime.value > 10000) { // 10s warning throttle
+                      warningCallback('Please keep your eyes focused on your exam screen.');
                       lastGazeWarningTime.value = now;
                     }
                   }

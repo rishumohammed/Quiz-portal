@@ -279,6 +279,11 @@ onMounted(async () => {
   await examStore.loadAttempt(attemptId.value);
   attempt.value = examStore.attempt;
 
+  if (isProctoringEnabled.value) {
+    faceDetection.loadModel().catch(() => {});
+    objectDetection.loadModel().catch(() => {});
+  }
+
   // If attempt is already in_progress (e.g. after refresh), skip checklist
   if (attempt.value?.status === 'in_progress') {
     await resumeExam();
