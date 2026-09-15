@@ -5,9 +5,15 @@ import emailService from '../services/email.service.js';
 export const initFollowupJob = () => {
   // Schedule to run every day at 8:00 AM
   cron.schedule('0 8 * * *', async () => {
-    console.log('Running daily follow-up reminder job...');
-    
     try {
+      // Check if lead_followups table exists (pruned in Talent Hunt mode)
+      const [tableCheck] = await pool.query("SHOW TABLES LIKE 'lead_followups'");
+      if (tableCheck.length === 0) {
+        return; // Table not present, skip execution cleanly
+      }
+
+      console.log('Running daily follow-up reminder job...');
+      
       // Get all agents who have pending follow-ups today
       const [agents] = await pool.query(`
         SELECT DISTINCT u.id, u.email, u.name
@@ -58,7 +64,9 @@ export const initFollowupJob = () => {
         }
       }
     } catch (error) {
-      console.error('Error in follow-up reminder job:', error);
+      if (error.code === 'ER_NO_SUCH_TABLE') return;
+      console.error('Error in follow-up reminder job:', error.message);
     }
   });
 };
+

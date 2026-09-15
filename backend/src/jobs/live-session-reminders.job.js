@@ -6,13 +6,10 @@ import dayjs from 'dayjs';
 export const initLiveSessionJob = () => {
   // Run every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
-    console.log('Running Live Session Reminders Check...');
-    
     try {
-      // Find sessions starting in the next 30-35 minutes that haven't been reminded yet
-      // (Using a status or a flag to prevent multiple reminders would be better, 
-      // but for now we'll check based on the time window)
-      
+      const [tableCheck] = await pool.query("SHOW TABLES LIKE 'course_lessons'");
+      if (tableCheck.length === 0) return;
+
       const now = dayjs();
       const thirtyMinsLater = now.add(30, 'minute');
       const thirtyFiveMinsLater = now.add(35, 'minute');
@@ -27,9 +24,6 @@ export const initLiveSessionJob = () => {
       `, [thirtyMinsLater.format('YYYY-MM-DD HH:mm:ss'), thirtyFiveMinsLater.format('YYYY-MM-DD HH:mm:ss')]);
 
       for (const session of sessions) {
-        console.log(`Sending reminders for live session: ${session.title}`);
-        
-        // Get enrolled students
         const [enrollments] = await pool.query('SELECT student_id FROM enrollments WHERE course_id = ?', [session.course_id]);
         
         for (const enrollment of enrollments) {
@@ -44,7 +38,9 @@ export const initLiveSessionJob = () => {
         }
       }
     } catch (error) {
-      console.error('Error in live session reminder job:', error);
+      if (error.code === 'ER_NO_SUCH_TABLE') return;
+      console.error('Error in live session reminder job:', error.message);
     }
   });
 };
+
