@@ -266,7 +266,7 @@ export const useFaceDetection = () => {
             consecutiveMultipleFaces = 0;
             const face = faces[0];
 
-            // 1. Direct Keypoint Head Pose & Gaze Deviation Evaluation (Yaw & Pitch)
+            // 1. Robust Keypoint Head Pose & Gaze Deviation Evaluation (Yaw & Pitch)
             if (face.keypoints && Array.isArray(face.keypoints) && face.keypoints.length >= 4) {
               const kps = face.keypoints;
               const getKp = (name: string) => kps.find((k: any) => k && k.name && (k.name === name || k.name.toLowerCase().includes(name.toLowerCase())));
@@ -277,37 +277,45 @@ export const useFaceDetection = () => {
               const mouth = getKp('mouthCenter') || getKp('mouth') || kps[3];
 
               if (leftEye && rightEye && nose && mouth) {
-                const distLeftToNose = Math.hypot(leftEye.x - nose.x, leftEye.y - nose.y);
-                const distRightToNose = Math.hypot(rightEye.x - nose.x, rightEye.y - nose.y);
-                const yawRatio = distLeftToNose / (distRightToNose || 1);
-
+                // Inter-ocular distance (stable baseline)
+                const eyeDist = Math.max(15, Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y));
+                const eyeCenterX = (leftEye.x + rightEye.x) / 2;
                 const eyeCenterY = (leftEye.y + rightEye.y) / 2;
-                const faceSpanY = Math.max(20, Math.abs(mouth.y - eyeCenterY));
-                const noseRelativeY = (nose.y - eyeCenterY) / faceSpanY;
 
-                // Tolerant yaw (head turning sideways away from screen): allow wide viewing angles
-                const isTurningHead = yawRatio < 0.18 || yawRatio > 5.5;
+                // Horizontal symmetry offset (Yaw):
+                // Measures horizontal displacement of nose relative to eye center scaled by eye distance.
+                // Looking around normal screen: Math.abs(horizontalNoseOffset) is <= 0.35.
+                // Only flag if candidate turns head sideways severely away from the monitor (> 55-60 degrees):
+                const horizontalNoseOffset = (nose.x - eyeCenterX) / eyeDist;
+                const isTurningHead = Math.abs(horizontalNoseOffset) > 0.70;
 
-                // Tolerant pitch:
-                // Normal looking straight at screen: noseRelativeY ~ 0.45 - 0.58
-                // Normal looking down at screen bottom / options / keyboard: noseRelativeY ~ 0.60 - 0.78
-                // Severe head tilt away from screen (looking down at lap / floor): noseRelativeY > 0.90 or nose below mouth
-                const isLookingDownCompletely = noseRelativeY > 0.92 || (nose.y >= mouth.y);
-                const isLookingUpCeiling = noseRelativeY < 0.16;
+                // Vertical pitch relative to eyes:
+                // noseOffsetY is distance from eye center to nose in units of eye distance.
+                // Normal looking straight: ~0.50 - 0.60
+                // Normal looking down at screen options / keyboard: ~0.65 - 0.95 (fully permitted)
+                // Severe head tilt away from screen (looking down at lap / floor / phone under table):
+                // Only flag if nose.y is at/below mouth.y OR noseOffsetY > 1.35
+                const noseOffsetY = (nose.y - eyeCenterY) / eyeDist;
+                const isLookingDownCompletely = (nose.y >= mouth.y) || (noseOffsetY > 1.35);
+                const isLookingUpCeiling = noseOffsetY < 0.15;
 
                 if (isTurningHead || isLookingDownCompletely || isLookingUpCeiling) {
                   consecutiveGazeDeviationSeconds++;
-                  // Require 3 seconds (8-9 consecutive checks @ 350ms) of continuous looking away
-                  if (consecutiveGazeDeviationSeconds >= 8) {
+                  // Require 14 consecutive deviation checks (~5.0 seconds) of sustained turning away
+                  if (consecutiveGazeDeviationSeconds >= 14) {
                     consecutiveGazeDeviationSeconds = 0; // Reset after logging
-                    logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, noseRelativeY: Math.round(noseRelativeY * 100)/100 });
+                    logEventCallback('gaze_deviation', { 
+                      horizontalOffset: Math.round(horizontalNoseOffset * 100) / 100, 
+                      noseOffsetY: Math.round(noseOffsetY * 100) / 100 
+                    });
                     
-                    if (now - lastGazeWarningTime.value > 3000) { // 3s warning throttle
+                    if (now - lastGazeWarningTime.value > 5000) { // 5s warning throttle
                       warningCallback('Please keep your attention focused on your exam screen.');
                       lastGazeWarningTime.value = now;
                     }
                   }
                 } else {
+                  // Normal head movement smoothly resets deviation counter
                   consecutiveGazeDeviationSeconds = 0;
                 }
               }
