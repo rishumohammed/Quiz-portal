@@ -33,6 +33,7 @@ export const useProctoring = () => {
     // Listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('focus', handleWindowFocus);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('contextmenu', preventDefaultAction);
     document.addEventListener('copy', preventDefaultAction);
@@ -41,7 +42,7 @@ export const useProctoring = () => {
     document.addEventListener('keydown', handleKeydown);
 
     // DevTools detection loop
-    devToolsInterval = setInterval(detectDevTools, 1000);
+    devToolsInterval = setInterval(detectDevTools, 1500);
     
     // Initial Fullscreen check
     checkFullscreen();
@@ -50,6 +51,7 @@ export const useProctoring = () => {
   const cleanupProctoring = () => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('blur', handleWindowBlur);
+    window.removeEventListener('focus', handleWindowFocus);
     document.removeEventListener('fullscreenchange', handleFullscreenChange);
     document.removeEventListener('contextmenu', preventDefaultAction);
     document.removeEventListener('copy', preventDefaultAction);
@@ -57,6 +59,7 @@ export const useProctoring = () => {
     document.removeEventListener('paste', preventDefaultAction);
     document.removeEventListener('keydown', handleKeydown);
     
+    if (blurTimeout) clearTimeout(blurTimeout);
     clearInterval(devToolsInterval);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(e => console.warn('Could not exit fullscreen', e));
@@ -92,20 +95,27 @@ export const useProctoring = () => {
     }
   };
 
+  let lastVoiceSpeakTime = 0;
   const speakWarning = (text: string) => {
-    if (proctoringConfig.value?.enable_voice_alert !== false && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        const enVoice = voices.find(v => v.lang.startsWith('en'));
-        if (enVoice) utterance.voice = enVoice;
-      }
-      
-      utterance.volume = 1;
-      utterance.rate = 1;
-      window.speechSynthesis.speak(utterance);
+    const now = Date.now();
+    if (now - lastVoiceSpeakTime < 6000) return; // Prevent audio overlap
+    lastVoiceSpeakTime = now;
+
+    if (proctoringConfig.value?.enable_voice_alert !== false && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          const enVoice = voices.find(v => v.lang.startsWith('en'));
+          if (enVoice) utterance.voice = enVoice;
+        }
+        
+        utterance.volume = 0.9;
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+      } catch (_) {}
     }
   };
 
@@ -115,10 +125,21 @@ export const useProctoring = () => {
     }
   };
 
+  let blurTimeout: any = null;
   const handleWindowBlur = () => {
-    // Window blur is another strong indicator of leaving the exam
-    if (document.visibilityState !== 'hidden') {
-      handleViolation('window_blur');
+    if (blurTimeout) clearTimeout(blurTimeout);
+    // 1500ms debounce ensures transient internal focus changes (e.g. speech synthesis, dropdowns) don't trigger false warnings
+    blurTimeout = setTimeout(() => {
+      if (typeof document !== 'undefined' && !document.hasFocus() && document.visibilityState !== 'hidden') {
+        handleViolation('window_blur');
+      }
+    }, 1500);
+  };
+
+  const handleWindowFocus = () => {
+    if (blurTimeout) {
+      clearTimeout(blurTimeout);
+      blurTimeout = null;
     }
   };
 
@@ -126,6 +147,7 @@ export const useProctoring = () => {
     return proctoringConfig.value?.max_tab_switches || 5;
   };
 
+  let wasEverFullscreen = false;
   const handleViolation = (type: string) => {
     tabSwitchCount.value++;
     logEvent(type, { count: tabSwitchCount.value });
@@ -138,7 +160,7 @@ export const useProctoring = () => {
       speakWarning(msg);
       if (submitCallback) submitCallback('tab_switch_limit_exceeded');
     } else {
-      const msg = `Warning ${tabSwitchCount.value} out of ${max}: Please do not leave the exam window. Doing so again may result in auto-submission.`;
+      const msg = `Warning ${tabSwitchCount.value} of ${max}: Please do not leave the exam window. Doing so again will auto-submit your exam.`;
       violationWarning.value = { show: true, message: msg };
       speakWarning(msg);
     }
@@ -146,26 +168,29 @@ export const useProctoring = () => {
 
   const handleFullscreenChange = () => {
     checkFullscreen();
-    if (!isFullscreen.value) {
+    if (isFullscreen.value) {
+      wasEverFullscreen = true;
+    } else if (wasEverFullscreen && proctoringConfig.value?.enforce_fullscreen) {
       logEvent('fullscreen_exit');
-      const msg = 'You have exited fullscreen mode. You must return to fullscreen to continue the exam.';
+      const msg = 'You have exited fullscreen mode. Please return to fullscreen to continue.';
       violationWarning.value = { show: true, message: msg };
       speakWarning(msg);
     }
   };
 
   const checkFullscreen = () => {
-    isFullscreen.value = !!document.fullscreenElement;
+    isFullscreen.value = !!(typeof document !== 'undefined' && document.fullscreenElement);
   };
 
   const requestFullscreen = async () => {
     try {
-      if (!document.fullscreenElement) {
+      if (typeof document !== 'undefined' && !document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
       }
+      checkFullscreen();
       violationWarning.value.show = false;
     } catch (e) {
-      console.error('Failed to enter fullscreen', e);
+      console.warn('Fullscreen request:', e);
     }
   };
 

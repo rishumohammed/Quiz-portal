@@ -207,7 +207,7 @@ export const useFaceDetection = () => {
     }
 
     console.info('[FaceDetection] Face detection loop active and monitoring candidate.');
-    const threshold = config.face_missing_threshold || 3;
+    const threshold = config.face_missing_threshold || 4;
     const enableFaceDetection = config.face_detection !== false;
     const enableMultipleFacesAlert = config.multiple_faces_alert !== false;
     const enableFaceMissingAlert = config.face_missing_alert !== false;
@@ -215,9 +215,10 @@ export const useFaceDetection = () => {
     if (!enableFaceDetection) return;
 
     consecutiveNoFaceSeconds = 0;
+    let consecutiveMultipleFaces = 0;
     let isDetectingFace = false;
 
-    // High-frequency 350ms detection loop for sub-second response
+    // 350ms detection loop
     detectionInterval = setInterval(async () => {
       if (videoElement && videoElement.readyState >= 2 && model.value && !isDetectingFace) {
         try {
@@ -226,36 +227,46 @@ export const useFaceDetection = () => {
           const now = Date.now();
           
           if (faces.length === 0) {
+            consecutiveMultipleFaces = 0;
+            consecutiveGazeDeviationSeconds = 0;
             consecutiveNoFaceSeconds++;
-            if (consecutiveNoFaceSeconds >= Math.max(2, Math.round(threshold * 2))) {
+            
+            // Require 3 seconds (~9 checks @ 350ms) of continuous missing face before warning
+            const missingChecksRequired = Math.max(8, Math.round(threshold * 2.5));
+            if (consecutiveNoFaceSeconds >= missingChecksRequired) {
               consecutiveNoFaceSeconds = 0; // Reset counter after triggering
               
               logEventCallback('face_absent');
               
               if (enableFaceMissingAlert && now - lastMissingFaceWarningTime.value > 3000) {
-                warningCallback('Please ensure your face is visible to the camera.');
+                warningCallback('Please ensure your face is clearly visible to the camera.');
                 lastMissingFaceWarningTime.value = now;
               }
             }
           } else if (faces.length > 1) {
             consecutiveNoFaceSeconds = 0;
+            consecutiveGazeDeviationSeconds = 0;
+            consecutiveMultipleFaces++;
             
-            // Throttle multiple_faces event to at most once every 3 seconds
-            if (now - lastMultipleFacesLogTime >= 3000) {
-              logEventCallback('multiple_faces', { count: faces.length });
-              lastMultipleFacesLogTime = now;
-            }
-            
-            if (enableMultipleFacesAlert && now - lastMultipleFacesWarningTime.value > 3000) {
-              warningCallback('Multiple faces detected. Ensure you are alone.');
-              lastMultipleFacesWarningTime.value = now;
+            // Require multiple faces confirmed over at least 3 consecutive frames (~1.0s)
+            if (consecutiveMultipleFaces >= 3) {
+              if (now - lastMultipleFacesLogTime >= 3000) {
+                logEventCallback('multiple_faces', { count: faces.length });
+                lastMultipleFacesLogTime = now;
+              }
+              
+              if (enableMultipleFacesAlert && now - lastMultipleFacesWarningTime.value > 3000) {
+                warningCallback('Multiple faces detected. Please ensure you are alone in the room.');
+                lastMultipleFacesWarningTime.value = now;
+              }
             }
           } else {
             // Exactly 1 face detected
             consecutiveNoFaceSeconds = 0;
+            consecutiveMultipleFaces = 0;
             const face = faces[0];
 
-            // 1. Direct 3D Keypoint Head Pose & Gaze Deviation Evaluation (Yaw & Pitch)
+            // 1. Direct Keypoint Head Pose & Gaze Deviation Evaluation (Yaw & Pitch)
             if (face.keypoints && Array.isArray(face.keypoints) && face.keypoints.length >= 4) {
               const kps = face.keypoints;
               const getKp = (name: string) => kps.find((k: any) => k && k.name && (k.name === name || k.name.toLowerCase().includes(name.toLowerCase())));
@@ -271,22 +282,28 @@ export const useFaceDetection = () => {
                 const yawRatio = distLeftToNose / (distRightToNose || 1);
 
                 const eyeCenterY = (leftEye.y + rightEye.y) / 2;
-                const eyeToNoseY = Math.abs(nose.y - eyeCenterY);
-                const noseToMouthY = Math.abs(mouth.y - nose.y);
-                const pitchRatio = eyeToNoseY / (noseToMouthY || 1);
+                const faceSpanY = Math.max(20, Math.abs(mouth.y - eyeCenterY));
+                const noseRelativeY = (nose.y - eyeCenterY) / faceSpanY;
 
-                // Check head turn (yaw) or looking down/up (pitch) with relaxed tolerances for on-screen navigation
-                const isTurningHead = yawRatio < 0.32 || yawRatio > 3.1;
-                const isLookingDown = pitchRatio > 2.2;
-                const isLookingUp = pitchRatio < 0.28;
+                // Tolerant yaw (head turning sideways away from screen): allow wide viewing angles
+                const isTurningHead = yawRatio < 0.18 || yawRatio > 5.5;
 
-                if (isTurningHead || isLookingDown || isLookingUp) {
+                // Tolerant pitch:
+                // Normal looking straight at screen: noseRelativeY ~ 0.45 - 0.58
+                // Normal looking down at screen bottom / options / keyboard: noseRelativeY ~ 0.60 - 0.78
+                // Severe head tilt away from screen (looking down at lap / floor): noseRelativeY > 0.90 or nose below mouth
+                const isLookingDownCompletely = noseRelativeY > 0.92 || (nose.y >= mouth.y);
+                const isLookingUpCeiling = noseRelativeY < 0.16;
+
+                if (isTurningHead || isLookingDownCompletely || isLookingUpCeiling) {
                   consecutiveGazeDeviationSeconds++;
-                  if (consecutiveGazeDeviationSeconds >= 3) { // 3 checks @ 350ms (~1.0s) for instant warning when turning off-screen
-                    logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, pitchRatio: Math.round(pitchRatio * 100)/100 });
+                  // Require 3 seconds (8-9 consecutive checks @ 350ms) of continuous looking away
+                  if (consecutiveGazeDeviationSeconds >= 8) {
+                    consecutiveGazeDeviationSeconds = 0; // Reset after logging
+                    logEventCallback('gaze_deviation', { yawRatio: Math.round(yawRatio * 100)/100, noseRelativeY: Math.round(noseRelativeY * 100)/100 });
                     
-                    if (now - lastGazeWarningTime.value > 5000) { // 5s warning throttle
-                      warningCallback('Please keep your eyes focused on your exam screen.');
+                    if (now - lastGazeWarningTime.value > 3000) { // 3s warning throttle
+                      warningCallback('Please keep your attention focused on your exam screen.');
                       lastGazeWarningTime.value = now;
                     }
                   }
@@ -296,7 +313,7 @@ export const useFaceDetection = () => {
               }
             }
 
-            // 2. Perform Proxy candidate Face Matching against registered 3-sample profile
+            // 2. Perform Proxy candidate Face Matching against registered reference profile
             const liveDescriptor = extractFacialDescriptor(face);
             if (liveDescriptor && referenceDescriptor.value && referenceDescriptorsList.value.length > 0) {
               const distances = referenceDescriptorsList.value.map(refVec => calculateDescriptorDistance(refVec, liveDescriptor));
@@ -304,15 +321,17 @@ export const useFaceDetection = () => {
               
               const minDistance = Math.min(...distances);
               
-              if (minDistance > 0.22) {
+              // Relaxed threshold (0.45) prevents false alarms from lighting/distance changes
+              if (minDistance > 0.45) {
                 mismatchCount++;
-                if (mismatchCount >= 3) {
+                if (mismatchCount >= 8) { // 8 consecutive samples (~2.8s)
+                  mismatchCount = 0;
                   if (now - lastProxyMismatchLogTime >= 15000) {
                     logEventCallback('proxy_mismatch', { distance: Math.round(minDistance * 100) / 100, samples_compared: referenceDescriptorsList.value.length });
                     lastProxyMismatchLogTime = now;
                   }
                   if (now - lastProxyWarningTime.value > 10000) {
-                    warningCallback('Facial mismatch detected! Please ensure the registered candidate is writing the exam.');
+                    warningCallback('Facial mismatch detected! Please ensure the registered candidate is facing the camera.');
                     lastProxyWarningTime.value = now;
                   }
                 }
@@ -327,7 +346,7 @@ export const useFaceDetection = () => {
           isDetectingFace = false;
         }
       }
-    }, 300);
+    }, 350);
   };
 
   const estimateFaces = async (videoElement: HTMLVideoElement, config: any = { flipHorizontal: false }) => {
@@ -359,7 +378,7 @@ export const useFaceDetection = () => {
     }
   };
 
-  const resetWarningTimers = (gracePeriodMs = 5000) => {
+  const resetWarningTimers = (gracePeriodMs = 3000) => {
     const futureTime = Date.now() + gracePeriodMs;
     lastFaceWarningTime.value = futureTime;
     lastGazeWarningTime.value = futureTime;

@@ -22,7 +22,6 @@ import { initSocket } from './socket/index.js';
 import adminSystemUsersRoutes from './routes/admin.system-users.routes.js';
 import adminEmailTemplatesRoutes from './routes/admin.email-templates.routes.js';
 import adminBackupsRoutes from './routes/admin.backups.routes.js';
-import { initFollowupJob } from './jobs/followup-reminder.job.js';
 import { initExamRemindersJob } from './jobs/exam-reminders.job.js';
 import { initExamAutocompleteJob } from './jobs/exam-autocomplete.job.js';
 import { initBackupJob } from './jobs/backup.job.js';
@@ -140,7 +139,6 @@ const PORT = process.env.PORT || 5000;
 
 // Initialize scheduled jobs
 initExamRemindersJob();
-initFollowupJob();
 initExamAutocompleteJob();
 initBackupJob();
 

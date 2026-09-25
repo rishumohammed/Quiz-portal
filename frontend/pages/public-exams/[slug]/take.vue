@@ -480,13 +480,16 @@ const violationWarning = proctoring.violationWarning;
 
 function handleDismissWarning() {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.cancel(); } catch (_) {}
   }
-  faceDetection.resetWarningTimers(5000);
-  objectDetection.resetWarningTimers(5000);
+  faceDetection.resetWarningTimers(3000);
+  objectDetection.resetWarningTimers(3000);
   proctoring.dismissWarning();
-}
 
+  if (examConfig.value?.enforce_fullscreen && typeof document !== 'undefined' && !document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
 
 const requiresFullscreen = computed(() => {
   return examConfig.value?.enforce_fullscreen && !isFullScreen.value && attemptId.value !== '';
@@ -583,9 +586,9 @@ function formatTime(seconds: number) {
 
 // Fullscreen
 function toggleFullScreen() {
-  const elem = document.documentElement;
+  if (typeof document === 'undefined') return;
   if (!document.fullscreenElement) {
-    elem.requestFullscreen().then(() => {
+    document.documentElement.requestFullscreen().then(() => {
       isFullScreen.value = true;
     }).catch(err => {
       console.warn('Error enabling fullscreen:', err);
@@ -593,6 +596,8 @@ function toggleFullScreen() {
   } else {
     document.exitFullscreen().then(() => {
       isFullScreen.value = false;
+    }).catch(err => {
+      console.warn('Error exiting fullscreen:', err);
     });
   }
 }
@@ -605,7 +610,8 @@ const proctoringConfig = computed(() => {
     face_missing_alert: true,
     multiple_faces_alert: true,
     record_full_video: false,
-    face_missing_threshold: 3,
+    face_missing_threshold: 4,
+    enforce_fullscreen: examConfig.value?.enforce_fullscreen !== false,
     max_tab_switches: examConfig.value?.max_proctoring_warnings || 5
   };
 });
@@ -685,18 +691,14 @@ function initAdvancedProctoring() {
 }
 
 function setupProctoring() {
-  if (!examConfig.value?.enable_proctoring && !examConfig.value?.enforce_fullscreen) return;
-  // useProctoring composable now handles fullscreen change and visibility change internally!
-  // It is initialized after camera is ready.
-  // We only manually handle fullscreen exit enforcement here if proctoring composable is not used for it.
-  // Wait, if enable_proctoring is false, but enforce_fullscreen is true:
-  if (!examConfig.value?.enable_proctoring && examConfig.value?.enforce_fullscreen) {
+  if (typeof document !== 'undefined') {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    isFullScreen.value = !!document.fullscreenElement;
   }
 }
 
 function handleFullscreenChange() {
-  isFullScreen.value = !!document.fullscreenElement;
+  isFullScreen.value = !!(typeof document !== 'undefined' && document.fullscreenElement);
 }
 
 function triggerProctorViolation(customMsg: string) {
