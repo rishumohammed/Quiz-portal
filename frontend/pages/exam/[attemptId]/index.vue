@@ -226,6 +226,19 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- Draggable Webcam Thumbnail & Realtime Proctoring Feed -->
+    <WebcamThumbnail :stream="recorder.stream.value" @video-ready="onVideoReady" />
+
+    <!-- Proctoring Live Debug Telemetry HUD -->
+    <ProctoringDebugHUD />
+
+    <!-- Proctoring Warning Modal -->
+    <ProctoringOverlay 
+      :show="proctoring.violationWarning.value.show" 
+      :message="proctoring.violationWarning.value.message" 
+      @dismiss="dismissViolation" 
+    />
   </div>
 </template>
 
@@ -236,6 +249,7 @@ import ExamQuestionGrid from '@/components/exam/QuestionGrid.vue';
 import ExamQuestionRenderer from '@/components/exam/QuestionRenderer.vue';
 import ProctoringOverlay from '@/components/exam/ProctoringOverlay.vue';
 import WebcamThumbnail from '@/components/exam/WebcamThumbnail.vue';
+import ProctoringDebugHUD from '@/components/exam/ProctoringDebugHUD.vue';
 import { useApi } from '@/composables/useApi';
 import { useProctoring } from '@/composables/useProctoring';
 import { useFaceDetection } from '@/composables/useFaceDetection';
@@ -364,6 +378,11 @@ const onVideoReady = async (videoEl: HTMLVideoElement) => {
       proctoring.speakWarning(msg);
     }
   );
+};
+
+const dismissViolation = () => {
+  proctoring.violationWarning.value = { show: false, message: '' };
+  faceDetection.resetWarningTimers(3000);
 };
 
 // ── Start exam ────────────────────────────────────────────────────────────────

@@ -391,6 +391,12 @@
         </template>
       </v-card>
     </v-overlay>
+
+    <!-- Draggable Webcam Feed with Realtime AI Proctoring Pipeline -->
+    <WebcamThumbnail :stream="recorder.stream.value" @video-ready="onVideoReady" />
+
+    <!-- Proctoring Live Debug Telemetry HUD -->
+    <ProctoringDebugHUD />
   </v-app>
 </template>
 
@@ -404,6 +410,7 @@ import { useObjectDetection } from '@/composables/useObjectDetection';
 import { useWebcamRecorder } from '@/composables/useWebcamRecorder';
 import ProctoringOverlay from '@/components/exam/ProctoringOverlay.vue';
 import WebcamThumbnail from '@/components/exam/WebcamThumbnail.vue';
+import ProctoringDebugHUD from '@/components/exam/ProctoringDebugHUD.vue';
 
 definePageMeta({
   layout: 'empty'
@@ -718,6 +725,7 @@ function triggerProctorViolation(customMsg: string) {
 
 function dismissProctorWarning() {
   showProctorWarningDialog.value = false;
+  faceDetection.resetWarningTimers(3000); // 3 second grace period
   if (examConfig.value?.enforce_fullscreen && !document.fullscreenElement) {
     toggleFullScreen();
   }

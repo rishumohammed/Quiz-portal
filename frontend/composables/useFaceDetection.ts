@@ -5,36 +5,58 @@ let faceDetectionApi: any = null;
 
 /**
  * Global Centralized Proctoring Configuration
- * Easily tunable thresholds, timings, and tolerances
+ * Rebalanced for responsive, accurate detection with hysteresis and zero false alarms on normal UI interaction.
  */
 export const PROCTORING_CONFIG = {
-  // Calibration duration in milliseconds at start of exam
+  // Calibration duration in milliseconds at start of exam (candidate sits naturally)
   calibrationDurationMs: 2500,
 
-  // Head pose tolerances in degrees relative to calibrated neutral baseline
+  // Head Pose Tolerances in degrees relative to candidate's calibrated neutral baseline
   headPose: {
-    yawToleranceDeg: 28,          // ±28° yaw (left/right head turn)
-    pitchUpToleranceDeg: 22,      // 22° pitch up (looking at ceiling)
-    pitchDownToleranceDeg: 45,    // 45° pitch down (generous allowance for reading question choices & Submit button)
-    rollToleranceDeg: 28          // ±28° roll (head tilt sideways)
+    // Yaw (horizontal left/right head turn)
+    yawWarningDeg: 16,           // Deviation > 16° triggers SUSPICIOUS
+    yawRecoveryDeg: 10,          // Deviation <= 10° returns to NORMAL (hysteresis band: 10°..16°)
+
+    // Pitch Up (looking up at ceiling)
+    pitchUpWarningDeg: 15,       // Upward pitch > 15°
+    pitchUpRecoveryDeg: 9,
+
+    // Pitch Down (generous for reading questions, options, and bottom Submit button, but catches looking at desk/lap)
+    pitchDownWarningDeg: 28,     // Downward pitch > 28° (normal Submit button is ~14-18° down)
+    pitchDownRecoveryDeg: 18,
+
+    // Roll (sideways head tilt)
+    rollWarningDeg: 20,          // Sideways tilt > 20°
+    rollRecoveryDeg: 13
   },
 
-  // Exponential Moving Average smoothing factor (0 < alpha <= 1)
-  // Lower = smoother and more noise-resistant, higher = more responsive
-  smoothingFactor: 0.25,
+  // Gaze / Facial Asymmetry Tolerances relative to baseline
+  gaze: {
+    // Horizontal gaze offset (|gazeX - baselineGazeX|)
+    horizontalWarning: 0.20,
+    horizontalRecovery: 0.12,
+
+    // Vertical gaze offset (|gazeY - baselineGazeY|)
+    verticalUpWarning: 0.18,
+    verticalDownWarning: 0.30,   // Generous downward gaze for bottom UI
+    verticalRecovery: 0.14
+  },
+
+  // Exponential Moving Average smoothing factor (0.40 = responsive ~500ms step response, eliminates frame jitter)
+  smoothingFactor: 0.40,
 
   // Timing thresholds in milliseconds
   timing: {
-    detectionIntervalMs: 300,     // Frequency of detection loop
-    suspiciousDurationMs: 1500,   // Time outside tolerance before entering SUSPICIOUS state
-    violationDurationMs: 4000,    // Continuous suspicious time before entering VIOLATION and warning user
-    recoveryRate: 1.5,            // Multiplier for gradual drain of suspicious counter when returning to normal
-    warningCooldownMs: 5000,      // Minimum time between repeated warnings
-    faceMissingViolationMs: 5000, // Continuous missing face duration before warning
-    multipleFacesViolationMs: 3000// Continuous multiple faces duration before warning
+    detectionIntervalMs: 200,     // 5 FPS loop (smooth, real-time, low CPU)
+    suspiciousDurationMs: 1000,   // 1.0s continuous deviation -> SUSPICIOUS state
+    violationDurationMs: 2000,    // 2.0s continuous deviation -> VIOLATION state & warning
+    recoveryDrainRate: 1.0,       // 1:1 drain rate when returning to normal zone
+    warningCooldownMs: 5000,      // Minimum 5s between audible/modal warnings
+    faceMissingViolationMs: 3500, // 3.5s missing face before warning
+    multipleFacesViolationMs: 2000// 2.0s multiple faces before warning
   },
 
-  // Toggle debug telemetry logging to console
+  // Toggle debug telemetry logging to console & UI HUD
   debug: false
 };
 
@@ -44,23 +66,30 @@ export interface HeadPoseData {
   yaw: number;
   pitch: number;
   roll: number;
+  gazeX: number;
+  gazeY: number;
 }
 
 export interface ProctoringDebugTelemetry {
   state: ProctoringState;
   isCalibrated: boolean;
+  calibrationProgress: number; // 0 to 100
   baseline: HeadPoseData;
   rawPose: HeadPoseData;
   smoothedPose: HeadPoseData;
   relativePose: HeadPoseData;
   suspiciousDurationMs: number;
+  violationDurationThresholdMs: number;
+  violationCount: number;
   faceMissingDurationMs: number;
   multipleFacesDurationMs: number;
+  faceCount: number;
   fps: number;
+  activeReason: string;
 }
 
 /**
- * Calculates raw Yaw, Pitch, and Roll angles in degrees from MediaPipe landmarks
+ * Calculates raw Yaw, Pitch, Roll (degrees) and Gaze X, Gaze Y (normalized asymmetry) from MediaPipe landmarks
  */
 export function calculateHeadPose(face: any): HeadPoseData | null {
   if (!face || !face.keypoints || !Array.isArray(face.keypoints) || face.keypoints.length < 4) {
@@ -92,16 +121,26 @@ export function calculateHeadPose(face: any): HeadPoseData | null {
 
   // 2. Yaw: Horizontal head rotation (degrees, turned left is positive, right is negative)
   const yawRatio = rotX / eyeDist;
-  const yawDeg = Math.max(-90, Math.min(90, yawRatio * 85));
+  const yawDeg = Math.max(-90, Math.min(90, yawRatio * 80));
 
   // 3. Pitch: Vertical head rotation (degrees, looking down is positive, looking up is negative)
   const pitchRatio = rotY / eyeDist;
-  const pitchDeg = (pitchRatio - 0.55) * 85;
+  const pitchDeg = Math.max(-90, Math.min(90, (pitchRatio - 0.50) * 80));
+
+  // 4. Gaze X: Normalized horizontal facial asymmetry
+  const leftEyeToNoseDist = Math.hypot(leftEye.x - nose.x, leftEye.y - nose.y);
+  const rightEyeToNoseDist = Math.hypot(rightEye.x - nose.x, rightEye.y - nose.y);
+  const gazeX = Math.max(-1, Math.min(1, (rightEyeToNoseDist - leftEyeToNoseDist) / eyeDist));
+
+  // 5. Gaze Y: Normalized vertical deviation ratio
+  const gazeY = Math.max(-1, Math.min(1, pitchRatio - 0.50));
 
   return {
     yaw: Math.round(yawDeg * 10) / 10,
     pitch: Math.round(pitchDeg * 10) / 10,
-    roll: Math.round(rollDeg * 10) / 10
+    roll: Math.round(rollDeg * 10) / 10,
+    gazeX: Math.round(gazeX * 100) / 100,
+    gazeY: Math.round(gazeY * 100) / 100
   };
 }
 
@@ -160,6 +199,27 @@ export function calculateDescriptorDistance(vecA: number[], vecB: number[]): num
   return Math.sqrt(sumSq);
 }
 
+// Global reactive telemetry for UI HUD & console
+export const globalDebugTelemetry = ref<ProctoringDebugTelemetry>({
+  state: 'CALIBRATING',
+  isCalibrated: false,
+  calibrationProgress: 0,
+  baseline: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+  rawPose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+  smoothedPose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+  relativePose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+  suspiciousDurationMs: 0,
+  violationDurationThresholdMs: PROCTORING_CONFIG.timing.violationDurationMs,
+  violationCount: 0,
+  faceMissingDurationMs: 0,
+  multipleFacesDurationMs: 0,
+  faceCount: 0,
+  fps: 0,
+  activeReason: ''
+});
+
+export const showDebugHUD = ref(false);
+
 export const useFaceDetection = () => {
   const model = shallowRef<faceDetection.FaceDetector | null>(null);
   const isModelLoading = ref(false);
@@ -168,7 +228,7 @@ export const useFaceDetection = () => {
   // Calibration & Baseline state
   const isCalibrating = ref(false);
   const isCalibrated = ref(false);
-  const baseline = ref<HeadPoseData>({ yaw: 0, pitch: 0, roll: 0 });
+  const baseline = ref<HeadPoseData>({ yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 });
   const calibrationSamples = ref<HeadPoseData[]>([]);
 
   // Three-Tier State Machine
@@ -176,6 +236,8 @@ export const useFaceDetection = () => {
   const suspiciousDurationMs = ref(0);
   const faceMissingDurationMs = ref(0);
   const multipleFacesDurationMs = ref(0);
+  const violationCount = ref(0);
+  const activeViolationReason = ref('');
 
   // Warning Cooldown Timers
   const lastFaceWarningTime = ref(0);
@@ -188,23 +250,9 @@ export const useFaceDetection = () => {
   const referenceDescriptor = ref<number[] | null>(null);
   const referenceDescriptorsList = ref<number[][]>([]);
 
-  // Debug Telemetry
-  const debugTelemetry = ref<ProctoringDebugTelemetry>({
-    state: 'CALIBRATING',
-    isCalibrated: false,
-    baseline: { yaw: 0, pitch: 0, roll: 0 },
-    rawPose: { yaw: 0, pitch: 0, roll: 0 },
-    smoothedPose: { yaw: 0, pitch: 0, roll: 0 },
-    relativePose: { yaw: 0, pitch: 0, roll: 0 },
-    suspiciousDurationMs: 0,
-    faceMissingDurationMs: 0,
-    multipleFacesDurationMs: 0,
-    fps: 0
-  });
-
   let detectionInterval: any = null;
   let isEstimatingFaces = false;
-  let smoothedPose: HeadPoseData = { yaw: 0, pitch: 0, roll: 0 };
+  let smoothedPose: HeadPoseData = { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 };
   let isSmoothingInitialized = false;
   let calibrationStartMs = 0;
   let lastFrameTimeMs = 0;
@@ -285,7 +333,7 @@ export const useFaceDetection = () => {
   };
 
   /**
-   * Starts the proctoring detection loop with automatic baseline calibration and temporal smoothing
+   * Starts the proctoring detection loop with baseline calibration, hysteresis, and temporal smoothing
    */
   const startDetection = async (
     videoElement: HTMLVideoElement, 
@@ -316,8 +364,17 @@ export const useFaceDetection = () => {
 
     const cfg = {
       ...PROCTORING_CONFIG,
-      ...userConfig
+      ...userConfig,
+      headPose: { ...PROCTORING_CONFIG.headPose, ...(userConfig.headPose || {}) },
+      gaze: { ...PROCTORING_CONFIG.gaze, ...(userConfig.gaze || {}) },
+      timing: { ...PROCTORING_CONFIG.timing, ...(userConfig.timing || {}) }
     };
+
+    // Auto-check URL query for ?debug=true
+    if (typeof window !== 'undefined' && window.location.search.includes('debug=true')) {
+      showDebugHUD.value = true;
+      cfg.debug = true;
+    }
 
     // Reset calibration state
     isCalibrating.value = true;
@@ -328,16 +385,22 @@ export const useFaceDetection = () => {
     suspiciousDurationMs.value = 0;
     faceMissingDurationMs.value = 0;
     multipleFacesDurationMs.value = 0;
+    violationCount.value = 0;
+    activeViolationReason.value = '';
     isSmoothingInitialized = false;
     lastFrameTimeMs = Date.now();
 
-    console.info(`[FaceDetection] Starting proctoring engine with ${cfg.calibrationDurationMs}ms neutral baseline calibration...`);
+    console.info(`[FaceDetection] Starting proctoring engine (${cfg.calibrationDurationMs}ms calibration, 5 FPS detection)...`);
 
-    // Setup global window debug helper for live console tuning
+    // Setup global window debug helper for real-time console tuning & HUD toggle
     if (typeof window !== 'undefined') {
       (window as any).__KEFTA_PROCTORING_DEBUG__ = {
-        config: cfg,
-        getTelemetry: () => debugTelemetry.value,
+        getConfig: () => cfg,
+        setConfig: (overrides: any) => {
+          Object.assign(cfg, overrides);
+          console.info('[Proctoring Debug] Updated config:', cfg);
+        },
+        getTelemetry: () => globalDebugTelemetry.value,
         recalibrate: () => {
           isCalibrating.value = true;
           isCalibrated.value = false;
@@ -345,6 +408,9 @@ export const useFaceDetection = () => {
           calibrationStartMs = Date.now();
           console.info('[Proctoring Debug] Re-calibrating neutral head baseline...');
         },
+        showHUD: () => { showDebugHUD.value = true; },
+        hideHUD: () => { showDebugHUD.value = false; },
+        toggleHUD: () => { showDebugHUD.value = !showDebugHUD.value; },
         enableDebugLogs: () => { cfg.debug = true; console.info('[Proctoring Debug] Debug logs enabled.'); },
         disableDebugLogs: () => { cfg.debug = false; console.info('[Proctoring Debug] Debug logs disabled.'); }
       };
@@ -364,14 +430,16 @@ export const useFaceDetection = () => {
         const faces = await model.value.estimateFaces(videoElement, { flipHorizontal: false });
 
         // ─────────────────────────────────────────────────────────────
-        // 1. NO FACE DETECTED (TEMPORAL FILTERING)
+        // 1. NO FACE DETECTED (TEMPORAL PERSISTENCE)
         // ─────────────────────────────────────────────────────────────
         if (faces.length === 0) {
           multipleFacesDurationMs.value = 0;
           faceMissingDurationMs.value += deltaTime;
+          activeViolationReason.value = `Face Missing (${Math.round(faceMissingDurationMs.value / 1000)}s)`;
 
           if (faceMissingDurationMs.value >= cfg.timing.faceMissingViolationMs) {
             faceMissingDurationMs.value = 0; // Reset after alert
+            violationCount.value++;
             logEventCallback('face_absent');
 
             if (now - lastMissingFaceWarningTime.value > cfg.timing.warningCooldownMs) {
@@ -379,16 +447,36 @@ export const useFaceDetection = () => {
               lastMissingFaceWarningTime.value = now;
             }
           }
+
+          globalDebugTelemetry.value = {
+            state: currentProctorState.value,
+            isCalibrated: isCalibrated.value,
+            calibrationProgress: isCalibrating.value ? Math.min(100, Math.round(((now - calibrationStartMs) / cfg.calibrationDurationMs) * 100)) : 100,
+            baseline: baseline.value,
+            rawPose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+            smoothedPose,
+            relativePose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+            suspiciousDurationMs: Math.round(suspiciousDurationMs.value),
+            violationDurationThresholdMs: cfg.timing.violationDurationMs,
+            violationCount: violationCount.value,
+            faceMissingDurationMs: Math.round(faceMissingDurationMs.value),
+            multipleFacesDurationMs: 0,
+            faceCount: 0,
+            fps: Math.round(1000 / deltaTime),
+            activeReason: activeViolationReason.value
+          };
         } 
         // ─────────────────────────────────────────────────────────────
-        // 2. MULTIPLE FACES DETECTED (TEMPORAL FILTERING)
+        // 2. MULTIPLE FACES DETECTED (TEMPORAL PERSISTENCE)
         // ─────────────────────────────────────────────────────────────
         else if (faces.length > 1) {
           faceMissingDurationMs.value = 0;
           multipleFacesDurationMs.value += deltaTime;
+          activeViolationReason.value = `Multiple Faces (${faces.length} detected)`;
 
           if (multipleFacesDurationMs.value >= cfg.timing.multipleFacesViolationMs) {
             multipleFacesDurationMs.value = 0; // Reset after alert
+            violationCount.value++;
             logEventCallback('multiple_faces', { count: faces.length });
 
             if (now - lastMultipleFacesWarningTime.value > cfg.timing.warningCooldownMs) {
@@ -396,9 +484,27 @@ export const useFaceDetection = () => {
               lastMultipleFacesWarningTime.value = now;
             }
           }
+
+          globalDebugTelemetry.value = {
+            state: currentProctorState.value,
+            isCalibrated: isCalibrated.value,
+            calibrationProgress: 100,
+            baseline: baseline.value,
+            rawPose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+            smoothedPose,
+            relativePose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+            suspiciousDurationMs: Math.round(suspiciousDurationMs.value),
+            violationDurationThresholdMs: cfg.timing.violationDurationMs,
+            violationCount: violationCount.value,
+            faceMissingDurationMs: 0,
+            multipleFacesDurationMs: Math.round(multipleFacesDurationMs.value),
+            faceCount: faces.length,
+            fps: Math.round(1000 / deltaTime),
+            activeReason: activeViolationReason.value
+          };
         } 
         // ─────────────────────────────────────────────────────────────
-        // 3. NORMAL SINGLE FACE DETECTED
+        // 3. SINGLE FACE DETECTED
         // ─────────────────────────────────────────────────────────────
         else {
           faceMissingDurationMs.value = 0;
@@ -407,7 +513,7 @@ export const useFaceDetection = () => {
           const rawPose = calculateHeadPose(face);
 
           if (rawPose) {
-            // Initialize or apply Exponential Moving Average (EMA) smoothing
+            // Apply Exponential Moving Average (EMA) smoothing (alpha = 0.40)
             if (!isSmoothingInitialized) {
               smoothedPose = { ...rawPose };
               isSmoothingInitialized = true;
@@ -416,25 +522,32 @@ export const useFaceDetection = () => {
               smoothedPose = {
                 yaw: Math.round((alpha * rawPose.yaw + (1 - alpha) * smoothedPose.yaw) * 10) / 10,
                 pitch: Math.round((alpha * rawPose.pitch + (1 - alpha) * smoothedPose.pitch) * 10) / 10,
-                roll: Math.round((alpha * rawPose.roll + (1 - alpha) * smoothedPose.roll) * 10) / 10
+                roll: Math.round((alpha * rawPose.roll + (1 - alpha) * smoothedPose.roll) * 10) / 10,
+                gazeX: Math.round((alpha * rawPose.gazeX + (1 - alpha) * smoothedPose.gazeX) * 100) / 100,
+                gazeY: Math.round((alpha * rawPose.gazeY + (1 - alpha) * smoothedPose.gazeY) * 100) / 100
               };
             }
 
-            // ── PHASE A: INITIAL BASELINE CALIBRATION (2–3 SECONDS) ──
+            // ── PHASE A: INITIAL BASELINE CALIBRATION (2.5 SECONDS) ──
             if (isCalibrating.value) {
               calibrationSamples.value.push({ ...smoothedPose });
               const elapsedCalib = now - calibrationStartMs;
+              const calibProgress = Math.min(100, Math.round((elapsedCalib / cfg.calibrationDurationMs) * 100));
 
               if (elapsedCalib >= cfg.calibrationDurationMs && calibrationSamples.value.length >= 4) {
                 const count = calibrationSamples.value.length;
                 const sumYaw = calibrationSamples.value.reduce((acc, s) => acc + s.yaw, 0);
                 const sumPitch = calibrationSamples.value.reduce((acc, s) => acc + s.pitch, 0);
                 const sumRoll = calibrationSamples.value.reduce((acc, s) => acc + s.roll, 0);
+                const sumGazeX = calibrationSamples.value.reduce((acc, s) => acc + s.gazeX, 0);
+                const sumGazeY = calibrationSamples.value.reduce((acc, s) => acc + s.gazeY, 0);
 
                 baseline.value = {
                   yaw: Math.round((sumYaw / count) * 10) / 10,
                   pitch: Math.round((sumPitch / count) * 10) / 10,
-                  roll: Math.round((sumRoll / count) * 10) / 10
+                  roll: Math.round((sumRoll / count) * 10) / 10,
+                  gazeX: Math.round((sumGazeX / count) * 100) / 100,
+                  gazeY: Math.round((sumGazeY / count) * 100) / 100
                 };
 
                 isCalibrating.value = false;
@@ -442,36 +555,88 @@ export const useFaceDetection = () => {
                 currentProctorState.value = 'NORMAL';
                 console.info('[FaceDetection] Neutral baseline calibrated successfully:', baseline.value);
               }
+
+              globalDebugTelemetry.value = {
+                state: 'CALIBRATING',
+                isCalibrated: false,
+                calibrationProgress: calibProgress,
+                baseline: baseline.value,
+                rawPose,
+                smoothedPose,
+                relativePose: { yaw: 0, pitch: 0, roll: 0, gazeX: 0, gazeY: 0 },
+                suspiciousDurationMs: 0,
+                violationDurationThresholdMs: cfg.timing.violationDurationMs,
+                violationCount: 0,
+                faceMissingDurationMs: 0,
+                multipleFacesDurationMs: 0,
+                faceCount: 1,
+                fps: Math.round(1000 / deltaTime),
+                activeReason: 'Calibrating neutral baseline...'
+              };
             } 
-            // ── PHASE B: ACTIVE PROCTORING STATE MACHINE ──
+            // ── PHASE B: ACTIVE PROCTORING STATE MACHINE WITH HYSTERESIS ──
             else if (isCalibrated.value) {
-              // Calculate relative movement against candidate's calibrated neutral baseline
+              // Calculate relative movement against candidate's calibrated baseline
               const relYaw = Math.round((smoothedPose.yaw - baseline.value.yaw) * 10) / 10;
               const relPitch = Math.round((smoothedPose.pitch - baseline.value.pitch) * 10) / 10;
               const relRoll = Math.round((smoothedPose.roll - baseline.value.roll) * 10) / 10;
+              const relGazeX = Math.round((smoothedPose.gazeX - baseline.value.gazeX) * 100) / 100;
+              const relGazeY = Math.round((smoothedPose.gazeY - baseline.value.gazeY) * 100) / 100;
 
-              // Check if currently outside configured safe tolerance region
-              const isYawOutside = Math.abs(relYaw) > cfg.headPose.yawToleranceDeg;
-              const isPitchUpOutside = relPitch < -cfg.headPose.pitchUpToleranceDeg;
-              // Downward pitch allows reading question text, options, and Submit button
-              const isPitchDownOutside = relPitch > cfg.headPose.pitchDownToleranceDeg;
-              const isRollOutside = Math.abs(relRoll) > cfg.headPose.rollToleranceDeg;
+              // 1. Check Warning Thresholds (Deviations that trigger suspicious state)
+              let violationReason = '';
+              const isYawWarning = Math.abs(relYaw) > cfg.headPose.yawWarningDeg;
+              if (isYawWarning) violationReason = `Yaw (${relYaw > 0 ? '+' : ''}${relYaw}° > ${cfg.headPose.yawWarningDeg}°)`;
 
-              const isOutsideTolerance = isYawOutside || isPitchUpOutside || isPitchDownOutside || isRollOutside;
+              const isPitchUpWarning = relPitch < -cfg.headPose.pitchUpWarningDeg;
+              if (isPitchUpWarning && !violationReason) violationReason = `Looking Up (${relPitch}° < -${cfg.headPose.pitchUpWarningDeg}°)`;
 
-              if (isOutsideTolerance) {
+              const isPitchDownWarning = relPitch > cfg.headPose.pitchDownWarningDeg;
+              if (isPitchDownWarning && !violationReason) violationReason = `Looking Down (${relPitch}° > ${cfg.headPose.pitchDownWarningDeg}°)`;
+
+              const isRollWarning = Math.abs(relRoll) > cfg.headPose.rollWarningDeg;
+              if (isRollWarning && !violationReason) violationReason = `Head Tilt (${relRoll > 0 ? '+' : ''}${relRoll}° > ${cfg.headPose.rollWarningDeg}°)`;
+
+              const isGazeXWarning = Math.abs(relGazeX) > cfg.gaze.horizontalWarning;
+              if (isGazeXWarning && !violationReason) violationReason = `Side Gaze (${relGazeX > 0 ? '+' : ''}${relGazeX} > ${cfg.gaze.horizontalWarning})`;
+
+              const isGazeYUpWarning = relGazeY < -cfg.gaze.verticalUpWarning;
+              if (isGazeYUpWarning && !violationReason) violationReason = `Upward Gaze (${relGazeY} < -${cfg.gaze.verticalUpWarning})`;
+
+              const isGazeYDownWarning = relGazeY > cfg.gaze.verticalDownWarning;
+              if (isGazeYDownWarning && !violationReason) violationReason = `Downward Gaze (${relGazeY} > ${cfg.gaze.verticalDownWarning})`;
+
+              const isExceedingWarning = isYawWarning || isPitchUpWarning || isPitchDownWarning || isRollWarning || isGazeXWarning || isGazeYUpWarning || isGazeYDownWarning;
+
+              // 2. Check Recovery Thresholds (Hysteresis bounds for returning to normal)
+              const isYawRecovered = Math.abs(relYaw) <= cfg.headPose.yawRecoveryDeg;
+              const isPitchUpRecovered = relPitch >= -cfg.headPose.pitchUpRecoveryDeg;
+              const isPitchDownRecovered = relPitch <= cfg.headPose.pitchDownRecoveryDeg;
+              const isRollRecovered = Math.abs(relRoll) <= cfg.headPose.rollRecoveryDeg;
+              const isGazeXRecovered = Math.abs(relGazeX) <= cfg.gaze.horizontalRecovery;
+              const isGazeYUpRecovered = relGazeY >= -cfg.gaze.verticalRecovery;
+              const isGazeYDownRecovered = relGazeY <= cfg.gaze.verticalRecovery;
+
+              const isFullyRecovered = isYawRecovered && isPitchUpRecovered && isPitchDownRecovered && isRollRecovered && isGazeXRecovered && isGazeYUpRecovered && isGazeYDownRecovered;
+
+              if (isExceedingWarning) {
                 suspiciousDurationMs.value += deltaTime;
+                activeViolationReason.value = violationReason;
 
                 if (suspiciousDurationMs.value >= cfg.timing.violationDurationMs) {
                   currentProctorState.value = 'VIOLATION';
-                  suspiciousDurationMs.value = 0; // Reset counter after logging
+                  suspiciousDurationMs.value = 0; // Reset accumulator after firing violation
+                  violationCount.value++;
 
                   logEventCallback('gaze_deviation', {
                     relYaw,
                     relPitch,
                     relRoll,
+                    relGazeX,
+                    relGazeY,
+                    reason: violationReason,
                     baseline: baseline.value,
-                    tolerances: cfg.headPose
+                    tolerances: { headPose: cfg.headPose, gaze: cfg.gaze }
                   });
 
                   if (now - lastGazeWarningTime.value > cfg.timing.warningCooldownMs) {
@@ -481,32 +646,40 @@ export const useFaceDetection = () => {
                 } else if (suspiciousDurationMs.value >= cfg.timing.suspiciousDurationMs) {
                   currentProctorState.value = 'SUSPICIOUS';
                 }
-              } else {
-                // Natural movement inside safe region: gradually drain suspicious accumulator
+              } else if (isFullyRecovered) {
+                // Candidate has returned inside the safe recovery boundary: gradually drain suspicious accumulator
                 if (suspiciousDurationMs.value > 0) {
-                  suspiciousDurationMs.value = Math.max(0, suspiciousDurationMs.value - deltaTime * cfg.timing.recoveryRate);
+                  suspiciousDurationMs.value = Math.max(0, suspiciousDurationMs.value - deltaTime * cfg.timing.recoveryDrainRate);
                 }
                 if (suspiciousDurationMs.value === 0) {
                   currentProctorState.value = 'NORMAL';
+                  activeViolationReason.value = '';
                 }
+              } else {
+                // In the hysteresis buffer zone: keep current state, neither increment nor abruptly drain
               }
 
               // Update debug telemetry
-              debugTelemetry.value = {
+              globalDebugTelemetry.value = {
                 state: currentProctorState.value,
                 isCalibrated: isCalibrated.value,
+                calibrationProgress: 100,
                 baseline: baseline.value,
                 rawPose,
                 smoothedPose,
-                relativePose: { yaw: relYaw, pitch: relPitch, roll: relRoll },
+                relativePose: { yaw: relYaw, pitch: relPitch, roll: relRoll, gazeX: relGazeX, gazeY: relGazeY },
                 suspiciousDurationMs: Math.round(suspiciousDurationMs.value),
-                faceMissingDurationMs: Math.round(faceMissingDurationMs.value),
-                multipleFacesDurationMs: Math.round(multipleFacesDurationMs.value),
-                fps: Math.round(1000 / deltaTime)
+                violationDurationThresholdMs: cfg.timing.violationDurationMs,
+                violationCount: violationCount.value,
+                faceMissingDurationMs: 0,
+                multipleFacesDurationMs: 0,
+                faceCount: 1,
+                fps: Math.round(1000 / deltaTime),
+                activeReason: activeViolationReason.value
               };
 
               if (cfg.debug) {
-                console.debug(`[Proctoring State: ${currentProctorState.value}] relYaw: ${relYaw}°, relPitch: ${relPitch}°, relRoll: ${relRoll}°, suspTime: ${Math.round(suspiciousDurationMs.value)}ms`);
+                console.debug(`[Proctoring: ${currentProctorState.value}] relYaw: ${relYaw}°, relPitch: ${relPitch}°, relRoll: ${relRoll}°, susp: ${Math.round(suspiciousDurationMs.value)}ms, reason: ${violationReason || 'none'}`);
               }
             }
 
@@ -570,6 +743,7 @@ export const useFaceDetection = () => {
     suspiciousDurationMs.value = 0;
     faceMissingDurationMs.value = 0;
     multipleFacesDurationMs.value = 0;
+    activeViolationReason.value = '';
     currentProctorState.value = isCalibrated.value ? 'NORMAL' : 'CALIBRATING';
   };
 
@@ -588,6 +762,7 @@ export const useFaceDetection = () => {
     isCalibrating,
     baseline,
     currentProctorState,
-    debugTelemetry
+    globalDebugTelemetry,
+    showDebugHUD
   };
 };
