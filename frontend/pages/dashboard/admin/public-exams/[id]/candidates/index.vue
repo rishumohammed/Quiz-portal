@@ -279,7 +279,7 @@
         
         <v-card-text class="pa-6">
           <v-alert type="info" variant="tonal" class="mb-6 rounded-lg text-body-2" density="compact">
-            You can use <strong>{{ '{{name}}' }}</strong> in your message, and it will be replaced with the candidate's actual name.
+            You can use <strong v-text="'{{name}}'"></strong> in your message, and it will be replaced with the candidate's actual name.
           </v-alert>
 
           <v-text-field
