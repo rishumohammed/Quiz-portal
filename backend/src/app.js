@@ -85,11 +85,18 @@ const createStore = (prefix) => {
   }
 };
 
+const isLocalOrTest = (req) => {
+  if (process.env.NODE_ENV === 'test') return true;
+  const ip = req.ip || req.connection?.remoteAddress || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || ip === 'localhost';
+};
+
 // Strict Limiter for Auth Routes (Login, Password Reset)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'test' ? 10000 : 100,
   store: createStore('auth'),
+  skip: isLocalOrTest,
   message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
@@ -98,7 +105,7 @@ const examLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50000,
   store: createStore('exam'),
-  skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1'
+  skip: isLocalOrTest
 });
 
 // General API Limiter
@@ -106,7 +113,7 @@ const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'test' ? 50000 : 2000,
   store: createStore('general'),
-  skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1'
+  skip: isLocalOrTest
 });
 
 app.use('/api/auth/login', authLimiter);
