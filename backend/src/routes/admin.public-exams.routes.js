@@ -1192,7 +1192,7 @@ router.get('/:id/candidates', async (req, res) => {
   try {
     const examId = req.params.id;
 
-    // Fetch Candidates and their Attempts
+    // Fetch Candidates and their latest Attempts & Results
     const [candidates] = await pool.query(`
       SELECT 
         c.id as candidate_id, c.name, c.email, c.phone, c.created_at as registered_at,
@@ -1204,20 +1204,49 @@ router.get('/:id/candidates', async (req, res) => {
       LEFT JOIN (
         SELECT a1.*
         FROM public_exam_attempts a1
-        JOIN (
-          SELECT candidate_id, MAX(started_at) as max_time
+        INNER JOIN (
+          SELECT candidate_id, MAX(id) as max_id
           FROM public_exam_attempts
           WHERE exam_id = ?
           GROUP BY candidate_id
-        ) a2 ON a1.candidate_id = a2.candidate_id AND a1.started_at = a2.max_time
+        ) a2 ON a1.id = a2.max_id
       ) a ON c.id = a.candidate_id
-      LEFT JOIN public_exam_results r ON a.id = r.attempt_id
+      LEFT JOIN (
+        SELECT r1.attempt_id, r1.score, r1.percentage, r1.passed
+        FROM public_exam_results r1
+        INNER JOIN (
+          SELECT attempt_id, MAX(id) as max_r_id
+          FROM public_exam_results
+          GROUP BY attempt_id
+        ) r2 ON r1.id = r2.max_r_id
+      ) r ON a.id = r.attempt_id
       WHERE c.exam_id = ?
       ORDER BY c.created_at DESC
     `, [examId, examId]);
 
+    // Deduplicate in case of duplicate registration rows or legacy data
+    const candidateMap = new Map();
+
+    candidates.forEach(c => {
+      const emailKey = (c.email || '').toLowerCase().trim();
+      const uniqueKey = c.candidate_id ? `${c.candidate_id}_${emailKey}` : emailKey;
+
+      if (candidateMap.has(uniqueKey)) {
+        // Keep the record that has more complete info or higher status
+        const existing = candidateMap.get(uniqueKey);
+        if (existing.exam_status !== 'submitted' && c.exam_status === 'submitted') {
+          candidateMap.set(uniqueKey, c);
+        }
+        return;
+      }
+
+      candidateMap.set(uniqueKey, c);
+    });
+
+    const uniqueCandidates = Array.from(candidateMap.values());
+
     // Format Data
-    const formattedCandidates = candidates.map(c => {
+    const formattedCandidates = uniqueCandidates.map(c => {
       let status = 'Registered';
       if (c.exam_status === 'in_progress') status = 'Started';
       if (c.exam_status === 'submitted') status = 'Completed';
