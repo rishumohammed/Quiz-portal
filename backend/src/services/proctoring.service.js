@@ -21,12 +21,22 @@ class ProctoringService {
       'SELECT * FROM proctoring_events WHERE attempt_id = ? ORDER BY created_at ASC',
       [attemptId]
     );
+    const parsedEvents = (events || []).map(e => {
+      let meta = e.metadata_json;
+      if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+      }
+      return {
+        ...e,
+        metadata_json: meta || {}
+      };
+    });
     let proctoring_status = 'pending_review';
     try {
       const [[att]] = await pool.query('SELECT proctoring_status FROM public_exam_attempts WHERE id = ?', [attemptId]);
       if (att && att.proctoring_status) proctoring_status = att.proctoring_status;
     } catch (_) {}
-    return { events, proctoring_status };
+    return { events: parsedEvents, proctoring_status };
   }
 
   async getRecordingsForAttempt(attemptId) {

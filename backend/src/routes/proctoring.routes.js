@@ -139,12 +139,14 @@ router.get('/admin/public-violations', authenticateJWT, isAdminOrTutor, async (r
   }
 });
 
-// GET /api/proctoring/admin/:attemptId (Note: mount point in app.js may vary, but let's keep it clean here)
+// GET /api/proctoring/admin/:attemptId
 router.get('/admin/:attemptId', authenticateJWT, isAdminOrTutor, async (req, res) => {
   try {
-    const events = await proctoringService.getEventsForAttempt(req.params.attemptId);
+    const eventData = await proctoringService.getEventsForAttempt(req.params.attemptId);
     const recordings = await proctoringService.getRecordingsForAttempt(req.params.attemptId);
-    res.json({ events, recordings });
+    const rawEvents = Array.isArray(eventData) ? eventData : (eventData.events || []);
+    const proctoring_status = eventData.proctoring_status || 'pending_review';
+    res.json({ events: rawEvents, proctoring_status, recordings });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

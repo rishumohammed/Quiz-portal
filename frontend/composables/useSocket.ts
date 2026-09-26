@@ -14,7 +14,9 @@ export const useSocket = () => {
       auth: {
         token: authStore.accessToken
       },
-      transports: ['websocket']
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000
     });
 
     socket.value?.on('connect', () => {

@@ -113,8 +113,8 @@
                   </div>
 
                   <!-- Screenshot Image Grid Preview -->
-                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-1 cursor-pointer overflow-hidden rounded-lg border" @click="openPreview(event.metadata_json.screenshot)">
-                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="140" cover class="bg-grey-lighten-3 grid-img">
+                  <div v-if="getScreenshotUrl(event)" class="mt-1 cursor-pointer overflow-hidden rounded-lg border" @click="openPreview(getScreenshotUrl(event)!)">
+                    <v-img :src="backendUrl(getScreenshotUrl(event)!)" height="140" cover class="bg-grey-lighten-3 grid-img">
                       <template v-slot:placeholder>
                         <div class="d-flex align-center justify-center fill-height bg-grey-lighten-4">
                           <v-progress-circular indeterminate color="primary" size="24"></v-progress-circular>
@@ -124,8 +124,8 @@
                   </div>
 
                   <!-- Metadata if no screenshot -->
-                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-grey-lighten-4 pa-2 rounded-lg flex-grow-1">
-                    <pre style="margin:0; white-space: pre-wrap; font-family: monospace; font-size: 11px;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
+                  <div v-else-if="Object.keys(getMetadataObj(event)).length > 0" class="mt-2 text-caption bg-grey-lighten-4 pa-2 rounded-lg flex-grow-1">
+                    <pre style="margin:0; white-space: pre-wrap; font-family: monospace; font-size: 11px;">{{ JSON.stringify(getMetadataObj(event), null, 2) }}</pre>
                   </div>
 
                   <div v-else class="mt-2 text-caption text-grey text-center py-4 bg-grey-lighten-4 rounded-lg">
@@ -155,12 +155,12 @@
                     <span class="text-caption text-secondary font-weight-medium">{{ new Date(event.created_at).toLocaleTimeString() }}</span>
                   </div>
 
-                  <div v-if="event.metadata_json && event.metadata_json.screenshot" class="mt-3 cursor-pointer" style="max-width: 320px;" @click="openPreview(event.metadata_json.screenshot)">
-                    <v-img :src="backendUrl(event.metadata_json.screenshot)" height="180" class="rounded-xl bg-grey-lighten-2 border" cover />
+                  <div v-if="getScreenshotUrl(event)" class="mt-3 cursor-pointer" style="max-width: 320px;" @click="openPreview(getScreenshotUrl(event)!)">
+                    <v-img :src="backendUrl(getScreenshotUrl(event)! )" height="180" class="rounded-xl bg-grey-lighten-2 border" cover />
                   </div>
 
-                  <div v-else-if="event.metadata_json && Object.keys(event.metadata_json).length > 0" class="mt-2 text-caption bg-apple-gray pa-3 rounded-lg">
-                    <pre style="margin:0; white-space: pre-wrap; font-family: monospace;">{{ JSON.stringify(event.metadata_json, null, 2) }}</pre>
+                  <div v-else-if="Object.keys(getMetadataObj(event)).length > 0" class="mt-2 text-caption bg-apple-gray pa-3 rounded-lg">
+                    <pre style="margin:0; white-space: pre-wrap; font-family: monospace;">{{ JSON.stringify(getMetadataObj(event), null, 2) }}</pre>
                   </div>
                 </div>
               </v-timeline-item>
@@ -193,7 +193,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 import Badge from '@/components/ui/Badge.vue';
 
@@ -225,8 +226,30 @@ const openPreview = (url: string) => {
 };
 
 const backendUrl = (path: string) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
   const config = useRuntimeConfig();
-  return `${config.public.apiBase.replace('/api', '')}${path}`;
+  const base = config.public.apiBase ? config.public.apiBase.replace('/api', '') : '';
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${cleanPath}`;
+};
+
+const getScreenshotUrl = (event: any) => {
+  if (!event) return null;
+  let meta = event.metadata_json;
+  if (typeof meta === 'string') {
+    try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+  }
+  return meta?.screenshot || meta?.reference_photo_url || meta?.image_url || null;
+};
+
+const getMetadataObj = (event: any) => {
+  if (!event) return {};
+  let meta = event.metadata_json;
+  if (typeof meta === 'string') {
+    try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+  }
+  return meta || {};
 };
 
 onMounted(async () => {
@@ -237,30 +260,46 @@ const loadData = async () => {
   loading.value = true;
   try {
     const { data } = await api.get(`/proctoring/admin/${attemptId}`);
-    events.value = data.events || [];
-    recordings.value = data.recordings || [];
+    if (Array.isArray(data.events)) {
+      events.value = data.events;
+    } else if (data.events && Array.isArray(data.events.events)) {
+      events.value = data.events.events;
+    } else {
+      events.value = [];
+    }
+
+    recordings.value = Array.isArray(data.recordings) ? data.recordings : [];
     if (data.proctoring_status) {
       proctoringStatus.value = data.proctoring_status;
+    } else if (data.events?.proctoring_status) {
+      proctoringStatus.value = data.events.proctoring_status;
     }
   } catch (err) {
     console.error('Failed to load proctoring data', err);
+    events.value = [];
   } finally {
     loading.value = false;
   }
 };
 
 const hasProxyMismatch = computed(() => {
+  if (!Array.isArray(events.value)) return false;
   return events.value.some(e => e.type === 'proxy_mismatch');
 });
 
 const highSeverityCount = computed(() => {
+  if (!Array.isArray(events.value)) return 0;
   const highTypes = ['multiple_faces', 'face_absent', 'proxy_mismatch', 'devtools_open', 'phone_detected', 'suspicious_object'];
   return events.value.filter(e => highTypes.includes(e.type)).length;
 });
 
 const referenceSelfieUrl = computed(() => {
-  const refEvent = events.value.find(e => e.type === 'reference_face_registered' && e.metadata_json?.screenshot);
-  return refEvent?.metadata_json?.screenshot || null;
+  if (!Array.isArray(events.value)) return null;
+  const refEvent = events.value.find(e => 
+    (e.type === 'reference_face_registered' || e.type === 'face_registered') && 
+    (getScreenshotUrl(e))
+  );
+  return refEvent ? getScreenshotUrl(refEvent) : null;
 });
 
 const getEventColor = (type: string) => {
