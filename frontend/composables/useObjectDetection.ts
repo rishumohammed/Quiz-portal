@@ -60,39 +60,33 @@ export const useObjectDetection = () => {
       }
     }
 
-    console.info('[ObjectDetection] Fast secondary device & phone detection loop active.');
+    console.info('[ObjectDetection] Ultra-fast instant mobile phone detection loop active.');
     cellPhoneCounter = 0;
     isDetecting = false;
 
-    // 350ms detection loop for accurate mobile phone detection
+    // Fast 150ms cadence for instantaneous secondary device & phone detection
     detectionInterval = setInterval(async () => {
       if (videoElement && videoElement.readyState >= 2 && model.value && !isDetecting) {
         try {
           isDetecting = true;
-          // minScore: 0.55 ensures strong confidence before checking
-          const predictions = await model.value.detect(videoElement, 5, 0.55);
+          // minScore: 0.45 captures vertical, horizontal, screen-on/off mobile phones immediately
+          const predictions = await model.value.detect(videoElement, 6, 0.45);
           
-          const TARGET_CLASSES = ['cell phone', 'phone', 'mobile phone'];
+          const TARGET_CLASSES = ['cell phone', 'phone', 'mobile phone', 'telephone'];
           const phonePrediction = predictions.find(
-            p => p && p.class && TARGET_CLASSES.includes(p.class.toLowerCase()) && p.score >= 0.55
+            p => p && p.class && TARGET_CLASSES.includes(p.class.toLowerCase()) && p.score >= 0.45
           );
           
           if (phonePrediction) {
-            cellPhoneCounter++;
-            // Require detection confirmed over 4 consecutive frames (~1.4s)
-            if (cellPhoneCounter >= 4) {
-              cellPhoneCounter = 0;
-              const confidence = Math.round(phonePrediction.score * 100);
-              
+            const now = Date.now();
+            const confidence = Math.round(phonePrediction.score * 100);
+
+            // Instant trigger on detection
+            if (now - lastWarningTime.value > 3500) { // 3.5s warning throttle
+              lastWarningTime.value = now;
               logEventCallback('mobile_phone_detected', { object: 'Mobile Phone', confidence: `${confidence}%` });
-              
-              if (Date.now() - lastWarningTime.value > 3000) { // 3s warning throttle
-                warningCallback(`Mobile phone detected. Please put away all unauthorized devices immediately.`);
-                lastWarningTime.value = Date.now();
-              }
+              warningCallback(`Mobile phone detected. Please put away all unauthorized devices immediately.`);
             }
-          } else {
-            cellPhoneCounter = 0;
           }
         } catch (e) {
           console.warn('Object estimation error:', e);
@@ -100,7 +94,7 @@ export const useObjectDetection = () => {
           isDetecting = false;
         }
       }
-    }, 350);
+    }, 150);
   };
 
   const stopDetection = () => {
