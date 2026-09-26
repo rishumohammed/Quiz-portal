@@ -373,7 +373,7 @@ const flagAttempt = async () => {
 };
 
 const deleteLogs = async () => {
-  if (!confirm('Are you sure you want to completely delete all proctoring events and video recordings for this attempt? This action cannot be undone and the videos will be permanently deleted from the server.')) return;
+  if (!confirm('Are you sure you want to completely delete all proctoring events, violation screenshots, and video recordings for this attempt? This action cannot be undone and all media will be permanently deleted from the server.')) return;
   try {
     await api.delete(`/proctoring/admin/attempt/${attemptId}`);
     const router = useRouter();

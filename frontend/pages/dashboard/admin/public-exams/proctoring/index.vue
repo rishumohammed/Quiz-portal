@@ -209,7 +209,7 @@ const getExamViolationsCount = (exam: any) => {
 };
 
 const deleteExamLogs = async (exam: any) => {
-  if (!confirm(`Are you sure you want to delete ALL proctoring logs for the exam "${exam.title}"? This will permanently remove all video recordings for all candidates in this exam.`)) return;
+  if (!confirm(`Are you sure you want to delete ALL proctoring logs for the exam "${exam.title}"? This will permanently remove all violation screenshots, images, and video recordings for all candidates in this exam.`)) return;
   try {
     await api.delete(`/proctoring/admin/exam/${exam.id}`);
     alert('Exam logs deleted successfully');

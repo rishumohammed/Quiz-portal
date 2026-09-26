@@ -210,7 +210,7 @@ const filteredCandidates = computed<any[]>(() => {
 });
 
 const deleteCandidateLogs = async (candidate: any) => {
-  if (!confirm(`Are you sure you want to delete all proctoring logs for candidate ${candidate.name}? This will permanently remove all video recordings for their attempts.`)) return;
+  if (!confirm(`Are you sure you want to delete all proctoring logs for candidate ${candidate.name}? This will permanently remove all violation screenshots, images, and video recordings for their attempts.`)) return;
   try {
     await api.delete(`/proctoring/admin/candidate/${examId}/${candidate.id}`);
     alert('Candidate logs deleted successfully');
