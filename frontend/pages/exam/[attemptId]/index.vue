@@ -427,13 +427,21 @@ const resumeExam = async () => {
   }
 };
 
+const isFullscreenActive = (): boolean => {
+  if (typeof document === 'undefined') return false;
+  const doc = document as any;
+  return !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+};
+
 const requestFullscreen = async () => {
   try {
-    const el = document.documentElement;
-    if (el.requestFullscreen) await el.requestFullscreen();
-    else if ((el as any).webkitRequestFullscreen) await (el as any).webkitRequestFullscreen();
+    if (!isFullscreenActive()) {
+      const el = document.documentElement as any;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req) await req.call(el);
+    }
   } catch (e) {
-    console.warn('Fullscreen request denied or blocked by browser');
+    console.warn('Fullscreen request denied or blocked by browser', e);
   }
 };
 
@@ -474,10 +482,10 @@ const doSubmit = async () => {
     cleanupProctoring();
     // Exit fullscreen
     try {
-      if (document.fullscreenElement && document.exitFullscreen) {
-        await document.exitFullscreen();
-      } else if (document.fullscreenElement && (document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
+      if (isFullscreenActive()) {
+        const doc = document as any;
+        const exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exitMethod) await exitMethod.call(doc);
       }
     } catch (fsErr) {
       console.warn('Fullscreen exit failed', fsErr);

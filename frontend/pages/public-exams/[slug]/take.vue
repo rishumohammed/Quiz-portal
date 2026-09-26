@@ -34,7 +34,7 @@
       <v-spacer></v-spacer>
 
       <!-- Full Screen Trigger -->
-      <v-btn icon color="white" class="mr-2" @click="toggleFullScreen">
+      <v-btn icon color="white" class="mr-2" @click.stop.prevent="toggleFullScreen">
         <v-icon>{{ isFullScreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
         <v-tooltip activator="parent" location="bottom">Toggle Fullscreen</v-tooltip>
       </v-btn>
@@ -370,7 +370,15 @@
         <v-icon size="64" color="primary" class="mb-4">mdi-fullscreen</v-icon>
         <h3 class="text-h5 font-weight-bold mb-2">Full Screen Required</h3>
         <p class="text-body-2 text-secondary mb-6">This exam requires you to be in full screen mode to continue.</p>
-        <v-btn color="primary" rounded="lg" size="large" @click="toggleFullScreen">Enter Full Screen</v-btn>
+        <v-btn
+          color="primary"
+          rounded="lg"
+          size="large"
+          :loading="isEnteringFullscreen"
+          @click.stop.prevent="enterFullScreen"
+        >
+          Enter Full Screen
+        </v-btn>
       </v-card>
     </v-overlay>
 
@@ -474,6 +482,14 @@ const timerColor = computed(() => {
 
 // Fullscreen
 const isFullScreen = ref(false);
+const isEnteringFullscreen = ref(false);
+const fullscreenEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+
+function isFullscreenActive(): boolean {
+  if (typeof document === 'undefined') return false;
+  const doc = document as any;
+  return !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+}
 
 // Dialogs
 const exitDialog = ref(false);
@@ -493,8 +509,8 @@ function handleDismissWarning() {
   objectDetection.resetWarningTimers(3000);
   proctoring.dismissWarning();
 
-  if (examConfig.value?.enforce_fullscreen && typeof document !== 'undefined' && !document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+  if (examConfig.value?.enforce_fullscreen && !isFullscreenActive()) {
+    enterFullScreen();
   }
 }
 
@@ -591,21 +607,54 @@ function formatTime(seconds: number) {
   return `${hStr}${mStr}:${sStr}`;
 }
 
-// Fullscreen
-function toggleFullScreen() {
+// Fullscreen Operations
+async function enterFullScreen() {
   if (typeof document === 'undefined') return;
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().then(() => {
-      isFullScreen.value = true;
-    }).catch(err => {
-      console.warn('Error enabling fullscreen:', err);
-    });
+  if (isFullscreenActive()) {
+    isFullScreen.value = true;
+    return;
+  }
+  isEnteringFullscreen.value = true;
+  // Optimistically set to true for instantaneous UI responsiveness
+  isFullScreen.value = true;
+  try {
+    const docEl = document.documentElement as any;
+    const requestMethod = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+    if (requestMethod) {
+      await requestMethod.call(docEl);
+    }
+  } catch (err) {
+    console.warn('Error enabling fullscreen:', err);
+  } finally {
+    isEnteringFullscreen.value = false;
+    isFullScreen.value = isFullscreenActive();
+  }
+}
+
+async function exitFullScreen() {
+  if (typeof document === 'undefined') return;
+  if (!isFullscreenActive()) {
+    isFullScreen.value = false;
+    return;
+  }
+  try {
+    const doc = document as any;
+    const exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+    if (exitMethod) {
+      await exitMethod.call(doc);
+    }
+  } catch (err) {
+    console.warn('Error exiting fullscreen:', err);
+  } finally {
+    isFullScreen.value = isFullscreenActive();
+  }
+}
+
+async function toggleFullScreen() {
+  if (isFullscreenActive()) {
+    await exitFullScreen();
   } else {
-    document.exitFullscreen().then(() => {
-      isFullScreen.value = false;
-    }).catch(err => {
-      console.warn('Error exiting fullscreen:', err);
-    });
+    await enterFullScreen();
   }
 }
 
@@ -699,13 +748,13 @@ function initAdvancedProctoring() {
 
 function setupProctoring() {
   if (typeof document !== 'undefined') {
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    isFullScreen.value = !!document.fullscreenElement;
+    fullscreenEvents.forEach(evt => document.addEventListener(evt, handleFullscreenChange));
+    isFullScreen.value = isFullscreenActive();
   }
 }
 
 function handleFullscreenChange() {
-  isFullScreen.value = !!(typeof document !== 'undefined' && document.fullscreenElement);
+  isFullScreen.value = isFullscreenActive();
 }
 
 function triggerProctorViolation(customMsg: string) {
@@ -726,8 +775,8 @@ function triggerProctorViolation(customMsg: string) {
 function dismissProctorWarning() {
   showProctorWarningDialog.value = false;
   faceDetection.resetWarningTimers(3000); // 3 second grace period
-  if (examConfig.value?.enforce_fullscreen && !document.fullscreenElement) {
-    toggleFullScreen();
+  if (examConfig.value?.enforce_fullscreen && !isFullscreenActive()) {
+    enterFullScreen();
   }
 }
 
@@ -973,12 +1022,12 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearInterval(timerInterval.value);
   window.removeEventListener('beforeunload', handleBeforeUnload);
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  fullscreenEvents.forEach(evt => document.removeEventListener(evt, handleFullscreenChange));
 
   cleanupProctoring();
 
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
+  if (isFullscreenActive()) {
+    exitFullScreen().catch(() => {});
   }
 });
 

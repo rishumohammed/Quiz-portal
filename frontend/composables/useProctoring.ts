@@ -34,7 +34,7 @@ export const useProctoring = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    fullscreenEvents.forEach(evt => document.addEventListener(evt, handleFullscreenChange));
     document.addEventListener('contextmenu', preventDefaultAction);
     document.addEventListener('copy', preventDefaultAction);
     document.addEventListener('cut', preventDefaultAction);
@@ -52,7 +52,7 @@ export const useProctoring = () => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('blur', handleWindowBlur);
     window.removeEventListener('focus', handleWindowFocus);
-    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    fullscreenEvents.forEach(evt => document.removeEventListener(evt, handleFullscreenChange));
     document.removeEventListener('contextmenu', preventDefaultAction);
     document.removeEventListener('copy', preventDefaultAction);
     document.removeEventListener('cut', preventDefaultAction);
@@ -61,8 +61,8 @@ export const useProctoring = () => {
     
     if (blurTimeout) clearTimeout(blurTimeout);
     clearInterval(devToolsInterval);
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(e => console.warn('Could not exit fullscreen', e));
+    if (isFullscreenActive()) {
+      exitFullscreen().catch(e => console.warn('Could not exit fullscreen', e));
     }
   };
 
@@ -166,6 +166,14 @@ export const useProctoring = () => {
     }
   };
 
+  const fullscreenEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+
+  const isFullscreenActive = (): boolean => {
+    if (typeof document === 'undefined') return false;
+    const doc = document as any;
+    return !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+  };
+
   const handleFullscreenChange = () => {
     checkFullscreen();
     if (isFullscreen.value) {
@@ -179,18 +187,37 @@ export const useProctoring = () => {
   };
 
   const checkFullscreen = () => {
-    isFullscreen.value = !!(typeof document !== 'undefined' && document.fullscreenElement);
+    isFullscreen.value = isFullscreenActive();
   };
 
   const requestFullscreen = async () => {
     try {
-      if (typeof document !== 'undefined' && !document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
+      if (typeof document !== 'undefined' && !isFullscreenActive()) {
+        const docEl = document.documentElement as any;
+        const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+        if (req) {
+          await req.call(docEl);
+        }
       }
       checkFullscreen();
       violationWarning.value.show = false;
     } catch (e) {
       console.warn('Fullscreen request:', e);
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (typeof document !== 'undefined' && isFullscreenActive()) {
+        const doc = document as any;
+        const exitMethod = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exitMethod) {
+          await exitMethod.call(doc);
+        }
+      }
+      checkFullscreen();
+    } catch (e) {
+      console.warn('Fullscreen exit:', e);
     }
   };
 
