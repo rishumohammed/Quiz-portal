@@ -75,19 +75,6 @@
               </template>
               <v-list-item-title class="font-weight-medium">Import JSON Format</v-list-item-title>
             </v-list-item>
-            <v-divider class="my-1"></v-divider>
-            <v-list-item @click="downloadSampleCsv">
-              <template v-slot:prepend>
-                <v-icon size="18" color="success">mdi-download</v-icon>
-              </template>
-              <v-list-item-title class="font-weight-medium">Download Sample CSV</v-list-item-title>
-            </v-list-item>
-            <v-list-item @click="downloadSampleJson">
-              <template v-slot:prepend>
-                <v-icon size="18" color="info">mdi-download</v-icon>
-              </template>
-              <v-list-item-title class="font-weight-medium">Download Sample JSON</v-list-item-title>
-            </v-list-item>
           </v-list>
         </v-menu>
 
