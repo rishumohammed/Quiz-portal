@@ -67,13 +67,26 @@
               <template v-slot:prepend>
                 <v-icon size="18" color="indigo">mdi-file-delimited-outline</v-icon>
               </template>
-              <v-list-item-title class="font-weight-medium">Import CSV</v-list-item-title>
+              <v-list-item-title class="font-weight-medium">Import CSV File</v-list-item-title>
             </v-list-item>
             <v-list-item @click="openImportSection('json')">
               <template v-slot:prepend>
                 <v-icon size="18" color="indigo">mdi-code-json</v-icon>
               </template>
-              <v-list-item-title class="font-weight-medium">Import JSON</v-list-item-title>
+              <v-list-item-title class="font-weight-medium">Import JSON Format</v-list-item-title>
+            </v-list-item>
+            <v-divider class="my-1"></v-divider>
+            <v-list-item @click="downloadSampleCsv">
+              <template v-slot:prepend>
+                <v-icon size="18" color="success">mdi-download</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Download Sample CSV</v-list-item-title>
+            </v-list-item>
+            <v-list-item @click="downloadSampleJson">
+              <template v-slot:prepend>
+                <v-icon size="18" color="info">mdi-download</v-icon>
+              </template>
+              <v-list-item-title class="font-weight-medium">Download Sample JSON</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -507,6 +520,271 @@
             @click="confirmMoveCopyQuestion"
           >
             {{ moveCopyMode === 'move' ? 'Move Question' : 'Copy Question to Group' }}
+    <!-- Bulk Import Dialog -->
+    <v-dialog v-model="importOpen" max-width="900" persistent scrollable>
+      <v-card class="rounded-2xl overflow-hidden shadow-2xl">
+        <!-- Header -->
+        <div class="pa-6 pb-4 bg-slate-900 text-white d-flex align-center justify-space-between" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+          <div class="d-flex align-center gap-3">
+            <v-avatar color="indigo-lighten-4" size="44" class="rounded-xl">
+              <v-icon color="indigo-darken-3" size="24">mdi-tray-arrow-down</v-icon>
+            </v-avatar>
+            <div>
+              <h2 class="text-h6 font-weight-bold text-white mb-0">Bulk Import Questions</h2>
+              <p class="text-caption text-grey-lighten-1 mb-0">
+                Import questions into <span class="font-weight-bold text-indigo-lighten-2">{{ selectedBankGroup === 'ALL' ? 'Default Bank' : selectedBankGroup }}</span> via CSV file or JSON.
+              </p>
+            </div>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" color="grey-lighten-1" @click="importOpen = false"></v-btn>
+        </div>
+
+        <v-card-text class="pa-6">
+          <!-- Template Download & Info Banner -->
+          <div class="pa-4 rounded-xl mb-5 border d-flex flex-column flex-sm-row align-sm-center justify-space-between gap-3" style="background-color: #f8fafc; border-color: #e2e8f0;">
+            <div>
+              <div class="d-flex align-center gap-2 mb-1">
+                <v-icon color="indigo" size="20">mdi-file-document-outline</v-icon>
+                <span class="text-subtitle-2 font-weight-bold text-slate-800">Download Ready-to-Use Sample Templates</span>
+              </div>
+              <p class="text-caption text-secondary mb-0">
+                Download pre-formatted sample files with MCQ, MSQ, True/False, and Fill-in-the-blank questions.
+              </p>
+            </div>
+            <div class="d-flex align-center gap-2 flex-shrink-0">
+              <v-btn
+                color="indigo"
+                variant="flat"
+                size="small"
+                rounded="lg"
+                prepend-icon="mdi-file-delimited-outline"
+                class="text-none font-weight-bold shadow-sm"
+                @click="downloadSampleCsv"
+              >
+                Download Sample CSV
+              </v-btn>
+              <v-btn
+                color="indigo"
+                variant="tonal"
+                size="small"
+                rounded="lg"
+                prepend-icon="mdi-code-json"
+                class="text-none font-weight-bold"
+                @click="downloadSampleJson"
+              >
+                Download Sample JSON
+              </v-btn>
+            </div>
+          </div>
+
+          <!-- Format Tabs -->
+          <v-tabs v-model="importMode" color="indigo" density="comfortable" class="mb-4 border-b">
+            <v-tab value="csv" class="text-none font-weight-bold">
+              <v-icon start size="18">mdi-file-delimited-outline</v-icon> CSV File Upload
+            </v-tab>
+            <v-tab value="json" class="text-none font-weight-bold">
+              <v-icon start size="18">mdi-code-json</v-icon> JSON Editor / Paste
+            </v-tab>
+          </v-tabs>
+
+          <!-- Target Bank Selector -->
+          <v-row dense class="mb-3">
+            <v-col cols="12" sm="6">
+              <v-combobox
+                v-model="importTargetBank"
+                :items="availableBankGroups"
+                label="Target Question Bank Group"
+                hint="Questions will be assigned to this bank if not specified per-row in CSV"
+                persistent-hint
+                variant="outlined"
+                density="compact"
+                rounded="lg"
+              />
+            </v-col>
+          </v-row>
+
+          <!-- CSV Upload Tab -->
+          <div v-if="importMode === 'csv'">
+            <!-- File Drop / Select Area -->
+            <div
+              class="border-2 border-dashed rounded-xl pa-6 text-center mb-4 transition-all"
+              :class="selectedCsvFileName ? 'bg-indigo-50 border-indigo-300' : 'bg-slate-50 border-slate-300'"
+              style="border-style: dashed; border-width: 2px;"
+            >
+              <input
+                type="file"
+                ref="csvFileInput"
+                accept=".csv,text/csv"
+                class="d-none"
+                @change="handleCsvUpload"
+              />
+              <v-icon size="42" :color="selectedCsvFileName ? 'indigo' : 'grey'">mdi-cloud-upload-outline</v-icon>
+              
+              <div v-if="selectedCsvFileName" class="mt-2">
+                <div class="text-subtitle-2 font-weight-bold text-indigo-darken-3">{{ selectedCsvFileName }}</div>
+                <div class="text-caption text-success font-weight-bold mt-1">
+                  ✓ {{ parsedQuestionsPreview.length }} Question(s) parsed
+                </div>
+                <v-btn
+                  size="small"
+                  variant="outlined"
+                  color="indigo"
+                  rounded="lg"
+                  class="mt-3 text-none"
+                  @click="(csvFileInput as any)?.click()"
+                >
+                  Choose Different CSV
+                </v-btn>
+              </div>
+
+              <div v-else class="mt-2">
+                <div class="text-subtitle-2 font-weight-bold text-slate-700">Upload your Questions CSV file</div>
+                <div class="text-caption text-secondary mt-1">
+                  Supports standard CSV format with Type, Question, Options, Correct Answer, Explanation, Marks
+                </div>
+                <v-btn
+                  color="indigo"
+                  variant="flat"
+                  rounded="lg"
+                  class="mt-3 text-none font-weight-bold px-5"
+                  @click="(csvFileInput as any)?.click()"
+                >
+                  Browse CSV File
+                </v-btn>
+              </div>
+            </div>
+
+            <!-- Error Banner -->
+            <v-alert
+              v-if="importErrorMsg"
+              type="error"
+              variant="tonal"
+              density="compact"
+              class="mb-4 rounded-lg"
+              closable
+              @click:close="importErrorMsg = ''"
+            >
+              {{ importErrorMsg }}
+            </v-alert>
+
+            <!-- Parsed Preview Table -->
+            <div v-if="parsedQuestionsPreview.length > 0" class="border rounded-xl overflow-hidden mb-2">
+              <div class="pa-3 bg-slate-100 border-b d-flex align-center justify-space-between">
+                <div class="text-caption font-weight-bold text-slate-700">
+                  PREVIEW: {{ parsedQuestionsPreview.length }} QUESTIONS DETECTED
+                </div>
+                <v-chip size="x-small" color="indigo" variant="flat" class="font-weight-bold">
+                  Ready to Import
+                </v-chip>
+              </div>
+
+              <div style="max-height: 240px; overflow-y: auto;">
+                <v-table density="compact" hover class="text-caption">
+                  <thead>
+                    <tr class="bg-slate-50">
+                      <th style="width: 40px;">#</th>
+                      <th style="width: 80px;">Type</th>
+                      <th>Question</th>
+                      <th>Options</th>
+                      <th>Correct Answer</th>
+                      <th style="width: 60px;">Marks</th>
+                      <th style="width: 80px;">Difficulty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(q, idx) in parsedQuestionsPreview" :key="idx">
+                      <td class="font-weight-bold text-secondary">{{ idx + 1 }}</td>
+                      <td>
+                        <v-chip size="x-small" :color="q.type === 'mcq' ? 'primary' : q.type === 'msq' ? 'secondary' : 'info'" variant="tonal" class="text-uppercase font-weight-bold">
+                          {{ q.type }}
+                        </v-chip>
+                      </td>
+                      <td class="font-weight-medium text-truncate" style="max-width: 220px;" :title="q.question_text">
+                        {{ q.question_text }}
+                      </td>
+                      <td class="text-secondary text-truncate" style="max-width: 150px;">
+                        {{ Array.isArray(q.options) && q.options.length ? q.options.join(' | ') : '-' }}
+                      </td>
+                      <td class="font-weight-bold text-success text-truncate" style="max-width: 120px;">
+                        {{ Array.isArray(q.correct_answer) ? q.correct_answer.join(', ') : q.correct_answer }}
+                      </td>
+                      <td>{{ q.marks }}</td>
+                      <td>{{ q.difficulty_level }}</td>
+                    </tr>
+                  </tbody>
+                </v-table>
+              </div>
+            </div>
+          </div>
+
+          <!-- JSON Tab -->
+          <div v-else-if="importMode === 'json'">
+            <div class="d-flex align-center justify-space-between mb-2">
+              <span class="text-caption font-weight-bold text-slate-700">Paste JSON Array of Questions</span>
+              <v-btn
+                size="x-small"
+                variant="text"
+                color="indigo"
+                prepend-icon="mdi-content-paste"
+                @click="loadSampleJsonIntoEditor"
+              >
+                Load Sample JSON Template
+              </v-btn>
+            </div>
+            <v-textarea
+              v-model="importJsonText"
+              placeholder='[
+  {
+    "type": "mcq",
+    "question_text": "Which planet is known as the Red Planet?",
+    "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+    "correct_answer": "Mars",
+    "marks": 4,
+    "difficulty_level": "Easy"
+  }
+]'
+              rows="9"
+              variant="outlined"
+              density="comfortable"
+              rounded="lg"
+              class="font-mono text-body-2"
+              @update:model-value="onJsonInputChanged"
+            ></v-textarea>
+
+            <!-- JSON Error Alert -->
+            <v-alert
+              v-if="importErrorMsg"
+              type="error"
+              variant="tonal"
+              density="compact"
+              class="mb-3 rounded-lg"
+            >
+              {{ importErrorMsg }}
+            </v-alert>
+
+            <!-- JSON Preview Count -->
+            <div v-if="parsedQuestionsPreview.length > 0 && !importErrorMsg" class="d-flex align-center gap-2 text-caption text-success font-weight-bold">
+              <v-icon size="16" color="success">mdi-check-circle</v-icon>
+              Valid JSON format: {{ parsedQuestionsPreview.length }} question(s) parsed and ready to import.
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-divider></v-divider>
+
+        <div class="pa-4 bg-slate-50 d-flex align-center justify-space-between">
+          <v-btn variant="text" color="grey" @click="importOpen = false">Cancel</v-btn>
+          <v-btn
+            color="indigo"
+            variant="flat"
+            rounded="lg"
+            class="text-none font-weight-bold px-6"
+            :loading="importing"
+            :disabled="parsedQuestionsPreview.length === 0"
+            @click="runBulkImport"
+          >
+            <v-icon start size="18">mdi-tray-arrow-down</v-icon>
+            Import {{ parsedQuestionsPreview.length > 0 ? parsedQuestionsPreview.length : '' }} Questions
           </v-btn>
         </div>
       </v-card>
@@ -547,12 +825,14 @@ const difficultyFilter = ref('All Difficulties');
 
 // Bulk Import State
 const importOpen = ref(false);
-const importMode = ref<'json' | 'csv'>('json');
+const importMode = ref<'json' | 'csv'>('csv');
 const importJsonText = ref('');
-const csvFileInput = ref(null);
+const csvFileInput = ref<any>(null);
 const selectedCsvFileName = ref('');
-const parsedCsvData = ref<any[]>([]);
+const parsedQuestionsPreview = ref<any[]>([]);
+const importTargetBank = ref('Default Bank');
 const importing = ref(false);
+const importErrorMsg = ref('');
 
 // Question Dialog State
 const questionDialog = ref(false);
@@ -736,111 +1016,354 @@ async function exportQuestions(format: 'csv' | 'json') {
 
 function openImportSection(mode: 'json' | 'csv') {
   importMode.value = mode;
-  importJsonText.value = '';
+  importErrorMsg.value = '';
+  parsedQuestionsPreview.value = [];
   selectedCsvFileName.value = '';
-  parsedCsvData.value = [];
+  importJsonText.value = '';
+  importTargetBank.value = selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value;
   if (csvFileInput.value) (csvFileInput.value as any).value = '';
   importOpen.value = true;
 }
 
 function downloadSampleCsv() {
-  const currentBank = selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value;
+  const currentBank = (importTargetBank.value || selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value) || 'Default Bank';
   const headers = ['Type', 'Question', 'Options', 'Correct Answer', 'Explanation', 'Marks', 'Difficulty', 'Bank Name'];
   const rows = [
-    ['mcq', 'Which is a prime number?', '2|4|6|8', '2', '2 is the only even prime.', '4', 'Easy', currentBank],
-    ['msq', 'Select all vowels.', 'A|B|C|E|F', 'A|E', 'A and E are vowels.', '4', 'Medium', currentBank],
-    ['truefalse', 'The earth is flat.', 'True|False', 'False', 'The earth is spherical.', '2', 'Easy', currentBank],
-    ['fib', 'The chemical symbol for water is __.', '', 'H2O', 'Water is composed of 2 hydrogen and 1 oxygen.', '4', 'Medium', currentBank]
+    ['mcq', 'Which planet is known as the Red Planet?', 'Venus|Mars|Jupiter|Saturn', 'Mars', 'Mars appears reddish due to iron oxide on its surface.', '4', 'Easy', currentBank],
+    ['mcq', 'What is the speed of light in vacuum?', '3x10^8 m/s|3x10^6 m/s|3x10^5 km/s|1.5x10^8 m/s', '3x10^8 m/s', 'The speed of light in vacuum is approximately 299,792,458 m/s.', '4', 'Medium', currentBank],
+    ['msq', 'Which of the following are primary colors of light?', 'Red|Green|Blue|Yellow', 'Red|Green|Blue', 'RGB (Red, Green, Blue) are the additive primary colors of light.', '4', 'Medium', currentBank],
+    ['truefalse', 'The human body has 206 bones in adulthood.', 'True|False', 'True', 'Adult humans typically have 206 bones.', '2', 'Easy', currentBank],
+    ['fib', 'The chemical formula for water is __.', '', 'H2O', 'Water is composed of two hydrogen atoms and one oxygen atom.', '4', 'Easy', currentBank]
   ];
   
   const csvContent = [
     headers.join(','),
-    ...rows.map(r => r.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
-  ].join('\n');
+    ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+  ].join('\r\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
-  link.setAttribute('download', 'sample_questions.csv');
+  link.setAttribute('download', `sample_questions_${currentBank.toLowerCase().replace(/[^a-z0-9]/g, '_')}.csv`);
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
-async function handleCsvUpload(event: any) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  selectedCsvFileName.value = file.name;
-  
-  let PapaMod = await import('papaparse');
-  const Papa = (PapaMod as any).default || PapaMod;
-
-  Papa.parse(file, {
-    header: true,
-    skipEmptyLines: true,
-    complete: (results: any) => {
-      parsedCsvData.value = results.data;
+function downloadSampleJson() {
+  const currentBank = (importTargetBank.value || selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value) || 'Default Bank';
+  const sampleData = [
+    {
+      type: 'mcq',
+      question_text: 'Which planet is known as the Red Planet?',
+      options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
+      correct_answer: 'Mars',
+      explanation: 'Mars appears reddish due to iron oxide on its surface.',
+      marks: 4,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
     },
-    error: (err: any) => {
-      alert(`CSV Parse Error: ${err.message}`);
+    {
+      type: 'msq',
+      question_text: 'Which of the following are primary colors of light?',
+      options: ['Red', 'Green', 'Blue', 'Yellow'],
+      correct_answer: ['Red', 'Green', 'Blue'],
+      explanation: 'RGB (Red, Green, Blue) are the additive primary colors of light.',
+      marks: 4,
+      difficulty_level: 'Medium',
+      bank_name: currentBank
+    },
+    {
+      type: 'truefalse',
+      question_text: 'The human body has 206 bones in adulthood.',
+      options: ['True', 'False'],
+      correct_answer: 'True',
+      explanation: 'Adult humans typically have 206 bones.',
+      marks: 2,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
+    },
+    {
+      type: 'fib',
+      question_text: 'The chemical formula for water is __.',
+      options: [],
+      correct_answer: 'H2O',
+      explanation: 'Water is composed of two hydrogen atoms and one oxygen atom.',
+      marks: 4,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
     }
-  });
+  ];
+
+  const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `sample_questions_${currentBank.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
-async function runBulkImport() {
-  let questionsToImport: any[] = [];
+function loadSampleJsonIntoEditor() {
+  const currentBank = (importTargetBank.value || selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value) || 'Default Bank';
+  const sample = [
+    {
+      type: 'mcq',
+      question_text: 'Which planet is known as the Red Planet?',
+      options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
+      correct_answer: 'Mars',
+      explanation: 'Mars appears reddish due to iron oxide on its surface.',
+      marks: 4,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
+    },
+    {
+      type: 'msq',
+      question_text: 'Which of the following are primary colors of light?',
+      options: ['Red', 'Green', 'Blue', 'Yellow'],
+      correct_answer: ['Red', 'Green', 'Blue'],
+      explanation: 'RGB (Red, Green, Blue) are the additive primary colors of light.',
+      marks: 4,
+      difficulty_level: 'Medium',
+      bank_name: currentBank
+    },
+    {
+      type: 'truefalse',
+      question_text: 'The human body has 206 bones in adulthood.',
+      options: ['True', 'False'],
+      correct_answer: 'True',
+      explanation: 'Adult humans typically have 206 bones.',
+      marks: 2,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
+    },
+    {
+      type: 'fib',
+      question_text: 'The chemical formula for water is __.',
+      options: [],
+      correct_answer: 'H2O',
+      explanation: 'Water is composed of two hydrogen atoms and one oxygen atom.',
+      marks: 4,
+      difficulty_level: 'Easy',
+      bank_name: currentBank
+    }
+  ];
 
-  if (importMode.value === 'json') {
-    try {
-      questionsToImport = JSON.parse(importJsonText.value);
-      if (!Array.isArray(questionsToImport)) throw new Error('Root element must be an Array.');
-    } catch (e: any) {
-      alert(`JSON Format Error: ${e.message}`);
+  importJsonText.value = JSON.stringify(sample, null, 2);
+  onJsonInputChanged(importJsonText.value);
+}
+
+function onJsonInputChanged(val: string) {
+  importErrorMsg.value = '';
+  parsedQuestionsPreview.value = [];
+  if (!val || !val.trim()) return;
+
+  try {
+    const parsed = JSON.parse(val);
+    if (!Array.isArray(parsed)) {
+      importErrorMsg.value = 'JSON root must be an Array of question objects: [ { ... }, { ... } ]';
       return;
     }
-  } else {
-    if (!parsedCsvData.value || parsedCsvData.value.length === 0) {
-      alert('Please upload a valid CSV file first.');
-      return;
+    processRawImportRows(parsed);
+  } catch (err: any) {
+    importErrorMsg.value = `JSON Syntax Error: ${err.message}`;
+  }
+}
+
+function processRawImportRows(rows: any[]) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    importErrorMsg.value = 'No rows found in the uploaded file.';
+    parsedQuestionsPreview.value = [];
+    return;
+  }
+
+  const defaultBank = importTargetBank.value || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value) || 'Default Bank';
+  const parsedList: any[] = [];
+
+  for (const row of rows) {
+    const qText = (row.Question || row.question || row.question_text || row['Question Text'] || row.Title || row.title || '').trim();
+    if (!qText) continue;
+
+    let type = (row.Type || row.type || row['Question Type'] || row.question_type || '').toLowerCase().trim();
+    if (!type) {
+      type = 'mcq';
+    } else if (type === 'true_false' || type === 'tf' || type === 'boolean') {
+      type = 'truefalse';
+    } else if (type === 'fill_in_the_blank' || type === 'fill_in_blank' || type === 'blank') {
+      type = 'fib';
+    } else if (type === 'multiple_select' || type === 'multi_select') {
+      type = 'msq';
     }
 
-    questionsToImport = parsedCsvData.value.map((row: any) => {
-      const type = (row.Type || row.type || 'mcq').toLowerCase().trim();
-      const rawOpts = row.Options || row.options || '';
-      const opts = rawOpts ? String(rawOpts).split('|').map(x => x.trim()) : [];
-      let corr = row['Correct Answer'] || row.correct_answer || '';
-      
-      if (type === 'msq' && typeof corr === 'string' && corr.includes('|')) {
-        corr = corr.split('|').map(x => x.trim());
+    let opts: string[] = [];
+    const rawOpts = row.Options || row.options || row.Choices || row.choices || '';
+    if (rawOpts) {
+      if (typeof rawOpts === 'string') {
+        opts = rawOpts.includes('|') ? rawOpts.split('|').map(s => s.trim()).filter(Boolean) : [rawOpts.trim()];
+      } else if (Array.isArray(rawOpts)) {
+        opts = rawOpts.map(s => String(s).trim()).filter(Boolean);
       }
+    }
 
-      return {
-        question_text: row.Question || row.question || row.question_text || '',
-        type,
-        options: opts,
-        correct_answer: corr,
-        explanation: row.Explanation || row.explanation || '',
-        marks: parseInt(row.Marks || row.marks) || 4,
-        difficulty_level: row.Difficulty || row.difficulty || 'Medium',
-        bank_name: row['Bank Name'] || row.bank_name || row.Bank || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value)
-      };
+    // Also support separate option columns (Option 1, Option 2, Option 3, Option 4, Option A, Option B, etc.)
+    if (opts.length === 0) {
+      const optCols = [
+        'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Option 5', 'Option 6',
+        'Option1', 'Option2', 'Option3', 'Option4', 'Option5', 'Option6',
+        'Option A', 'Option B', 'Option C', 'Option D', 'Option E',
+        'OptionA', 'OptionB', 'OptionC', 'OptionD', 'OptionE'
+      ];
+      for (const col of optCols) {
+        if (row[col] !== undefined && row[col] !== null && String(row[col]).trim()) {
+          opts.push(String(row[col]).trim());
+        }
+      }
+    }
+
+    if (type === 'truefalse' && opts.length === 0) {
+      opts = ['True', 'False'];
+    }
+
+    let rawCorr = row['Correct Answer'] || row.correct_answer || row.Correct || row.correct || row.Answer || row.answer || row['Correct Option'] || row.correct_option || row['Correct Index'] || row.correct_index || '';
+    let finalCorr: any = String(rawCorr).trim();
+
+    // Map 1-based indices or single letters (A, B, C, D) to option text if applicable
+    if (opts.length > 0 && finalCorr) {
+      const upper = String(finalCorr).toUpperCase();
+      if (['A', 'B', 'C', 'D', 'E', 'F'].includes(upper)) {
+        const letterIdx = upper.charCodeAt(0) - 65;
+        if (letterIdx < opts.length && !opts.includes(finalCorr)) {
+          finalCorr = opts[letterIdx];
+        }
+      } else if (/^\d+$/.test(finalCorr)) {
+        const numIdx = parseInt(finalCorr) - 1;
+        if (numIdx >= 0 && numIdx < opts.length && !opts.includes(finalCorr)) {
+          finalCorr = opts[numIdx];
+        }
+      }
+    }
+
+    if (type === 'msq') {
+      if (typeof finalCorr === 'string' && finalCorr.includes('|')) {
+        finalCorr = finalCorr.split('|').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(finalCorr)) {
+        finalCorr = [finalCorr];
+      }
+    }
+
+    const explanation = (row.Explanation || row.explanation || row.Solution || row.solution || row.Rationale || '').trim();
+    const marks = parseInt(row.Marks || row.marks || row.Score || row.score || row.Points) || 4;
+    const difficulty = (row.Difficulty || row.difficulty || row['Difficulty Level'] || row.difficulty_level || 'Medium').trim();
+    const bankName = (row['Bank Name'] || row.bank_name || row.Bank || row.bank || defaultBank).trim();
+
+    parsedList.push({
+      question_text: qText,
+      type,
+      options: opts,
+      correct_answer: finalCorr,
+      explanation,
+      marks,
+      difficulty_level: difficulty,
+      bank_name: bankName
     });
   }
 
+  if (parsedList.length === 0) {
+    importErrorMsg.value = 'Could not find any valid questions. Please verify your CSV header names match "Question", "Options", "Correct Answer".';
+  } else {
+    importErrorMsg.value = '';
+  }
+
+  parsedQuestionsPreview.value = parsedList;
+}
+
+async function handleCsvUpload(event: any) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+
+  selectedCsvFileName.value = file.name;
+  importErrorMsg.value = '';
+  parsedQuestionsPreview.value = [];
+
+  try {
+    let PapaMod = await import('papaparse');
+    const Papa = (PapaMod as any).default || PapaMod;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      transformHeader: (h: string) => h.trim(),
+      complete: (results: any) => {
+        if (results.errors && results.errors.length > 0 && (!results.data || results.data.length === 0)) {
+          importErrorMsg.value = `CSV Parsing Error: ${results.errors[0]?.message || 'Invalid format'}`;
+          return;
+        }
+        processRawImportRows(results.data);
+      },
+      error: (err: any) => {
+        importErrorMsg.value = `CSV Read Error: ${err.message}`;
+      }
+    });
+  } catch (err: any) {
+    // Fallback simple line-by-line CSV parser
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      const text = e.target?.result as string;
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) {
+        importErrorMsg.value = 'CSV file is empty or missing data rows.';
+        return;
+      }
+      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+      const data = [];
+      for (let i = 1; i < lines.length; i++) {
+        const matches = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+        const row: any = {};
+        headers.forEach((h, idx) => {
+          row[h] = matches[idx] ? matches[idx].replace(/^"|"$/g, '').trim() : '';
+        });
+        data.push(row);
+      }
+      processRawImportRows(data);
+    };
+    reader.readAsText(file);
+  }
+}
+
+async function runBulkImport() {
+  if (parsedQuestionsPreview.value.length === 0) {
+    alert('No questions to import. Please upload a valid CSV or paste valid JSON.');
+    return;
+  }
+
   importing.value = true;
+  importErrorMsg.value = '';
+
+  const defaultBank = importTargetBank.value || (selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value) || 'Default Bank';
+
   try {
     await api.post(`/admin/public-exams/${selectedExamId.value}/questions/bulk`, {
-      questions: questionsToImport,
-      bank_name: selectedBankGroup.value === 'ALL' ? 'Default Bank' : selectedBankGroup.value
+      questions: parsedQuestionsPreview.value,
+      bank_name: defaultBank
     });
 
+    const count = parsedQuestionsPreview.value.length;
     importOpen.value = false;
-    fetchQuestions();
+    parsedQuestionsPreview.value = [];
+    selectedCsvFileName.value = '';
+    importJsonText.value = '';
+    
+    await fetchQuestions();
+    alert(`Successfully imported ${count} question(s) into "${defaultBank}"!`);
   } catch (err: any) {
-    alert(err.response?.data?.message || 'Bulk import failed.');
+    importErrorMsg.value = err.response?.data?.message || 'Bulk import failed. Please check your data format.';
+    alert(importErrorMsg.value);
   } finally {
     importing.value = false;
   }

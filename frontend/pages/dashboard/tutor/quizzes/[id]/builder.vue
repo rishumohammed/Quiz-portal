@@ -9,7 +9,10 @@
             <p class="text-subtitle-1 text-medium-emphasis mb-6" v-if="quiz">{{ quiz.title }} • {{ quiz.course_title }}</p>
           </div>
         </div>
-        <div class="d-flex gap-3">
+        <div class="d-flex gap-3 align-center flex-wrap">
+          <v-btn color="white" variant="tonal" rounded="xl" class="text-white font-weight-bold px-4" size="large" @click="downloadSampleCsv">
+            <v-icon left class="mr-2">mdi-download</v-icon> Sample CSV
+          </v-btn>
           <input type="file" ref="fileInput" accept=".csv" class="d-none" @change="handleFileUpload" />
           <v-btn color="white" variant="outlined" rounded="xl" class="text-white font-weight-black px-6" size="large" @click="$refs.fileInput.click()">
             <v-icon left class="mr-2">mdi-upload</v-icon> Bulk Import CSV
@@ -175,40 +178,96 @@ const saveQuiz = async () => {
   }
 };
 
+const downloadSampleCsv = () => {
+  const headers = ['Question', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Correct Index'];
+  const rows = [
+    ['Which planet is known as the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Saturn', '2'],
+    ['What is the chemical symbol for water?', 'H2O', 'CO2', 'NaCl', 'O2', '1'],
+    ['Which gas do plants absorb from the atmosphere?', 'Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Hydrogen', '2']
+  ];
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(','))
+  ].join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'sample_quiz_questions.csv');
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 const handleFileUpload = (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
   Papa.parse(file, {
     header: true,
-    skipEmptyLines: true,
+    skipEmptyLines: 'greedy',
+    transformHeader: (h) => h.trim(),
     complete: (results) => {
-      if (results.errors.length > 0) {
+      if (results.errors.length > 0 && (!results.data || results.data.length === 0)) {
         alert('Error parsing CSV. Please check the format.');
         console.error(results.errors);
         return;
       }
       
-      const newQuestions = results.data.map(row => {
-        // Expected headers: Question, Option1, Option2, Option3, Option4, CorrectIndex (1-4)
-        const opts = [
-          row['Option1'] || row['Option 1'],
-          row['Option2'] || row['Option 2'],
-          row['Option3'] || row['Option 3'],
-          row['Option4'] || row['Option 4']
-        ].filter(Boolean);
+      const newQuestions = [];
+      for (const row of results.data) {
+        const qText = (row['Question'] || row['question'] || row['question_text'] || '').trim();
+        if (!qText) continue;
 
-        const correctIdx = parseInt(row['CorrectIndex'] || row['Correct Index'] || '1') - 1;
+        let opts = [];
+        const rawOpts = row['Options'] || row['options'] || '';
+        if (rawOpts) {
+          opts = String(rawOpts).split('|').map(s => s.trim()).filter(Boolean);
+        }
 
-        return {
-          question_text: row['Question'] || 'Untitled Question',
-          options: opts.length >= 2 ? opts : ['Option 1', 'Option 2'],
+        if (opts.length === 0) {
+          opts = [
+            row['Option1'] || row['Option 1'] || row['Option A'],
+            row['Option2'] || row['Option 2'] || row['Option B'],
+            row['Option3'] || row['Option 3'] || row['Option C'],
+            row['Option4'] || row['Option 4'] || row['Option D']
+          ].map(s => String(s || '').trim()).filter(Boolean);
+        }
+
+        if (opts.length < 2) {
+          opts = ['Option 1', 'Option 2'];
+        }
+
+        const rawCorrect = row['CorrectIndex'] || row['Correct Index'] || row['Correct Answer'] || row['Correct Option'] || row['Answer'] || '1';
+        let correctIdx = 0;
+        const upperCorr = String(rawCorrect).toUpperCase().trim();
+
+        if (['A', 'B', 'C', 'D'].includes(upperCorr)) {
+          correctIdx = upperCorr.charCodeAt(0) - 65;
+        } else if (/^\d+$/.test(upperCorr)) {
+          correctIdx = parseInt(upperCorr) - 1;
+        } else {
+          const matchIdx = opts.findIndex(o => o.toLowerCase() === String(rawCorrect).toLowerCase().trim());
+          if (matchIdx !== -1) correctIdx = matchIdx;
+        }
+
+        newQuestions.push({
+          question_text: qText,
+          options: opts,
           correct_index: Math.max(0, Math.min(correctIdx, opts.length - 1))
-        };
-      });
+        });
+      }
+
+      if (newQuestions.length === 0) {
+        alert('No valid questions found in CSV. Please verify column headers.');
+        return;
+      }
 
       questions.value = [...questions.value, ...newQuestions];
-      alert(`Successfully parsed ${newQuestions.length} questions. Don't forget to click 'Publish Updates' to save.`);
+      alert(`Successfully imported ${newQuestions.length} questions. Don't forget to click 'Save Changes' to publish.`);
       event.target.value = ''; // Reset file input
     }
   });

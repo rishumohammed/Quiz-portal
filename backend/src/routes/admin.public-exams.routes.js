@@ -932,35 +932,67 @@ router.post('/:id/questions/bulk', async (req, res) => {
 
     await connection.beginTransaction();
     const [maxOrder] = await connection.query('SELECT COALESCE(MAX(order_index), 0) as max_order FROM public_exam_questions WHERE exam_id = ?', [examId]);
-    let orderIdx = maxOrder[0].max_order;
+    let orderIdx = maxOrder[0]?.max_order || 0;
+    let insertedCount = 0;
 
     for (const q of questions) {
+      const qText = (q.question_text || q.question || q.Question || '').trim();
+      if (!qText) continue;
+
       orderIdx++;
       const id = uuidv4();
-      const itemBank = q.bank_name || q['Bank Name'] || targetBank;
+      const itemBank = (q.bank_name || q['Bank Name'] || targetBank || 'Default Bank').trim();
+      
+      let type = (q.type || 'mcq').toLowerCase().trim();
+      if (type === 'true_false' || type === 'tf' || type === 'boolean') type = 'truefalse';
+      if (type === 'fill_in_the_blank' || type === 'blank') type = 'fib';
+      if (type === 'multiple_select' || type === 'multi_select') type = 'msq';
+
+      let opts = q.options;
+      if (typeof opts === 'string') {
+        try {
+          opts = JSON.parse(opts);
+        } catch {
+          opts = opts.includes('|') ? opts.split('|').map(s => s.trim()).filter(Boolean) : [opts.trim()];
+        }
+      }
+      if (!Array.isArray(opts)) opts = [];
+
+      let corr = q.correct_answer !== undefined && q.correct_answer !== null ? q.correct_answer : (q.correct || q.answer || '');
+      if (typeof corr === 'object') {
+        corr = JSON.stringify(corr);
+      } else {
+        corr = String(corr).trim();
+      }
+
+      const explanation = q.explanation ? String(q.explanation).trim() : null;
+      const marks = parseInt(q.marks) || 4;
+      const difficulty = q.difficulty_level || q.difficulty || 'Medium';
+
       await connection.query(`
         INSERT INTO public_exam_questions (id, exam_id, question_text, type, options_json, correct_answer, explanation, marks, order_index, difficulty_level, bank_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id,
         examId,
-        q.question_text,
-        q.type,
-        q.options ? JSON.stringify(q.options) : null,
-        typeof q.correct_answer === 'object' ? JSON.stringify(q.correct_answer) : q.correct_answer.toString(),
-        q.explanation || null,
-        q.marks || 1,
+        qText,
+        type,
+        opts.length > 0 ? JSON.stringify(opts) : null,
+        corr,
+        explanation,
+        marks,
         orderIdx,
-        q.difficulty_level || 'Medium',
+        difficulty,
         itemBank
       ]);
+      insertedCount++;
     }
 
     await connection.commit();
     connection.release();
     await recalculateExamTotals(examId);
 
-    res.status(201).json({ message: `Successfully imported ${questions.length} questions into "${targetBank}"` });
+    res.status(201).json({ message: `Successfully imported ${insertedCount} questions into "${targetBank}"` });
   } catch (error) {
     await connection.rollback();
     connection.release();
