@@ -381,12 +381,23 @@ class ProctoringService {
 
   async deleteAttemptLogs(attemptId) {
     await pool.query('DELETE FROM proctoring_events WHERE attempt_id = ?', [attemptId]);
-    const dir = path.join(process.cwd(), 'uploads', 'recordings', attemptId);
+
+    // 1. Delete video recordings directory
+    const recordingsDir = path.join(process.cwd(), 'uploads', 'recordings', attemptId);
     try {
-      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(recordingsDir, { recursive: true, force: true });
     } catch (err) {
       console.error(`Failed to delete recording directory for attempt ${attemptId}:`, err.message);
     }
+
+    // 2. Delete violation screenshots and images directory
+    const screenshotsDir = path.join(process.cwd(), 'uploads', 'screenshots', attemptId);
+    try {
+      await fs.rm(screenshotsDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error(`Failed to delete screenshots directory for attempt ${attemptId}:`, err.message);
+    }
+
     return { success: true };
   }
 
