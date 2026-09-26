@@ -26,6 +26,7 @@
             View Exam
           </v-btn>
           <!-- Export Actions -->
+          <v-btn color="purple" variant="tonal" rounded="lg" prepend-icon="mdi-face-recognition" @click="openReEnrollModal">Re-Enroll Faces Email</v-btn>
           <v-btn color="secondary" variant="tonal" rounded="lg" prepend-icon="mdi-history" @click="openEmailHistory">Email History</v-btn>
           <v-btn color="info" variant="tonal" rounded="lg" prepend-icon="mdi-email-fast" @click="showEmailModal = true">Email Candidates</v-btn>
           <v-btn color="success" variant="tonal" rounded="lg" prepend-icon="mdi-file-excel" @click="exportExcel">Export Excel</v-btn>
@@ -100,6 +101,27 @@
           :items="filteredCandidates"
           class="bg-transparent custom-table"
         >
+          <!-- Face Photo Column -->
+          <template v-slot:item.face_photo="{ item }">
+            <div class="d-flex align-center justify-center py-1">
+              <div v-if="getCandidateFaceUrl(item)" class="position-relative cursor-pointer" @click="openFacePreview(item)" title="Click to view enrolled face profile">
+                <v-avatar size="44" class="border shadow-xs rounded-lg overflow-hidden bg-grey-lighten-4">
+                  <v-img :src="getCandidateFaceUrl(item)" cover></v-img>
+                </v-avatar>
+                <v-chip color="success" size="x-small" icon class="position-absolute bottom-0 right-0 ma-0 px-0" style="transform: translate(25%, 25%); width: 16px; height: 16px; min-width: 16px;">
+                  <v-icon size="10">mdi-check</v-icon>
+                </v-chip>
+              </div>
+
+              <div v-else class="d-flex flex-column align-center cursor-pointer" @click="sendSingleReEnroll(item)" title="No face registered. Click to send re-enroll email.">
+                <v-avatar size="44" color="red-lighten-5" class="border border-error rounded-lg">
+                  <v-icon color="error" size="22">mdi-account-off-outline</v-icon>
+                </v-avatar>
+                <span class="text-caption text-error font-weight-bold mt-1" style="font-size: 10px !important; line-height: 1;">No Face</span>
+              </div>
+            </div>
+          </template>
+
           <!-- Candidate Name -->
           <template v-slot:item.name="{ item }">
             <div class="font-weight-bold text-dark py-2">{{ item.name }}</div>
@@ -145,6 +167,7 @@
           <!-- Actions -->
           <template v-slot:item.actions="{ item }">
             <div class="d-flex justify-end gap-1 px-2">
+              <v-btn icon="mdi-face-recognition" variant="tonal" size="small" color="purple" @click="sendSingleReEnroll(item)" title="Email Face Re-Enroll Link"></v-btn>
               <v-btn icon="mdi-eye-outline" variant="tonal" size="small" color="primary" :to="`/dashboard/admin/public-exams/${route.params.id}/candidates/${item.id}`" title="View Details"></v-btn>
               <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="indigo" @click="openInlineEdit(item)" title="Edit Candidate"></v-btn>
               <v-btn icon="mdi-delete-outline" variant="tonal" size="small" color="error" @click="confirmInlineDelete(item)" title="Delete Candidate"></v-btn>
@@ -153,6 +176,98 @@
         </v-data-table>
       </v-card>
     </template>
+
+    <!-- Re-Enroll Face Email Dialog -->
+    <v-dialog v-model="showReEnrollModal" max-width="650" persistent scrollable>
+      <v-card rounded="xl" class="border-0 shadow-lg">
+        <v-card-title class="pa-4 bg-purple text-white d-flex align-center justify-space-between">
+          <div class="d-flex align-center gap-2">
+            <v-icon color="white">mdi-face-recognition</v-icon>
+            <span class="text-h6 font-weight-bold">Email Face Re-Enrollment Links</span>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" color="white" @click="showReEnrollModal = false"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-6">
+          <v-alert type="info" variant="tonal" color="purple" class="mb-6 rounded-lg text-body-2" density="compact">
+            <div class="font-weight-bold mb-1">How Face Re-Enrollment Works:</div>
+            <ul class="pl-4 text-caption leading-relaxed">
+              <li>Each selected candidate will receive a unique single-use link (valid 48 hrs).</li>
+              <li>When opened, candidates must first verify their <strong>Username/Email and Password</strong>.</li>
+              <li>Candidates then use their camera to capture <strong>3 reference face photos</strong> (Center, Left, Right).</li>
+            </ul>
+          </v-alert>
+
+          <div class="text-subtitle-2 font-weight-bold mb-2 text-dark">Target Candidates Filter</div>
+          <v-radio-group v-model="reEnrollFilter" inline density="compact" class="mb-4">
+            <v-radio label="All Candidates" value="all" color="purple">
+              <template v-slot:label>
+                <span class="text-body-2 font-weight-medium">All Candidates ({{ candidates.length }})</span>
+              </template>
+            </v-radio>
+            <v-radio label="Missing Face Profile" value="without_face" color="purple">
+              <template v-slot:label>
+                <span class="text-body-2 font-weight-medium">Missing Face ({{ candidatesWithoutFaceCount }})</span>
+              </template>
+            </v-radio>
+            <v-radio label="Has Face Profile" value="with_face" color="purple">
+              <template v-slot:label>
+                <span class="text-body-2 font-weight-medium">Has Face ({{ candidatesWithFaceCount }})</span>
+              </template>
+            </v-radio>
+          </v-radio-group>
+
+          <v-card variant="outlined" class="pa-3 mb-4 rounded-lg bg-grey-lighten-4 border">
+            <div class="d-flex align-center justify-space-between">
+              <span class="text-body-2 text-secondary font-weight-medium">Selected Recipients:</span>
+              <v-chip size="small" color="purple" variant="flat" class="font-weight-bold">
+                {{ targetRecipientCount }} Candidate(s)
+              </v-chip>
+            </div>
+          </v-card>
+
+          <v-text-field
+            v-model="reEnrollSubject"
+            label="Email Subject (Optional)"
+            variant="outlined"
+            density="comfortable"
+            class="mb-4"
+            :placeholder="`[Action Required] Face Re-Enrollment Link for ${exam?.name || 'Exam'}`"
+            hint="Leave blank to use default subject"
+            persistent-hint
+          ></v-text-field>
+
+          <v-textarea
+            v-model="reEnrollCustomMessage"
+            label="Custom Message / Admin Note (Optional)"
+            variant="outlined"
+            density="comfortable"
+            rows="3"
+            placeholder="E.g., Please complete your 3-photo face re-enrollment before the mock exam tomorrow."
+            hint="This message will be highlighted inside the candidate's re-enrollment email"
+            persistent-hint
+          ></v-textarea>
+        </v-card-text>
+
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4 bg-grey-lighten-4">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" class="text-capitalize" @click="showReEnrollModal = false" :disabled="sendingReEnroll">Cancel</v-btn>
+          <v-btn
+            color="purple"
+            variant="flat"
+            class="text-capitalize px-6"
+            rounded="lg"
+            @click="sendReEnrollEmailsAll"
+            :loading="sendingReEnroll"
+            :disabled="targetRecipientCount === 0"
+          >
+            <v-icon start>mdi-send</v-icon>
+            Send Re-Enrollment Emails ({{ targetRecipientCount }})
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Custom Email Dialog -->
     <v-dialog v-model="showEmailModal" max-width="700" persistent scrollable>
@@ -164,7 +279,7 @@
         
         <v-card-text class="pa-6">
           <v-alert type="info" variant="tonal" class="mb-6 rounded-lg text-body-2" density="compact">
-            You can use <strong>{{name}}</strong> in your message, and it will be replaced with the candidate's actual name.
+            You can use <strong>{{ '{{name}}' }}</strong> in your message, and it will be replaced with the candidate's actual name.
           </v-alert>
 
           <v-text-field
@@ -384,6 +499,68 @@
       </v-card>
     </v-dialog>
 
+    <!-- Candidate Face Profile Preview Modal -->
+    <v-dialog v-model="showFacePreviewModal" max-width="500">
+      <v-card rounded="xl" class="border-0 shadow-lg pa-4">
+        <v-card-title class="d-flex align-center justify-space-between pb-2">
+          <div class="d-flex align-center gap-2">
+            <v-icon color="purple">mdi-face-recognition</v-icon>
+            <span class="text-h6 font-weight-bold">Candidate Face Profile</span>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="showFacePreviewModal = false"></v-btn>
+        </v-card-title>
+        
+        <v-card-text class="pa-4 text-center" v-if="selectedPreviewCandidate">
+          <div class="text-subtitle-1 font-weight-bold text-dark mb-1">{{ selectedPreviewCandidate.name }}</div>
+          <div class="text-caption text-secondary mb-4">{{ selectedPreviewCandidate.email }}</div>
+
+          <div v-if="getPreviewPhotos(selectedPreviewCandidate).length > 0">
+            <div class="text-caption font-weight-bold text-secondary mb-3">Enrolled Biometric Photos ({{ getPreviewPhotos(selectedPreviewCandidate).length }} Sample{{ getPreviewPhotos(selectedPreviewCandidate).length > 1 ? 's' : '' }}):</div>
+            <v-row justify="center" dense>
+              <v-col v-for="(photoUrl, pIdx) in getPreviewPhotos(selectedPreviewCandidate)" :key="pIdx" cols="4">
+                <v-card class="pa-2 border rounded-xl overflow-hidden shadow-xs text-center" flat>
+                  <v-img :src="getImageUrl(photoUrl)" height="100" cover class="rounded-lg mb-1"></v-img>
+                  <div class="text-caption font-weight-bold text-grey-darken-2">Pose {{ pIdx + 1 }}</div>
+                </v-card>
+              </v-col>
+            </v-row>
+          </div>
+          <div v-else-if="getCandidateFaceUrl(selectedPreviewCandidate)">
+            <v-img :src="getCandidateFaceUrl(selectedPreviewCandidate)" max-height="240" class="rounded-xl mx-auto shadow-sm" cover></v-img>
+          </div>
+          <div v-else class="pa-6 text-center text-secondary">
+            <v-icon size="48" color="error" class="mb-2">mdi-account-off-outline</v-icon>
+            <div class="font-weight-bold">No Reference Face Enrolled</div>
+          </div>
+        </v-card-text>
+
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4 bg-grey-lighten-4 d-flex justify-space-between">
+          <v-btn
+            color="purple"
+            variant="tonal"
+            rounded="lg"
+            size="small"
+            class="text-capitalize font-weight-bold"
+            prepend-icon="mdi-email-send-outline"
+            @click="sendSingleReEnroll(selectedPreviewCandidate); showFacePreviewModal = false;"
+          >
+            Email Re-Enroll Link
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            rounded="lg"
+            size="small"
+            class="text-capitalize font-weight-bold"
+            :to="`/dashboard/admin/public-exams/${route.params.id}/candidates/${selectedPreviewCandidate?.id}`"
+          >
+            View Candidate Details
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar -->
     <v-snackbar v-model="snackbar" :color="snackbarColor" rounded="lg">
       {{ snackbarText }}
@@ -396,6 +573,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 import RichTextEditor from '@/components/ui/RichTextEditor.vue';
+import { useRuntimeConfig } from '#imports';
 
 definePageMeta({
   layout: 'dashboard',
@@ -405,6 +583,44 @@ definePageMeta({
 
 const route = useRoute();
 const api = useApi();
+const runtimeConfig = useRuntimeConfig();
+
+const showFacePreviewModal = ref(false);
+const selectedPreviewCandidate = ref<any>(null);
+
+function getCandidateFaceUrl(item: any) {
+  if (!item) return '';
+  const meta = item.metadata || {};
+  const photo = meta.reference_photo_url || (meta.reference_photo_urls && meta.reference_photo_urls[0]) || '';
+  if (!photo) return '';
+  if (photo.startsWith('http') || photo.startsWith('data:')) return photo;
+  const apiBase = (runtimeConfig.public?.apiBase || '/api').replace('/api', '');
+  return apiBase + (photo.startsWith('/') ? photo : '/' + photo);
+}
+
+function getImageUrl(path: string) {
+  if (!path) return '';
+  if (path.startsWith('http') || path.startsWith('data:')) return path;
+  const apiBase = (runtimeConfig.public?.apiBase || '/api').replace('/api', '');
+  return apiBase + (path.startsWith('/') ? path : '/' + path);
+}
+
+function getPreviewPhotos(item: any): string[] {
+  if (!item) return [];
+  const meta = item.metadata || {};
+  if (Array.isArray(meta.reference_photo_urls) && meta.reference_photo_urls.length > 0) {
+    return meta.reference_photo_urls;
+  }
+  if (meta.reference_photo_url) {
+    return [meta.reference_photo_url];
+  }
+  return [];
+}
+
+function openFacePreview(item: any) {
+  selectedPreviewCandidate.value = item;
+  showFacePreviewModal.value = true;
+}
 
 const loading = ref(true);
 const candidates = ref<any[]>([]);
@@ -537,6 +753,78 @@ const snackbar = ref(false);
 const snackbarText = ref('');
 const snackbarColor = ref('success');
 
+// Re-Enroll Face Email State
+const showReEnrollModal = ref(false);
+const reEnrollFilter = ref<'all' | 'without_face' | 'with_face'>('all');
+const reEnrollSubject = ref('');
+const reEnrollCustomMessage = ref('');
+const sendingReEnroll = ref(false);
+
+const candidatesWithoutFaceCount = computed(() => {
+  return candidates.value.filter(c => {
+    const meta = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
+    return !meta.facial_descriptor && !meta.facial_descriptors && !meta.reference_photo_url;
+  }).length;
+});
+
+const candidatesWithFaceCount = computed(() => {
+  return candidates.value.filter(c => {
+    const meta = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
+    return !!(meta.facial_descriptor || meta.facial_descriptors || meta.reference_photo_url);
+  }).length;
+});
+
+const targetRecipientCount = computed(() => {
+  if (reEnrollFilter.value === 'without_face') return candidatesWithoutFaceCount.value;
+  if (reEnrollFilter.value === 'with_face') return candidatesWithFaceCount.value;
+  return candidates.value.length;
+});
+
+function openReEnrollModal() {
+  reEnrollSubject.value = `[Action Required] Face Re-Enrollment Link for ${exam.value?.name || 'Exam'}`;
+  reEnrollCustomMessage.value = '';
+  reEnrollFilter.value = 'all';
+  showReEnrollModal.value = true;
+}
+
+async function sendReEnrollEmailsAll() {
+  if (targetRecipientCount.value === 0) return;
+  sendingReEnroll.value = true;
+  try {
+    const { data } = await api.post(`/admin/public-exams/${route.params.id}/send-re-enroll-email-all`, {
+      filter: reEnrollFilter.value,
+      subject: reEnrollSubject.value || undefined,
+      custom_message: reEnrollCustomMessage.value || undefined
+    });
+
+    snackbarText.value = data.message || 'Face re-enrollment emails dispatched successfully!';
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+    showReEnrollModal.value = false;
+  } catch (err: any) {
+    console.error('Failed to send bulk re-enroll emails:', err);
+    snackbarText.value = err.response?.data?.message || 'Failed to dispatch face re-enrollment emails.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  } finally {
+    sendingReEnroll.value = false;
+  }
+}
+
+async function sendSingleReEnroll(item: any) {
+  if (!confirm(`Send single-use face re-enrollment email to ${item.name} (${item.email})?`)) return;
+  try {
+    const { data } = await api.post(`/admin/public-exams/candidates/${item.id}/send-re-enroll-email`);
+    snackbarText.value = data.message || `Re-enrollment email sent to ${item.name}!`;
+    snackbarColor.value = 'success';
+    snackbar.value = true;
+  } catch (err: any) {
+    snackbarText.value = err.response?.data?.message || 'Failed to send re-enroll email.';
+    snackbarColor.value = 'error';
+    snackbar.value = true;
+  }
+}
+
 // Email History State
 const showHistoryModal = ref(false);
 const loadingHistory = ref(false);
@@ -563,6 +851,7 @@ const detailHeaders = [
 ];
 
 const headers = [
+  { title: 'Face Photo', key: 'face_photo', width: '90px', sortable: false, align: 'center' as const },
   { title: 'Candidate Name', key: 'name' },
   { title: 'Email', key: 'email' },
   { title: 'Phone', key: 'phone' },

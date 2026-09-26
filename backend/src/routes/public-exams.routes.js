@@ -1129,7 +1129,84 @@ router.get('/candidates/validate-re-enroll-token', async (req, res) => {
   }
 });
 
-// 12. POST /api/public/exams/candidates/re-enroll-face
+// 12. POST /api/public/exams/candidates/re-enroll-verify-credentials
+router.post('/candidates/re-enroll-verify-credentials', async (req, res) => {
+  try {
+    const { token, email, password } = req.body;
+    if (!token) {
+      return res.status(400).json({ valid: false, message: 'Re-enrollment token is required.' });
+    }
+    if (!password) {
+      return res.status(400).json({ valid: false, message: 'Password is required to authenticate.' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT c.id, c.name, c.email, c.phone, c.password_hash, c.metadata, e.id as exam_id, e.name as exam_name, e.slug as exam_slug FROM public_exam_candidates c JOIN public_exams e ON c.exam_id = e.id'
+    );
+
+    let targetCandidate = null;
+    let targetMeta = null;
+
+    for (const c of rows) {
+      if (!c.metadata) continue;
+      const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+      if (meta.re_enroll_token === token) {
+        targetCandidate = c;
+        targetMeta = meta;
+        break;
+      }
+    }
+
+    if (!targetCandidate || !targetMeta) {
+      return res.status(404).json({ valid: false, message: 'This re-enrollment link is invalid or has expired.' });
+    }
+
+    if (targetMeta.re_enroll_token_used) {
+      return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has already been used. Please request a new link from the administrator.' });
+    }
+
+    if (targetMeta.re_enroll_token_expires_at && new Date() > new Date(targetMeta.re_enroll_token_expires_at)) {
+      return res.status(400).json({ valid: false, message: 'This re-enrollment link has expired. Please request a new link from the administrator.' });
+    }
+
+    // Verify email/identifier if provided
+    if (email && email.trim()) {
+      const input = email.trim().toLowerCase();
+      const candEmail = (targetCandidate.email || '').toLowerCase();
+      const candPhone = (targetCandidate.phone || '').toLowerCase();
+      if (input !== candEmail && input !== candPhone) {
+        return res.status(401).json({ valid: false, message: 'The entered Username/Email does not match this re-enrollment link recipient.' });
+      }
+    }
+
+    // Verify password against bcrypt hash
+    const isValid = await bcrypt.compare(password, targetCandidate.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ valid: false, message: 'Invalid Password. Please enter the password you created during registration.' });
+    }
+
+    res.json({
+      valid: true,
+      message: 'Candidate credentials verified successfully.',
+      candidate: {
+        id: targetCandidate.id,
+        name: targetCandidate.name,
+        email: targetCandidate.email,
+        phone: targetCandidate.phone
+      },
+      exam: {
+        id: targetCandidate.exam_id,
+        name: targetCandidate.exam_name,
+        slug: targetCandidate.exam_slug
+      }
+    });
+  } catch (error) {
+    console.error('Re-enroll verify credentials error:', error);
+    res.status(500).json({ valid: false, message: 'Internal server error' });
+  }
+});
+
+// 13. POST /api/public/exams/candidates/re-enroll-face
 router.post('/candidates/re-enroll-face', async (req, res) => {
   try {
     const { token, reference_photo_url, reference_photo_urls, facial_descriptor, facial_descriptors } = req.body;

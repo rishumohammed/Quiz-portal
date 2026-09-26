@@ -1887,4 +1887,118 @@ router.post('/candidates/:id/send-re-enroll-email', async (req, res) => {
   }
 });
 
+// POST /api/admin/public-exams/:id/send-re-enroll-email-all
+router.post('/:id/send-re-enroll-email-all', async (req, res) => {
+  try {
+    const examId = req.params.id;
+    const { filter = 'all', candidate_ids = [], custom_message = '', subject } = req.body;
+
+    const [examRows] = await pool.query('SELECT id, name, slug FROM public_exams WHERE id = ?', [examId]);
+    if (examRows.length === 0) return res.status(404).json({ message: 'Exam not found' });
+    const exam = examRows[0];
+
+    let query = 'SELECT id, name, email, phone, metadata, registration_status FROM public_exam_candidates WHERE exam_id = ?';
+    const params = [examId];
+
+    if (Array.isArray(candidate_ids) && candidate_ids.length > 0) {
+      query += ` AND id IN (${candidate_ids.map(() => '?').join(',')})`;
+      params.push(...candidate_ids);
+    } else {
+      query += ' AND (registration_status = "approved" OR registration_status IS NULL)';
+    }
+
+    const [candidates] = await pool.query(query, params);
+
+    // Apply face filter if requested
+    let targetCandidates = candidates;
+    if (filter === 'without_face') {
+      targetCandidates = candidates.filter(c => {
+        const meta = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
+        return !meta.facial_descriptor && !meta.facial_descriptors && !meta.reference_photo_url;
+      });
+    } else if (filter === 'with_face') {
+      targetCandidates = candidates.filter(c => {
+        const meta = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
+        return !!(meta.facial_descriptor || meta.facial_descriptors || meta.reference_photo_url);
+      });
+    }
+
+    if (targetCandidates.length === 0) {
+      return res.status(400).json({ message: 'No matching candidates found to receive re-enrollment email.' });
+    }
+
+    const emailSubject = subject || `[Action Required] Face Re-Enrollment Request for ${exam.name}`;
+    const logId = uuidv4();
+
+    await pool.query(
+      'INSERT INTO exam_email_logs (id, exam_id, subject, body, total_candidates, status) VALUES (?, ?, ?, ?, ?, "processing")',
+      [logId, examId, emailSubject, `Face Re-Enrollment Campaign: ${custom_message || 'Standard 3-pose face re-enrollment request dispatched.'}`, targetCandidates.length]
+    );
+
+    // Respond immediately to prevent HTTP timeouts
+    res.status(202).json({
+      message: `Face re-enrollment emails are being sent in the background to ${targetCandidates.length} candidate(s).`,
+      total_candidates: targetCandidates.length,
+      log_id: logId
+    });
+
+    // Run email sending in background
+    setTimeout(async () => {
+      let successCount = 0;
+      let failCount = 0;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+      for (const c of targetCandidates) {
+        try {
+          let metadata = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
+
+          // Generate single-use token valid for 48 hours
+          const token = uuidv4();
+          const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+          metadata.re_enroll_token = token;
+          metadata.re_enroll_token_used = false;
+          metadata.re_enroll_token_expires_at = expiresAt;
+
+          await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), c.id]);
+
+          const reEnrollUrl = `${frontendUrl}/public-exams/${exam.slug}/re-enroll-face?token=${token}`;
+
+          await EmailService.sendFaceReEnrollmentEmail(c, exam, reEnrollUrl, custom_message);
+          successCount++;
+
+          await pool.query(
+            'INSERT INTO exam_email_log_details (id, log_id, email, status) VALUES (?, ?, ?, ?)',
+            [uuidv4(), logId, c.email, 'success']
+          );
+        } catch (err) {
+          console.error(`Failed to send face re-enrollment email to ${c.email}:`, err);
+          failCount++;
+          await pool.query(
+            'INSERT INTO exam_email_log_details (id, log_id, email, status, error_message) VALUES (?, ?, ?, ?, ?)',
+            [uuidv4(), logId, c.email, 'failed', err.message || err.toString()]
+          );
+        }
+
+        // Update count
+        await pool.query(
+          'UPDATE exam_email_logs SET success_count = ?, fail_count = ? WHERE id = ?',
+          [successCount, failCount, logId]
+        );
+      }
+
+      await pool.query(
+        'UPDATE exam_email_logs SET status = "completed", completed_at = NOW() WHERE id = ?',
+        [logId]
+      );
+      console.log(`Face Re-Enrollment Campaign for Exam ${examId} Completed. Success: ${successCount}, Failed: ${failCount}`);
+    }, 100);
+
+  } catch (error) {
+    console.error('Send re-enroll email all error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 export default router;
+

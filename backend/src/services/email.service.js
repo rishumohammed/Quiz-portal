@@ -253,34 +253,53 @@ class EmailService {
     }
   }
 
-  async sendFaceReEnrollmentEmail(candidate, exam, reEnrollUrl) {
+  async sendFaceReEnrollmentEmail(candidate, exam, reEnrollUrl, customMessage = '') {
     try {
+      const customMessageHtml = customMessage ? `
+        <div style="background: #f1f5f9; border-left: 4px solid #4f46e5; padding: 14px 18px; margin: 18px 0; border-radius: 6px;">
+          <strong style="color: #334155; display: block; margin-bottom: 4px;">Message from Administrator:</strong>
+          <span style="color: #475569; font-size: 14px; line-height: 1.5;">${customMessage}</span>
+        </div>
+      ` : '';
+
       const html = `
-        <div style="font-family: sans-serif; padding: 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px 24px; color: #1e293b; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <div style="display: inline-block; width: 56px; height: 56px; line-height: 56px; border-radius: 50%; background: #6366f1; color: #ffffff; font-size: 28px;">📷</div>
-            <h2 style="color: #0f172a; margin-top: 12px; margin-bottom: 4px;">Face Re-Enrollment Request</h2>
-            <p style="color: #64748b; font-size: 14px; margin: 0;">${exam.name}</p>
+            <div style="display: inline-block; width: 60px; height: 60px; line-height: 60px; border-radius: 50%; background: #6366f1; color: #ffffff; font-size: 30px;">📷</div>
+            <h2 style="color: #0f172a; margin-top: 14px; margin-bottom: 4px; font-size: 22px;">Face Profile Re-Enrollment</h2>
+            <p style="color: #64748b; font-size: 15px; margin: 0; font-weight: 500;">${exam.name}</p>
           </div>
           
-          <p>Dear <strong>${candidate.name}</strong>,</p>
-          <p>The exam administrator has issued a single-use link for you to re-enroll your face photo and verification profile for <strong>${exam.name}</strong>.</p>
+          <p style="font-size: 15px; line-height: 1.6;">Dear <strong>${candidate.name}</strong>,</p>
+          <p style="font-size: 14px; line-height: 1.6; color: #334155;">The exam administration team has requested that you re-enroll your reference face profile for the upcoming examination: <strong>${exam.name}</strong>.</p>
           
-          <div style="background: #f8fafc; border-left: 4px solid #6366f1; padding: 14px 18px; margin: 20px 0; border-radius: 6px;">
-            <strong style="color: #334155; display: block; margin-bottom: 4px;">Important Security Note:</strong>
-            <span style="color: #64748b; font-size: 13px; line-height: 1.5;">This re-enrollment link is single-use and will automatically expire as soon as you successfully submit your new selfie photos.</span>
+          ${customMessageHtml}
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 20px 0;">
+            <div style="font-weight: bold; color: #1e293b; font-size: 14px; margin-bottom: 10px;">📋 Re-Enrollment Steps:</div>
+            <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569; line-height: 1.8;">
+              <li>Click the button below to open your secure re-enrollment link.</li>
+              <li>Verify your identity by entering your registered <strong>Username/Email and Password</strong>.</li>
+              <li>Allow camera access and capture <strong>3 reference face photos</strong> (Center, Slight Left, Slight Right).</li>
+              <li>Review and submit your updated profile.</li>
+            </ol>
           </div>
 
           <div style="text-align: center; margin: 28px 0;">
-            <a href="${reEnrollUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(99,102,241,0.3);">
+            <a href="${reEnrollUrl}" style="display: inline-block; padding: 14px 36px; background: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);">
               Re-Enroll Your Face Profile Now →
             </a>
           </div>
 
-          <p style="font-size: 13px; color: #94a3b8; text-align: center;">If the button above does not work, copy and paste this link into your browser:<br><a href="${reEnrollUrl}" style="color: #6366f1;">${reEnrollUrl}</a></p>
+          <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 20px 0; border-radius: 6px;">
+            <strong style="color: #92400e; font-size: 13px; display: block; margin-bottom: 2px;">⚠️ Important Note:</strong>
+            <span style="color: #78350f; font-size: 12px; line-height: 1.4;">This single-use link is valid for 48 hours and will automatically deactivate once your 3 photos are submitted.</span>
+          </div>
+
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">If the button above does not work, copy and paste this link into your browser:<br><a href="${reEnrollUrl}" style="color: #4f46e5; word-break: break-all;">${reEnrollUrl}</a></p>
           
           <hr style="border: 0; border-top: 1px solid #f1f5f9; margin: 24px 0;">
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Kefta Talent Hunt Security Team</p>
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">Kefta Talent Hunt Portal Security &amp; Proctoring Team</p>
         </div>
       `;
 
