@@ -7,7 +7,10 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:load": "node scripts/load-test-5000.js",
+    "test:load": "node scripts/simulate-exam-load.js",
+    "test:load:500": "USERS=500 DURATION=30 node scripts/simulate-exam-load.js",
+    "test:load:1000": "USERS=1000 DURATION=30 node scripts/simulate-exam-load.js",
+    "test:load:2000": "USERS=2000 DURATION=30 node scripts/simulate-exam-load.js",
     "migrate": "node src/db/migrate.js",
     "backup": "node scripts/run-backup.js"
   },
