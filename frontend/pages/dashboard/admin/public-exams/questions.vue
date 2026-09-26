@@ -520,6 +520,11 @@
             @click="confirmMoveCopyQuestion"
           >
             {{ moveCopyMode === 'move' ? 'Move Question' : 'Copy Question to Group' }}
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
     <!-- Bulk Import Dialog -->
     <v-dialog v-model="importOpen" max-width="900" persistent scrollable>
       <v-card class="rounded-2xl overflow-hidden shadow-2xl">
