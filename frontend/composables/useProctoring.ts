@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useApi } from '@/composables/useApi';
 
 export const useProctoring = () => {
@@ -8,21 +8,40 @@ export const useProctoring = () => {
   const isFullscreen = ref(false);
   const isDevToolsOpen = ref(false);
   
-  // Violations
-  const tabSwitchCount = ref(0);
-  const maxTabSwitches = 3;
-  const violationWarning = ref<{ show: boolean, message: string }>({ show: false, message: '' });
+  // Total Cumulative Proctoring Violations Counter (Max 3 Total)
+  const totalViolationsCount = ref(0);
+  const violationWarning = ref<{
+    show: boolean;
+    message: string;
+    violationCount: number;
+    maxViolations: number;
+    isAutoSubmitting: boolean;
+  }>({
+    show: false,
+    message: '',
+    violationCount: 0,
+    maxViolations: 3,
+    isAutoSubmitting: false
+  });
   
   const proctoringConfig = ref<any>({});
   let captureScreenshotCallback: (() => Promise<string | null>) | null = null;
   let submitCallback: ((reason: string) => void) | null = null;
   let devToolsInterval: NodeJS.Timeout;
   let authHeaders: any = {};
+  let isAutoSubmitting = false;
+
+  const maxViolationsCount = computed(() => {
+    return Number(proctoringConfig.value?.max_proctoring_warnings) || 3;
+  });
 
   const initProctoring = (id: string, onSubmit: (reason: string) => void, config: any = {}, captureScreenshotFn?: () => Promise<string | null>, customHeaders?: any) => {
     attemptId.value = id;
     submitCallback = onSubmit;
     proctoringConfig.value = config;
+    totalViolationsCount.value = 0;
+    isAutoSubmitting = false;
+    
     if (captureScreenshotFn) {
       captureScreenshotCallback = captureScreenshotFn;
     }
@@ -61,6 +80,9 @@ export const useProctoring = () => {
     
     if (blurTimeout) clearTimeout(blurTimeout);
     clearInterval(devToolsInterval);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+    }
     if (isFullscreenActive()) {
       exitFullscreen().catch(e => console.warn('Could not exit fullscreen', e));
     }
@@ -98,7 +120,7 @@ export const useProctoring = () => {
   let lastVoiceSpeakTime = 0;
   const speakWarning = (text: string) => {
     const now = Date.now();
-    if (now - lastVoiceSpeakTime < 6000) return; // Prevent audio overlap
+    if (now - lastVoiceSpeakTime < 4000) return; // Prevent audio overlap
     lastVoiceSpeakTime = now;
 
     if (proctoringConfig.value?.enable_voice_alert !== false && typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -112,26 +134,67 @@ export const useProctoring = () => {
           if (enVoice) utterance.voice = enVoice;
         }
         
-        utterance.volume = 0.9;
+        utterance.volume = 0.95;
         utterance.rate = 1.05;
         window.speechSynthesis.speak(utterance);
       } catch (_) {}
     }
   };
 
+  /**
+   * Central Unified Violation Handler
+   * Every violation increments the single totalViolationsCount pool.
+   * Auto-submits immediately upon reaching max (default 3) total violations.
+   */
+  const recordViolation = (type: string, reasonMessage: string, metadata: any = {}) => {
+    if (isAutoSubmitting || !attemptId.value) return;
+
+    totalViolationsCount.value++;
+    const current = totalViolationsCount.value;
+    const max = maxViolationsCount.value;
+
+    logEvent(type, { count: current, max, reason: reasonMessage, ...metadata });
+
+    if (current >= max) {
+      isAutoSubmitting = true;
+      const finalMsg = `Violation limit exceeded (${current} of ${max}): ${reasonMessage}. Your exam is being automatically submitted.`;
+      violationWarning.value = {
+        show: true,
+        message: finalMsg,
+        violationCount: current,
+        maxViolations: max,
+        isAutoSubmitting: true
+      };
+      speakWarning(`You have reached ${max} violations. Your exam is now being automatically submitted.`);
+      if (submitCallback) {
+        submitCallback('proctoring_violations_limit_reached');
+      }
+    } else {
+      const warnMsg = `Warning ${current} of ${max}: ${reasonMessage}. Reaching ${max} violations will automatically submit your exam.`;
+      violationWarning.value = {
+        show: true,
+        message: warnMsg,
+        violationCount: current,
+        maxViolations: max,
+        isAutoSubmitting: false
+      };
+      speakWarning(`Warning ${current} of ${max}: ${reasonMessage}`);
+    }
+  };
+
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
-      handleViolation('tab_switch');
+      recordViolation('tab_switch', 'Tab switch detected. Please remain on the exam screen.');
     }
   };
 
   let blurTimeout: any = null;
   const handleWindowBlur = () => {
     if (blurTimeout) clearTimeout(blurTimeout);
-    // 1500ms debounce ensures transient internal focus changes (e.g. speech synthesis, dropdowns) don't trigger false warnings
+    // 1500ms debounce ensures transient internal focus changes don't trigger false warnings
     blurTimeout = setTimeout(() => {
       if (typeof document !== 'undefined' && !document.hasFocus() && document.visibilityState !== 'hidden') {
-        handleViolation('window_blur');
+        recordViolation('window_blur', 'Window focus lost. Please do not switch away from the exam window.');
       }
     }, 1500);
   };
@@ -143,29 +206,7 @@ export const useProctoring = () => {
     }
   };
 
-  const getMaxTabSwitches = () => {
-    return proctoringConfig.value?.max_tab_switches || 5;
-  };
-
   let wasEverFullscreen = false;
-  const handleViolation = (type: string) => {
-    tabSwitchCount.value++;
-    logEvent(type, { count: tabSwitchCount.value });
-
-    const max = getMaxTabSwitches();
-
-    if (tabSwitchCount.value >= max) {
-      const msg = 'You have exceeded the maximum allowed tab switches. Your exam is being automatically submitted.';
-      violationWarning.value = { show: true, message: msg };
-      speakWarning(msg);
-      if (submitCallback) submitCallback('tab_switch_limit_exceeded');
-    } else {
-      const msg = `Warning ${tabSwitchCount.value} of ${max}: Please do not leave the exam window. Doing so again will auto-submit your exam.`;
-      violationWarning.value = { show: true, message: msg };
-      speakWarning(msg);
-    }
-  };
-
   const fullscreenEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
 
   const isFullscreenActive = (): boolean => {
@@ -179,10 +220,7 @@ export const useProctoring = () => {
     if (isFullscreen.value) {
       wasEverFullscreen = true;
     } else if (wasEverFullscreen && proctoringConfig.value?.enforce_fullscreen) {
-      logEvent('fullscreen_exit');
-      const msg = 'You have exited fullscreen mode. Please return to fullscreen to continue.';
-      violationWarning.value = { show: true, message: msg };
-      speakWarning(msg);
+      recordViolation('fullscreen_exit', 'Fullscreen mode was exited. Fullscreen is required.');
     }
   };
 
@@ -235,7 +273,7 @@ export const useProctoring = () => {
       (e.ctrlKey && (e.key === 'A' || e.key === 'a'))
     ) {
       e.preventDefault();
-      logEvent('forbidden_shortcut', { key: e.key });
+      recordViolation('forbidden_shortcut', `Unauthorized keyboard shortcut (${e.key}) detected.`);
     }
   };
 
@@ -245,7 +283,7 @@ export const useProctoring = () => {
     
     if ((widthThreshold || heightThreshold) && !isDevToolsOpen.value) {
       isDevToolsOpen.value = true;
-      logEvent('devtools_open');
+      recordViolation('devtools_open', 'Developer tools inspection detected.');
     } else if (!widthThreshold && !heightThreshold && isDevToolsOpen.value) {
       isDevToolsOpen.value = false;
     }
@@ -253,10 +291,10 @@ export const useProctoring = () => {
 
   const dismissWarning = () => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try { window.speechSynthesis.cancel(); } catch (_) {}
     }
     violationWarning.value.show = false;
-    if (!isFullscreen.value) {
+    if (!isFullscreen.value && proctoringConfig.value?.enforce_fullscreen) {
       requestFullscreen().catch(e => console.warn('Could not re-enter fullscreen:', e));
     }
   };
@@ -266,10 +304,13 @@ export const useProctoring = () => {
     cleanupProctoring,
     requestFullscreen,
     logEvent,
+    recordViolation,
     dismissWarning,
     speakWarning,
     isFullscreen,
     violationWarning,
-    tabSwitchCount
+    totalViolationsCount,
+    maxViolationsCount,
+    tabSwitchCount: totalViolationsCount
   };
 };

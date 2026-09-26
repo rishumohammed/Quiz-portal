@@ -4,8 +4,8 @@
     v-if="attempt?.proctoring_enabled && proctoring.violationWarning.value.show"
     :show="proctoring.violationWarning.value.show" 
     :message="proctoring.violationWarning.value.message" 
-    :is-auto-submitting="examStore.isSubmitting"
-    @dismiss="proctoring.dismissWarning()" 
+    :is-auto-submitting="proctoring.violationWarning.value.isAutoSubmitting || examStore.isSubmitting"
+    @dismiss="dismissViolation" 
   />
   <WebcamThumbnail 
     v-if="isProctoringEnabled && stage === 'exam'" 
@@ -365,8 +365,7 @@ const onVideoReady = async (videoEl: HTMLVideoElement) => {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
-      proctoring.violationWarning.value = { show: true, message: msg };
-      proctoring.speakWarning(msg);
+      proctoring.recordViolation('face_violation', msg);
     },
     proctoringConfig.value
   );
@@ -374,15 +373,15 @@ const onVideoReady = async (videoEl: HTMLVideoElement) => {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
-      proctoring.violationWarning.value = { show: true, message: msg };
-      proctoring.speakWarning(msg);
+      proctoring.recordViolation('mobile_phone_detected', msg);
     }
   );
 };
 
 const dismissViolation = () => {
-  proctoring.violationWarning.value = { show: false, message: '' };
+  proctoring.dismissWarning();
   faceDetection.resetWarningTimers(3000);
+  objectDetection.resetWarningTimers(3000);
 };
 
 // ── Start exam ────────────────────────────────────────────────────────────────

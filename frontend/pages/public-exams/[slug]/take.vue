@@ -346,23 +346,14 @@
       </v-card>
     </v-dialog>
 
-    <!-- Proctoring Warning Dialog -->
-    <v-dialog v-model="showProctorWarningDialog" max-width="450" persistent>
-      <v-card class="pa-6 rounded-xl border-error" style="border-width: 2px;">
-        <div class="d-flex align-center gap-3 mb-4 text-error">
-          <v-icon size="32">mdi-alert-octagon</v-icon>
-          <h3 class="text-h6 font-weight-bold mb-0">Violation Detected</h3>
-        </div>
-        <p class="text-body-1 font-weight-medium mb-2">{{ proctorViolationMessage }}</p>
-        <p class="text-body-2 text-secondary mb-6">
-          Warning {{ proctoringWarnings }} of {{ examConfig?.max_proctoring_warnings || 3 }}. 
-          If you reach the limit, your exam will be automatically submitted.
-        </p>
-        <v-btn color="error" rounded="lg" class="text-capitalize font-weight-bold px-6" block @click="dismissProctorWarning">
-          I Understand
-        </v-btn>
-      </v-card>
-    </v-dialog>
+    <!-- Proctoring Fullscreen Violation Overlay -->
+    <ProctoringOverlay 
+      v-if="examConfig?.enable_proctoring && proctoring.violationWarning.value.show"
+      :show="proctoring.violationWarning.value.show" 
+      :message="proctoring.violationWarning.value.message" 
+      :is-auto-submitting="proctoring.violationWarning.value.isAutoSubmitting || submittingExam"
+      @dismiss="handleDismissWarning" 
+    />
 
     <!-- Fullscreen Enforcement Overlay -->
     <v-overlay v-model="requiresFullscreen" class="align-center justify-center" persistent>
@@ -466,10 +457,7 @@ const answers = ref<Record<string, any>>({}); // Map of question_id -> answers
 const markedForReview = ref<string[]>([]);    // List of marked question_ids
 const visitedQuestions = ref<string[]>([]);   // List of visited question_ids
 
-// Proctoring
-const proctoringWarnings = ref(0);
-const showProctorWarningDialog = ref(false);
-const proctorViolationMessage = ref('');
+
 
 // Timer details
 const timeLeftSeconds = ref(0);
@@ -722,9 +710,7 @@ async function onVideoReady(videoEl: HTMLVideoElement) {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
-      if (proctoring.violationWarning.value.show) return;
-      proctoring.violationWarning.value = { show: true, message: msg };
-      proctoring.speakWarning(msg);
+      proctoring.recordViolation('face_violation', msg);
     },
     proctoringConfig.value
   );
@@ -732,9 +718,7 @@ async function onVideoReady(videoEl: HTMLVideoElement) {
     videoEl, 
     proctoring.logEvent, 
     (msg) => {
-      if (proctoring.violationWarning.value.show) return;
-      proctoring.violationWarning.value = { show: true, message: msg };
-      proctoring.speakWarning(msg);
+      proctoring.recordViolation('mobile_phone_detected', msg);
     }
   );
 }
@@ -757,28 +741,7 @@ function handleFullscreenChange() {
   isFullScreen.value = isFullscreenActive();
 }
 
-function triggerProctorViolation(customMsg: string) {
-  // If exam has already been submitted or is being submitted, do nothing
-  if (submittingExam.value || !attemptId.value) return;
 
-  proctoringWarnings.value++;
-  const max = examConfig.value.max_proctoring_warnings || 3;
-  if (proctoringWarnings.value >= max) {
-    alert('You have exceeded the maximum allowed violations. Your exam will now be automatically submitted.');
-    submitOnTimeout();
-  } else {
-    proctorViolationMessage.value = customMsg;
-    showProctorWarningDialog.value = true;
-  }
-}
-
-function dismissProctorWarning() {
-  showProctorWarningDialog.value = false;
-  faceDetection.resetWarningTimers(3000); // 3 second grace period
-  if (examConfig.value?.enforce_fullscreen && !isFullscreenActive()) {
-    enterFullScreen();
-  }
-}
 
 // Navigation
 function nextQuestion() {

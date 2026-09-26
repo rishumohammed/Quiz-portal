@@ -1,30 +1,38 @@
 <template>
   <div v-if="show" class="proctoring-overlay">
-    <div class="overlay-card">
+    <div class="overlay-card" :class="{ 'card-auto-submitting': isAutoSubmitting }">
       <div class="icon-wrap mb-6">
-        <v-icon size="64" color="error">mdi-alert-octagon</v-icon>
+        <v-icon size="64" :color="isAutoSubmitting ? 'error' : 'warning'">
+          {{ isAutoSubmitting ? 'mdi-alert-circle-outline' : 'mdi-alert-octagon' }}
+        </v-icon>
       </div>
-      <h2 class="text-h4 font-weight-black text-white mb-4">Exam Violation Warning</h2>
-      <p class="text-h6 text-error mb-8">{{ message }}</p>
+      <h2 class="text-h4 font-weight-black text-white mb-4">
+        {{ isAutoSubmitting ? 'Exam Auto-Submitted' : 'Exam Violation Warning' }}
+      </h2>
+      <p class="text-h6 text-error mb-6 px-4" style="line-height: 1.5;">{{ message }}</p>
       
-      <p class="text-grey-lighten-2 mb-8 max-w-500 mx-auto">
-        Your actions have been logged. Please adhere strictly to the exam rules. 
-        Further violations may result in the immediate auto-submission of your exam and potential disciplinary action.
+      <p class="text-grey-lighten-2 mb-8 max-w-500 mx-auto" style="font-size: 0.95rem; line-height: 1.6;">
+        <template v-if="isAutoSubmitting">
+          You have reached the maximum allowed proctoring violations limit (3 total violations). Your responses have been saved and your exam is now being automatically submitted.
+        </template>
+        <template v-else>
+          Your violation has been recorded with screenshot evidence. Please adhere strictly to exam rules. Reaching 3 total violations will immediately auto-submit your exam.
+        </template>
       </p>
 
       <v-btn
         v-if="!isAutoSubmitting"
-        color="primary"
+        color="error"
         size="x-large"
         rounded="xl"
         class="px-8 font-weight-bold"
         @click="$emit('dismiss')"
       >
-        Acknowledge &amp; Return to Exam
+        I Understand &amp; Return to Exam
       </v-btn>
-      <div v-else>
-        <v-progress-circular indeterminate color="error" size="40" class="mb-2" />
-        <p class="text-error font-weight-bold">Submitting your exam...</p>
+      <div v-else class="d-flex flex-column align-center">
+        <v-progress-circular indeterminate color="error" size="48" width="4" class="mb-3" />
+        <p class="text-error font-weight-bold text-subtitle-1 mb-0">Submitting your exam now...</p>
       </div>
     </div>
   </div>
