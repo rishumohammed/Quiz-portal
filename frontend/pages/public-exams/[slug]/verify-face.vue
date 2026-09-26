@@ -284,8 +284,21 @@ async function startLiveVerificationTest() {
 }
 
 function stopTest() {
-  if (testInterval) clearInterval(testInterval);
+  if (testInterval) {
+    clearInterval(testInterval);
+    testInterval = null;
+  }
+  if (testVideoEl.value && testVideoEl.value.srcObject) {
+    try {
+      const tracks = (testVideoEl.value.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    testVideoEl.value.srcObject = null;
+  }
   recorder.stopRecording();
+  recorder.releaseCamera();
   isTesting.value = false;
 }
 

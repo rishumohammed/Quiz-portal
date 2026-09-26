@@ -31,26 +31,38 @@ const dragOffset = ref({ x: 0, y: 0 });
 let hasEmittedReady = false;
 
 watchEffect(() => {
-  if (videoEl.value && props.stream) {
-    if (videoEl.value.srcObject !== props.stream) {
-      videoEl.value.srcObject = props.stream;
-      hasEmittedReady = false;
-    }
-    
-    const triggerReady = () => {
-      if (videoEl.value && !hasEmittedReady) {
-        hasEmittedReady = true;
-        videoEl.value.play().catch(() => {});
-        emit('video-ready', videoEl.value);
+  if (videoEl.value) {
+    if (props.stream) {
+      if (videoEl.value.srcObject !== props.stream) {
+        videoEl.value.srcObject = props.stream;
+        hasEmittedReady = false;
       }
-    };
+      
+      const triggerReady = () => {
+        if (videoEl.value && !hasEmittedReady) {
+          hasEmittedReady = true;
+          videoEl.value.play().catch(() => {});
+          emit('video-ready', videoEl.value);
+        }
+      };
 
-    if (videoEl.value.readyState >= 1) {
-      triggerReady();
+      if (videoEl.value.readyState >= 1) {
+        triggerReady();
+      } else {
+        videoEl.value.onloadedmetadata = triggerReady;
+        videoEl.value.onloadeddata = triggerReady;
+        videoEl.value.oncanplay = triggerReady;
+      }
     } else {
-      videoEl.value.onloadedmetadata = triggerReady;
-      videoEl.value.onloadeddata = triggerReady;
-      videoEl.value.oncanplay = triggerReady;
+      if (videoEl.value.srcObject) {
+        try {
+          const tracks = (videoEl.value.srcObject as MediaStream).getTracks();
+          tracks.forEach(track => {
+            try { track.stop(); } catch (_) {}
+          });
+        } catch (_) {}
+        videoEl.value.srcObject = null;
+      }
     }
   }
 });
@@ -96,6 +108,15 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousemove', doDrag);
   document.removeEventListener('mouseup', stopDrag);
+  if (videoEl.value && videoEl.value.srcObject) {
+    try {
+      const tracks = (videoEl.value.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    videoEl.value.srcObject = null;
+  }
 });
 </script>
 

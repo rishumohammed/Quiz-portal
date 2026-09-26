@@ -732,6 +732,9 @@ export const useFaceDetection = () => {
       clearInterval(detectionInterval);
       detectionInterval = null;
     }
+    isEstimatingFaces = false;
+    currentProctorState.value = 'NORMAL';
+    showDebugHUD.value = false;
   };
 
   const resetWarningTimers = (gracePeriodMs = 3000) => {

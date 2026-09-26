@@ -180,15 +180,30 @@ export const useWebcamRecorder = () => {
   };
 
   const stopRecording = () => {
-    if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
-      mediaRecorder.value.stop();
+    try {
+      if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
+        mediaRecorder.value.stop();
+      }
+    } catch (e) {
+      console.warn('Error stopping media recorder:', e);
     }
     isRecording.value = false;
   };
 
   const releaseCamera = () => {
+    stopRecording();
     if (stream.value) {
-      stream.value.getTracks().forEach(track => track.stop());
+      try {
+        const tracks = stream.value.getTracks();
+        tracks.forEach(track => {
+          try {
+            track.stop();
+            track.enabled = false;
+          } catch (_) {}
+        });
+      } catch (e) {
+        console.warn('Error stopping stream tracks:', e);
+      }
       stream.value = null;
     }
   };

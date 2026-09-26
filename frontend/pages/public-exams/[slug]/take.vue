@@ -883,6 +883,9 @@ function handleAnswerChanged() {
 
 async function submitFinalAnswers() {
   submittingExam.value = true;
+  // Immediately release camera and stop proctoring on submit
+  cleanupProctoring();
+
   try {
     const formattedAnswers = Object.keys(answers.value).map(qId => ({
       question_id: qId,
@@ -898,7 +901,6 @@ async function submitFinalAnswers() {
     localStorage.removeItem(`public_exam_token_${examSlug.value}`);
     localStorage.removeItem(`public_exam_candidate_${examSlug.value}`);
 
-    cleanupProctoring();
     confirmSubmitDialog.value = false;
     router.push(`/public-exams/${examSlug.value}/thank-you/${attemptId.value}`);
   } catch (err) {
@@ -909,7 +911,9 @@ async function submitFinalAnswers() {
 }
 
 async function submitOnTimeout() {
-  // Force submit
+  // Immediately release camera and stop proctoring on timeout submit
+  cleanupProctoring();
+
   try {
     const formattedAnswers = Object.keys(answers.value).map(qId => ({
       question_id: qId,
@@ -919,7 +923,6 @@ async function submitOnTimeout() {
       answers: formattedAnswers
     }, { headers: authHeaders() });
     localStorage.removeItem(`exam_attempt_${examSlug.value}`);
-    cleanupProctoring();
     router.push(`/public-exams/${examSlug.value}/thank-you/${attemptId.value}`);
   } catch (err) {
     console.error('Timeout submit failed:', err);
@@ -934,6 +937,7 @@ function confirmExit() {
 
 function confirmExitForce() {
   exitDialog.value = false;
+  cleanupProctoring();
   router.push('/public-exams');
 }
 
@@ -1032,13 +1036,11 @@ onBeforeUnmount(() => {
 });
 
 function cleanupProctoring() {
-  if (examConfig.value?.enable_proctoring) {
-    proctoring.cleanupProctoring();
-    faceDetection.stopDetection();
-    objectDetection.stopDetection();
-    recorder.stopRecording();
-    recorder.releaseCamera();
-  }
+  proctoring.cleanupProctoring();
+  faceDetection.stopDetection();
+  objectDetection.stopDetection();
+  recorder.stopRecording();
+  recorder.releaseCamera();
 }
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {

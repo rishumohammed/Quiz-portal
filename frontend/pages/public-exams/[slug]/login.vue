@@ -438,9 +438,25 @@ function resetToCredentials() {
 }
 
 function stopFaceVerification() {
-  if (matchCheckInterval) clearInterval(matchCheckInterval);
-  if (verificationTimeout) clearTimeout(verificationTimeout);
+  if (matchCheckInterval) {
+    clearInterval(matchCheckInterval);
+    matchCheckInterval = null;
+  }
+  if (verificationTimeout) {
+    clearTimeout(verificationTimeout);
+    verificationTimeout = null;
+  }
+  if (loginVideoEl.value && loginVideoEl.value.srcObject) {
+    try {
+      const tracks = (loginVideoEl.value.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    loginVideoEl.value.srcObject = null;
+  }
   recorder.stopRecording();
+  recorder.releaseCamera();
 }
 
 async function finalizeLoginAndAttempt(data: any) {

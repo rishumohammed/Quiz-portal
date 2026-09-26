@@ -477,9 +477,11 @@ const triggerAutoSubmitLimit = (reason: string) => {
 // ── Submit ────────────────────────────────────────────────────────────────────
 const doSubmit = async () => {
   confirmSubmit.value = false;
+  // Immediately release camera and stop proctoring on submit
+  cleanupProctoring();
+
   try {
     const result = await examStore.submitExam(attemptId.value);
-    cleanupProctoring();
     // Exit fullscreen
     try {
       if (isFullscreenActive()) {
@@ -498,13 +500,11 @@ const doSubmit = async () => {
 };
 
 const cleanupProctoring = () => {
-  if (isProctoringEnabled.value) {
-    proctoring.cleanupProctoring();
-    faceDetection.stopDetection();
-    objectDetection.stopDetection();
-    recorder.stopRecording();
-    recorder.releaseCamera();
-  }
+  proctoring.cleanupProctoring();
+  faceDetection.stopDetection();
+  objectDetection.stopDetection();
+  recorder.stopRecording();
+  recorder.releaseCamera();
 };
 
 onUnmounted(() => {

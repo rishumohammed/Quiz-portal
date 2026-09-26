@@ -311,6 +311,18 @@ function stopReadinessMonitoring() {
     clearInterval(readinessInterval);
     readinessInterval = null;
   }
+  if (videoEl.value && videoEl.value.srcObject) {
+    try {
+      const tracks = (videoEl.value.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => {
+        try { track.stop(); } catch (_) {}
+      });
+    } catch (_) {}
+    videoEl.value.srcObject = null;
+  }
+  recorder.stopRecording();
+  recorder.releaseCamera();
+  cameraStarted.value = false;
 }
 
 async function validateToken() {
