@@ -319,42 +319,61 @@ router.post('/:id/certificate-settings', async (req, res) => {
 router.get('/:id/attempts', async (req, res) => {
   try {
     const examId = req.params.id;
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, startDate, endDate, status } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let query = `
+    const whereConditions = ['a.exam_id = ?'];
+    const params = [examId];
+
+    if (search) {
+      whereConditions.push('(a.guest_name LIKE ? OR a.guest_email LIKE ?)');
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern);
+    }
+
+    if (startDate) {
+      whereConditions.push('a.started_at >= ?');
+      params.push(`${startDate} 00:00:00`);
+    }
+
+    if (endDate) {
+      whereConditions.push('a.started_at <= ?');
+      params.push(`${endDate} 23:59:59`);
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'passed') {
+        whereConditions.push('r.passed = 1 AND a.status = "submitted"');
+      } else if (status === 'failed') {
+        whereConditions.push('r.passed = 0 AND a.status = "submitted"');
+      } else if (status === 'in_progress') {
+        whereConditions.push('a.status != "submitted"');
+      }
+    }
+
+    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+
+    const query = `
       SELECT a.id as attempt_id, a.guest_name, a.guest_email, a.guest_phone, a.is_anonymous, a.started_at, a.status as attempt_status,
              e.name as exam_name, e.slug as exam_slug, r.score, r.percentage, r.passed, r.time_taken_seconds
       FROM public_exam_attempts a
       JOIN public_exams e ON a.exam_id = e.id
       LEFT JOIN public_exam_results r ON a.id = r.attempt_id
-      WHERE a.exam_id = ?
+      ${whereClause}
+      ORDER BY a.started_at DESC LIMIT ? OFFSET ?
     `;
-    const params = [examId];
+    const queryParams = [...params, parseInt(limit), offset];
 
-    if (search) {
-      query += ' AND (a.guest_name LIKE ? OR a.guest_email LIKE ?)';
-      const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern);
-    }
-
-    query += ' ORDER BY a.started_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), offset);
-
-    const [attempts] = await pool.query(query, params);
+    const [attempts] = await pool.query(query, queryParams);
 
     // Get count
-    let countQuery = `
+    const countQuery = `
       SELECT COUNT(*) as count 
       FROM public_exam_attempts a
-      WHERE a.exam_id = ?
+      LEFT JOIN public_exam_results r ON a.id = r.attempt_id
+      ${whereClause}
     `;
-    const countParams = [examId];
-    if (search) {
-      countQuery += ' AND (a.guest_name LIKE ? OR a.guest_email LIKE ?)';
-      countParams.push(`%${search}%`, `%${search}%`);
-    }
-    const [countRow] = await pool.query(countQuery, countParams);
+    const [countRow] = await pool.query(countQuery, params);
 
     res.json({
       attempts,
@@ -383,23 +402,56 @@ router.delete('/attempts/:id', async (req, res) => {
 router.get('/:id/attempts/export', async (req, res) => {
   try {
     const examId = req.params.id;
+    const { search, startDate, endDate, status } = req.query;
+
+    const whereConditions = ['a.exam_id = ?'];
+    const params = [examId];
+
+    if (search) {
+      whereConditions.push('(a.guest_name LIKE ? OR a.guest_email LIKE ?)');
+      const searchPattern = `%${search}%`;
+      params.push(searchPattern, searchPattern);
+    }
+
+    if (startDate) {
+      whereConditions.push('a.started_at >= ?');
+      params.push(`${startDate} 00:00:00`);
+    }
+
+    if (endDate) {
+      whereConditions.push('a.started_at <= ?');
+      params.push(`${endDate} 23:59:59`);
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'passed') {
+        whereConditions.push('r.passed = 1 AND a.status = "submitted"');
+      } else if (status === 'failed') {
+        whereConditions.push('r.passed = 0 AND a.status = "submitted"');
+      } else if (status === 'in_progress') {
+        whereConditions.push('a.status != "submitted"');
+      }
+    }
+
+    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+
     const [rows] = await pool.query(`
       SELECT e.name as exam_name, a.guest_name, a.guest_email, a.guest_phone,
-             r.score, r.percentage, r.passed, r.time_taken_seconds, a.started_at
+             r.score, r.percentage, r.passed, r.time_taken_seconds, a.started_at, a.status as attempt_status
       FROM public_exam_attempts a
       JOIN public_exams e ON a.exam_id = e.id
       LEFT JOIN public_exam_results r ON a.id = r.attempt_id
-      WHERE a.exam_id = ?
+      ${whereClause}
       ORDER BY a.started_at DESC
-    `, [examId]);
+    `, params);
 
     // Output raw CSV
     let csv = 'Exam Name,Candidate Name,Email,Phone,Score,Percentage,Status,Time Taken (sec),Date\n';
     for (const r of rows) {
-      const status = r.passed === 1 ? 'Passed' : (r.passed === 0 ? 'Failed' : 'In Progress');
+      const statusText = r.attempt_status !== 'submitted' ? 'In Progress' : (r.passed === 1 ? 'Passed' : 'Failed');
       const timeStr = r.time_taken_seconds || 'N/A';
-      const dateStr = new Date(r.started_at).toLocaleDateString();
-      csv += `"${r.exam_name}","${r.guest_name}","${r.guest_email || ''}","${r.guest_phone || ''}",${r.score || 0},${r.percentage || 0},"${status}",${timeStr},"${dateStr}"\n`;
+      const dateStr = new Date(r.started_at).toLocaleString();
+      csv += `"${r.exam_name}","${r.guest_name}","${r.guest_email || ''}","${r.guest_phone || ''}",${r.score || 0},${r.percentage || 0},"${statusText}",${timeStr},"${dateStr}"\n`;
     }
 
     res.setHeader('Content-Type', 'text/csv');
@@ -417,15 +469,35 @@ router.get('/:id/attempts/export', async (req, res) => {
 router.get('/:id/analytics', async (req, res) => {
   try {
     const examId = req.params.id;
+    const { startDate, endDate } = req.query;
 
-    const [totalAttemptsRow] = await pool.query('SELECT COUNT(*) as count FROM public_exam_attempts WHERE exam_id = ?', [examId]);
+    const dateConditions = ['a.exam_id = ?'];
+    const dateParams = [examId];
+
+    if (startDate) {
+      dateConditions.push('a.started_at >= ?');
+      dateParams.push(`${startDate} 00:00:00`);
+    }
+
+    if (endDate) {
+      dateConditions.push('a.started_at <= ?');
+      dateParams.push(`${endDate} 23:59:59`);
+    }
+
+    const whereClause = `WHERE ${dateConditions.join(' AND ')}`;
+
+    const [totalAttemptsRow] = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM public_exam_attempts a 
+      ${whereClause}
+    `, dateParams);
     
     const [avgScoreRow] = await pool.query(`
       SELECT AVG(r.percentage) as avg_pct 
       FROM public_exam_results r
       JOIN public_exam_attempts a ON r.attempt_id = a.id
-      WHERE a.exam_id = ?
-    `, [examId]);
+      ${whereClause}
+    `, dateParams);
     
     const [passPercentageRow] = await pool.query(`
       SELECT 
@@ -435,8 +507,8 @@ router.get('/:id/analytics', async (req, res) => {
         END as pass_rate 
       FROM public_exam_results r
       JOIN public_exam_attempts a ON r.attempt_id = a.id
-      WHERE a.exam_id = ?
-    `, [examId]);
+      ${whereClause}
+    `, dateParams);
 
     // Question Difficulty Analysis specifically for this exam
     const [questions] = await pool.query(`
@@ -447,10 +519,10 @@ router.get('/:id/analytics', async (req, res) => {
     `, [examId]);
 
     const [attempts] = await pool.query(`
-      SELECT answers_json
-      FROM public_exam_attempts
-      WHERE status = 'submitted' AND exam_id = ?
-    `, [examId]);
+      SELECT a.answers_json
+      FROM public_exam_attempts a
+      ${whereClause} AND a.status = 'submitted'
+    `, dateParams);
 
     const questionStats = questions.map(q => {
       let correctCount = 0;
