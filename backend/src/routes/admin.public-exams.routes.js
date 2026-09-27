@@ -332,13 +332,13 @@ router.get('/:id/attempts', async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('a.started_at >= ?');
-      params.push(`${startDate} 00:00:00`);
+      whereConditions.push('DATE(a.started_at) >= ?');
+      params.push(startDate.substring(0, 10));
     }
 
     if (endDate) {
-      whereConditions.push('a.started_at <= ?');
-      params.push(`${endDate} 23:59:59`);
+      whereConditions.push('DATE(a.started_at) <= ?');
+      params.push(endDate.substring(0, 10));
     }
 
     if (status && status !== 'all') {
@@ -414,13 +414,13 @@ router.get('/:id/attempts/export', async (req, res) => {
     }
 
     if (startDate) {
-      whereConditions.push('a.started_at >= ?');
-      params.push(`${startDate} 00:00:00`);
+      whereConditions.push('DATE(a.started_at) >= ?');
+      params.push(startDate.substring(0, 10));
     }
 
     if (endDate) {
-      whereConditions.push('a.started_at <= ?');
-      params.push(`${endDate} 23:59:59`);
+      whereConditions.push('DATE(a.started_at) <= ?');
+      params.push(endDate.substring(0, 10));
     }
 
     if (status && status !== 'all') {
@@ -475,13 +475,13 @@ router.get('/:id/analytics', async (req, res) => {
     const dateParams = [examId];
 
     if (startDate) {
-      dateConditions.push('a.started_at >= ?');
-      dateParams.push(`${startDate} 00:00:00`);
+      dateConditions.push('DATE(a.started_at) >= ?');
+      dateParams.push(startDate.substring(0, 10));
     }
 
     if (endDate) {
-      dateConditions.push('a.started_at <= ?');
-      dateParams.push(`${endDate} 23:59:59`);
+      dateConditions.push('DATE(a.started_at) <= ?');
+      dateParams.push(endDate.substring(0, 10));
     }
 
     const whereClause = `WHERE ${dateConditions.join(' AND ')}`;

@@ -367,6 +367,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useApi } from '@/composables/useApi';
+import { useAppDate } from '@/composables/useAppDate';
 import { useRoute } from 'vue-router';
 
 definePageMeta({
@@ -378,6 +379,7 @@ definePageMeta({
 const api = useApi();
 const route = useRoute();
 const examId = route.params.id;
+const { formatDate, formatDateOnly, toISODate, getTimezone } = useAppDate();
 
 const loadingAnalytics = ref(true);
 const analytics = ref<any>(null);
@@ -431,45 +433,38 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ];
 
-function toISODateString(d: Date) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function onPresetChange(val: string) {
   const now = new Date();
   if (val === 'all') {
     startDate.value = '';
     endDate.value = '';
   } else if (val === 'today') {
-    startDate.value = toISODateString(now);
-    endDate.value = toISODateString(now);
+    startDate.value = toISODate(now);
+    endDate.value = toISODate(now);
   } else if (val === 'yesterday') {
     const yest = new Date();
     yest.setDate(yest.getDate() - 1);
-    startDate.value = toISODateString(yest);
-    endDate.value = toISODateString(yest);
+    startDate.value = toISODate(yest);
+    endDate.value = toISODate(yest);
   } else if (val === 'last7days') {
     const d = new Date();
     d.setDate(d.getDate() - 6);
-    startDate.value = toISODateString(d);
-    endDate.value = toISODateString(now);
+    startDate.value = toISODate(d);
+    endDate.value = toISODate(now);
   } else if (val === 'last30days') {
     const d = new Date();
     d.setDate(d.getDate() - 29);
-    startDate.value = toISODateString(d);
-    endDate.value = toISODateString(now);
+    startDate.value = toISODate(d);
+    endDate.value = toISODate(now);
   } else if (val === 'thisMonth') {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    startDate.value = toISODateString(firstDay);
-    endDate.value = toISODateString(now);
+    startDate.value = toISODate(firstDay);
+    endDate.value = toISODate(now);
   } else if (val === 'lastMonth') {
     const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-    startDate.value = toISODateString(firstDay);
-    endDate.value = toISODateString(lastDay);
+    startDate.value = toISODate(firstDay);
+    endDate.value = toISODate(lastDay);
   }
 
   currentPage.value = 1;
@@ -637,25 +632,9 @@ function getAttemptStatusText(item: any) {
   return item.passed === 1 ? 'Passed' : 'Failed';
 }
 
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-}
-
 function formatDateBadge(dateStr: string) {
   if (!dateStr) return '';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-  return dateStr;
+  return formatDateOnly(dateStr);
 }
 
 onMounted(() => {

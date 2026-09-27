@@ -422,6 +422,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useApi } from '@/composables/useApi';
+import { useAppDate } from '@/composables/useAppDate';
 
 definePageMeta({
   layout: 'dashboard',
@@ -593,8 +594,11 @@ function getStatusColor(status: string) {
   return 'grey';
 }
 
+const { formatDateOnly } = useAppDate();
+
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!dateStr) return '—';
+  return formatDateOnly(dateStr);
 }
 
 function openShareDialog(exam: any) {

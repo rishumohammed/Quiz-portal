@@ -456,6 +456,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
+import { useAppDate } from '@/composables/useAppDate';
 import { useRuntimeConfig } from '#imports';
 
 definePageMeta({
@@ -744,9 +745,11 @@ function getResultColor(passed: number) {
   return 'grey';
 }
 
+const { formatDate: appFormatDate } = useAppDate();
+
 function formatDate(dateStr: string) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+  if (!dateStr) return '—';
+  return appFormatDate(dateStr);
 }
 
 function formatAnswer(ans: any) {

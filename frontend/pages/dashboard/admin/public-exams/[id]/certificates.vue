@@ -132,6 +132,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
+import { useAppDate } from '@/composables/useAppDate';
 
 definePageMeta({
   layout: 'dashboard',
@@ -141,6 +142,7 @@ definePageMeta({
 
 const route = useRoute();
 const api = useApi();
+const { formatDate: appFormatDate } = useAppDate();
 const examId = route.params.id as string;
 const config = useRuntimeConfig();
 
@@ -263,10 +265,7 @@ function showSnackbar(text: string, color: string = 'success') {
 
 function formatDate(dateStr: string) {
   if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: 'numeric', minute: '2-digit'
-  });
+  return appFormatDate(dateStr);
 }
 
 function getMediaUrl(url: string | null) {

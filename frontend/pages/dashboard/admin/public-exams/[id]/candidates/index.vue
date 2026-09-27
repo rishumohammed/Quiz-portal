@@ -76,13 +76,14 @@
         </v-col>
       </v-row>
 
-      <!-- Search Box -->
-      <v-card flat border class="pa-4 mb-6 rounded-xl">
-        <v-row no-gutters>
-          <v-col cols="12" md="4">
+      <!-- Search & Filter Controls -->
+      <v-card flat border class="pa-4 mb-6 rounded-xl bg-white shadow-xs">
+        <v-row align="center" dense class="gap-y-3">
+          <!-- Search Field -->
+          <v-col cols="12" lg="3" md="4">
             <v-text-field
               v-model="search"
-              placeholder="Search candidates by name or email..."
+              placeholder="Search candidate name, email, phone..."
               prepend-inner-icon="mdi-magnify"
               hide-details
               clearable
@@ -91,7 +92,150 @@
               rounded="lg"
             ></v-text-field>
           </v-col>
+
+          <!-- Date Preset Dropdown -->
+          <v-col cols="12" sm="6" md="3" lg="2">
+            <v-select
+              v-model="datePreset"
+              :items="datePresetOptions"
+              item-title="title"
+              item-value="value"
+              label="Registration Date"
+              prepend-inner-icon="mdi-calendar-clock"
+              hide-details
+              density="comfortable"
+              variant="outlined"
+              rounded="lg"
+              @update:model-value="onPresetChange"
+            ></v-select>
+          </v-col>
+
+          <!-- From Date -->
+          <v-col cols="6" sm="3" md="2" lg="2">
+            <v-text-field
+              v-model="startDate"
+              type="date"
+              label="From Date"
+              prepend-inner-icon="mdi-calendar-start"
+              hide-details
+              clearable
+              density="comfortable"
+              variant="outlined"
+              rounded="lg"
+              @update:model-value="onCustomDateChange"
+              @click:clear="startDate = ''; onCustomDateChange()"
+            ></v-text-field>
+          </v-col>
+
+          <!-- To Date -->
+          <v-col cols="6" sm="3" md="2" lg="2">
+            <v-text-field
+              v-model="endDate"
+              type="date"
+              label="To Date"
+              prepend-inner-icon="mdi-calendar-end"
+              hide-details
+              clearable
+              density="comfortable"
+              variant="outlined"
+              rounded="lg"
+              @update:model-value="onCustomDateChange"
+              @click:clear="endDate = ''; onCustomDateChange()"
+            ></v-text-field>
+          </v-col>
+
+          <!-- Status Filter -->
+          <v-col cols="12" sm="6" md="2" lg="2">
+            <v-select
+              v-model="statusFilter"
+              :items="statusOptions"
+              item-title="title"
+              item-value="value"
+              label="Status Filter"
+              prepend-inner-icon="mdi-filter-variant"
+              hide-details
+              density="comfortable"
+              variant="outlined"
+              rounded="lg"
+            ></v-select>
+          </v-col>
+
+          <v-col cols="12" sm="6" md="1" lg="1" class="d-flex justify-end">
+            <v-btn
+              icon="mdi-refresh"
+              variant="tonal"
+              color="secondary"
+              rounded="lg"
+              title="Refresh Candidates"
+              :loading="loading"
+              @click="loadData"
+            ></v-btn>
+          </v-col>
         </v-row>
+
+        <!-- Active Filters Summary Banner -->
+        <div v-if="hasActiveFilters" class="d-flex align-center justify-space-between flex-wrap gap-2 mt-4 pt-3 border-t">
+          <div class="d-flex align-center flex-wrap gap-2">
+            <span class="text-caption font-weight-bold text-secondary mr-1">Active Filters:</span>
+            
+            <v-chip
+              v-if="startDate || endDate"
+              size="small"
+              color="primary"
+              variant="tonal"
+              closable
+              @click:close="clearDateFilter"
+            >
+              <v-icon start size="14">mdi-calendar-range</v-icon>
+              {{ startDate ? formatDateOnly(startDate) : 'Beginning' }} &rarr; {{ endDate ? formatDateOnly(endDate) : 'Today' }}
+            </v-chip>
+
+            <v-chip
+              v-if="statusFilter && statusFilter !== 'all'"
+              size="small"
+              color="indigo"
+              variant="tonal"
+              closable
+              @click:close="statusFilter = 'all'"
+            >
+              <v-icon start size="14">mdi-shield-check</v-icon>
+              Status: {{ statusOptions.find(o => o.value === statusFilter)?.title }}
+            </v-chip>
+
+            <v-chip
+              v-if="search"
+              size="small"
+              color="grey-darken-2"
+              variant="tonal"
+              closable
+              @click:close="search = ''"
+            >
+              <v-icon start size="14">mdi-magnify</v-icon>
+              Search: "{{ search }}"
+            </v-chip>
+          </div>
+
+          <div class="d-flex align-center gap-3">
+            <div class="text-caption text-secondary">
+              Showing {{ filteredCandidates.length }} of {{ candidates.length }} candidates
+            </div>
+            <v-btn
+              size="small"
+              variant="text"
+              color="error"
+              class="text-capitalize font-weight-bold pa-0"
+              prepend-icon="mdi-close-circle-outline"
+              @click="resetFilters"
+            >
+              Reset All
+            </v-btn>
+          </div>
+        </div>
+        <div v-else class="d-flex justify-end mt-2">
+          <div class="text-caption text-secondary pr-2">
+            Showing {{ candidates.length }} candidates
+          </div>
+        </div>
       </v-card>
 
       <!-- Table -->
@@ -572,6 +716,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
+import { useAppDate } from '@/composables/useAppDate';
 import RichTextEditor from '@/components/ui/RichTextEditor.vue';
 import { useRuntimeConfig } from '#imports';
 
@@ -863,11 +1008,124 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ];
 
+// Date & Status Filters
+const { formatDate: appFormatDate, formatDateOnly, toISODate } = useAppDate();
+const datePreset = ref('all');
+const startDate = ref('');
+const endDate = ref('');
+const statusFilter = ref('all');
+
+const datePresetOptions = [
+  { title: 'All Time', value: 'all' },
+  { title: 'Today', value: 'today' },
+  { title: 'Yesterday', value: 'yesterday' },
+  { title: 'Last 7 Days', value: 'last7days' },
+  { title: 'Last 30 Days', value: 'last30days' },
+  { title: 'This Month', value: 'thisMonth' },
+  { title: 'Last Month', value: 'lastMonth' },
+  { title: 'Custom Range', value: 'custom' }
+];
+
+const statusOptions = [
+  { title: 'All Statuses', value: 'all' },
+  { title: 'Registered (Not Started)', value: 'Registered' },
+  { title: 'Started (In Progress)', value: 'Started' },
+  { title: 'Completed', value: 'Completed' },
+  { title: 'Passed', value: 'Pass' },
+  { title: 'Failed', value: 'Fail' }
+];
+
+function onPresetChange(val: string) {
+  const now = new Date();
+  if (val === 'all') {
+    startDate.value = '';
+    endDate.value = '';
+  } else if (val === 'today') {
+    startDate.value = toISODate(now);
+    endDate.value = toISODate(now);
+  } else if (val === 'yesterday') {
+    const yest = new Date();
+    yest.setDate(yest.getDate() - 1);
+    startDate.value = toISODate(yest);
+    endDate.value = toISODate(yest);
+  } else if (val === 'last7days') {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    startDate.value = toISODate(d);
+    endDate.value = toISODate(now);
+  } else if (val === 'last30days') {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    startDate.value = toISODate(d);
+    endDate.value = toISODate(now);
+  } else if (val === 'thisMonth') {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    startDate.value = toISODate(firstDay);
+    endDate.value = toISODate(now);
+  } else if (val === 'lastMonth') {
+    const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+    startDate.value = toISODate(firstDay);
+    endDate.value = toISODate(lastDay);
+  }
+}
+
+function onCustomDateChange() {
+  if (startDate.value || endDate.value) {
+    datePreset.value = 'custom';
+  } else {
+    datePreset.value = 'all';
+  }
+}
+
+function clearDateFilter() {
+  datePreset.value = 'all';
+  startDate.value = '';
+  endDate.value = '';
+}
+
+function resetFilters() {
+  search.value = '';
+  datePreset.value = 'all';
+  startDate.value = '';
+  endDate.value = '';
+  statusFilter.value = 'all';
+}
+
+const hasActiveFilters = computed(() => {
+  return !!search.value || !!startDate.value || !!endDate.value || (statusFilter.value && statusFilter.value !== 'all');
+});
+
 const filteredCandidates = computed(() => {
   return candidates.value.filter(c => {
-    if (!search.value) return true;
-    const term = search.value.toLowerCase();
-    return c.name.toLowerCase().includes(term) || c.email.toLowerCase().includes(term);
+    // Search filter
+    if (search.value) {
+      const term = search.value.toLowerCase().trim();
+      const match = (c.name && c.name.toLowerCase().includes(term)) ||
+                    (c.email && c.email.toLowerCase().includes(term)) ||
+                    (c.phone && c.phone.toLowerCase().includes(term));
+      if (!match) return false;
+    }
+
+    // Status filter
+    if (statusFilter.value && statusFilter.value !== 'all') {
+      if (statusFilter.value === 'Registered' && c.exam_status !== 'Registered') return false;
+      if (statusFilter.value === 'Started' && c.exam_status !== 'Started') return false;
+      if (statusFilter.value === 'Completed' && c.exam_status !== 'Completed') return false;
+      if (statusFilter.value === 'Pass' && c.exam_result !== 'Pass') return false;
+      if (statusFilter.value === 'Fail' && c.exam_result !== 'Fail') return false;
+    }
+
+    // Date filter on registered_at or started_at
+    if (startDate.value || endDate.value) {
+      const targetDateStr = c.registered_at || c.started_at;
+      if (!targetDateStr) return false;
+      const targetIso = toISODate(new Date(targetDateStr));
+      if (startDate.value && targetIso < startDate.value) return false;
+      if (endDate.value && targetIso > endDate.value) return false;
+    }
+
+    return true;
   });
 });
 
@@ -973,8 +1231,8 @@ function getResultColor(result: string) {
 }
 
 function formatDate(dateStr: string) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!dateStr) return '—';
+  return appFormatDate(dateStr);
 }
 
 function exportExcel() {
