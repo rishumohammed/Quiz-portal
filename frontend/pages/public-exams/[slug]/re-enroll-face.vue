@@ -165,20 +165,54 @@
         </p>
       </div>
 
-      <!-- Camera Disabled State -->
-      <div v-if="!cameraStarted && !allPhotosCaptured" class="text-center py-6">
-        <v-icon size="56" color="primary" class="mb-3">mdi-camera-account</v-icon>
-        <div class="text-body-1 font-weight-bold mb-2">3 Reference Selfie Photos Required</div>
-        <p class="text-caption text-secondary mb-5 leading-relaxed" style="max-width: 420px; margin: 0 auto;">
+      <!-- Camera Permission Error Alert -->
+      <v-alert
+        v-if="cameraError"
+        type="error"
+        variant="tonal"
+        rounded="lg"
+        class="mb-5 text-body-2 text-left"
+        closable
+        @click:close="cameraError = ''"
+      >
+        <div class="font-weight-bold mb-1">Camera Access Issue</div>
+        <div>{{ cameraError }}</div>
+        <v-btn
+          size="small"
+          color="error"
+          variant="flat"
+          class="mt-3 text-capitalize font-weight-bold"
+          rounded="lg"
+          @click="startCamera"
+        >
+          <v-icon start size="16">mdi-refresh</v-icon> Retry Camera Permission
+        </v-btn>
+      </v-alert>
+
+      <!-- Camera Disabled / Idle State -->
+      <div v-if="!cameraActive && !allPhotosCaptured" class="text-center py-6">
+        <v-avatar color="indigo-lighten-5" size="72" class="mb-3">
+          <v-icon size="40" color="primary">mdi-camera-account</v-icon>
+        </v-avatar>
+        <div class="text-h6 font-weight-bold mb-2">3 Reference Selfie Photos Required</div>
+        <p class="text-caption text-secondary mb-6 leading-relaxed" style="max-width: 420px; margin: 0 auto;">
           You will be guided through capturing 3 pose photos: <strong>Center/Front</strong>, <strong>Slight Left</strong>, and <strong>Slight Right</strong>.
         </p>
-        <v-btn color="primary" rounded="lg" size="large" class="font-weight-bold text-capitalize text-wrap px-6 py-3" height="auto" :loading="startingCamera" @click="setupCamera">
+        <v-btn
+          color="primary"
+          rounded="lg"
+          size="large"
+          class="font-weight-bold text-capitalize px-8 py-3 shadow-sm"
+          height="52"
+          :loading="isCameraLoading"
+          @click="startCamera"
+        >
           <v-icon start>mdi-camera</v-icon> Enable Camera &amp; Start 3-Photo Capture
         </v-btn>
       </div>
 
-      <!-- Active Camera Capture State -->
-      <div v-else-if="cameraStarted && !allPhotosCaptured">
+      <!-- Active Camera Live Capture Stream -->
+      <div v-else-if="cameraActive && !allPhotosCaptured">
         <!-- Text Guidance Banner -->
         <v-alert
           :color="currentPoseInfo.color"
@@ -193,20 +227,28 @@
 
         <!-- Video Stream Box with Live Readiness Indicator -->
         <div class="position-relative mx-auto rounded-xl overflow-hidden border mb-4 bg-black" style="max-width: 380px; height: 260px;">
-          <video ref="videoEl" autoplay playsinline webkit-playsinline muted class="w-100 h-100" style="object-fit: cover; transform: scaleX(-1);"></video>
+          <video
+            ref="videoEl"
+            autoplay
+            playsinline
+            webkit-playsinline
+            muted
+            class="w-100 h-100"
+            style="object-fit: cover; transform: scaleX(-1);"
+          ></video>
           
           <!-- Face Oval Guide (Glows Green when Ready) -->
           <div class="face-oval-frame" :class="isFaceReady ? 'oval-ready' : 'oval-not-ready'"></div>
 
           <!-- Pose Counter Badge -->
-          <div class="position-absolute top-0 right-0 ma-3">
+          <div class="position-absolute top-0 right-0 ma-3" style="z-index: 6;">
             <v-chip color="primary" size="small" variant="flat" class="font-weight-bold shadow-sm">
               Pose {{ currentPoseIndex + 1 }} of 3
             </v-chip>
           </div>
 
           <!-- Live Readiness Status Chip Overlay -->
-          <div class="position-absolute bottom-0 left-0 right-0 text-center pb-3 px-2" style="background: linear-gradient(transparent, rgba(0,0,0,0.8)); z-index: 5;">
+          <div class="position-absolute bottom-0 left-0 right-0 text-center pb-3 px-2" style="background: linear-gradient(transparent, rgba(0,0,0,0.85)); z-index: 5;">
             <v-chip
               :color="readinessColor"
               size="small"
@@ -219,13 +261,13 @@
           </div>
         </div>
 
-        <!-- Action Button (Always Enabled for Candidate Capture) -->
+        <!-- Capture Action Button -->
         <v-btn
           :color="isFaceReady ? 'success' : 'primary'"
           size="large"
           block
           rounded="lg"
-          height="50"
+          height="52"
           class="font-weight-bold text-capitalize mb-4 shadow-sm"
           @click="captureCurrentPosePhoto"
           :loading="isCapturing"
@@ -235,14 +277,14 @@
         </v-btn>
       </div>
 
-      <!-- All 3 Photos Captured Success State -->
+      <!-- All 3 Photos Captured Review State -->
       <div v-else-if="allPhotosCaptured">
-        <div class="d-flex align-center justify-center flex-column mb-4">
-          <v-avatar color="green-lighten-5" size="56" class="mb-2">
-            <v-icon color="success" size="32">mdi-check-decagram</v-icon>
+        <div class="d-flex align-center justify-center flex-column mb-4 text-center">
+          <v-avatar color="green-lighten-5" size="64" class="mb-3">
+            <v-icon color="success" size="36">mdi-check-decagram</v-icon>
           </v-avatar>
-          <div class="text-body-1 font-weight-black text-success">All 3 Reference Photos Captured!</div>
-          <p class="text-caption text-secondary">Review your photos below and click save to update your face profile.</p>
+          <div class="text-h6 font-weight-black text-success">All 3 Reference Photos Captured!</div>
+          <p class="text-body-2 text-secondary mt-1">Review your 3 biometric pose photos below, then save your updated profile.</p>
         </div>
 
         <v-btn
@@ -250,7 +292,7 @@
           size="large"
           block
           rounded="lg"
-          height="50"
+          height="52"
           class="text-capitalize font-weight-bold shadow-sm mb-4"
           :loading="submitting"
           @click="submitNewFaceProfile"
@@ -260,14 +302,21 @@
       </div>
 
       <!-- 3 Thumbnails Grid (Always shown when active or completed) -->
-      <div v-if="cameraStarted || allPhotosCaptured" class="mt-4 pt-4 border-t">
-        <div class="text-caption font-weight-bold text-secondary text-center mb-3">Enrolled Photo Samples (3 Poses Required):</div>
+      <div v-if="cameraActive || allPhotosCaptured || capturedPhotos.some(p => !!p.url)" class="mt-4 pt-4 border-t">
+        <div class="text-caption font-weight-bold text-secondary text-center mb-3">Enrolled Biometric Pose Samples:</div>
         <v-row justify="center" dense>
-          <v-col v-for="(pose, idx) in poseList" :key="idx" cols="4" sm="4">
-            <v-card class="pa-2 border rounded-lg text-center" :class="{ 'border-primary border-2 shadow-sm': currentPoseIndex === idx && !allPhotosCaptured }" flat>
+          <v-col v-for="(pose, idx) in poseList" :key="idx" cols="4">
+            <v-card
+              class="pa-2 border rounded-lg text-center"
+              :class="{
+                'border-primary border-2 shadow-sm': currentPoseIndex === idx && cameraActive && !allPhotosCaptured,
+                'bg-green-lighten-5 border-success': capturedPhotos[idx]?.url
+              }"
+              flat
+            >
               <div class="text-caption font-weight-bold mb-1 truncate">{{ pose.label }}</div>
               
-              <div v-if="capturedPhotos[idx]?.url" class="position-relative mx-auto rounded-lg overflow-hidden" style="width: 75px; height: 75px;">
+              <div v-if="capturedPhotos[idx]?.url" class="position-relative mx-auto rounded-lg overflow-hidden border" style="width: 75px; height: 75px;">
                 <v-img :src="getImageUrl(capturedPhotos[idx].url)" width="75" height="75" cover></v-img>
                 <v-chip color="success" size="x-small" class="position-absolute bottom-0 right-0 ma-1 px-1">
                   <v-icon size="12">mdi-check</v-icon>
@@ -276,6 +325,20 @@
 
               <div v-else class="d-flex align-center justify-center bg-grey-lighten-3 rounded-lg mx-auto text-caption text-grey-darken-1 font-weight-bold" style="width: 75px; height: 75px;">
                 Pose {{ idx + 1 }}
+              </div>
+
+              <!-- Retake individual pose button -->
+              <div v-if="capturedPhotos[idx]?.url" class="mt-1">
+                <v-btn
+                  variant="text"
+                  color="secondary"
+                  size="x-small"
+                  density="compact"
+                  class="text-caption font-weight-medium text-capitalize px-1"
+                  @click="retakePose(idx)"
+                >
+                  <v-icon start size="12">mdi-refresh</v-icon> Retake
+                </v-btn>
               </div>
             </v-card>
           </v-col>
@@ -295,7 +358,6 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useApi } from '@/composables/useApi';
-import { useWebcamRecorder } from '@/composables/useWebcamRecorder';
 import { useFaceDetection, extractFacialDescriptor } from '@/composables/useFaceDetection';
 import { useRuntimeConfig } from '#imports';
 
@@ -303,7 +365,6 @@ definePageMeta({ layout: 'public' });
 
 const route = useRoute();
 const api = useApi();
-const recorder = useWebcamRecorder();
 const faceDetection = useFaceDetection();
 const runtimeConfig = useRuntimeConfig();
 
@@ -341,8 +402,10 @@ const authForm = ref({
 
 // Camera and Face capture state
 const videoEl = ref<HTMLVideoElement | null>(null);
-const cameraStarted = ref(false);
-const startingCamera = ref(false);
+const cameraActive = ref(false);
+const isCameraLoading = ref(false);
+const cameraError = ref('');
+let activeStream: MediaStream | null = null;
 
 const isCapturing = ref(false);
 const submitting = ref(false);
@@ -384,7 +447,13 @@ const capturedPhotos = ref<Array<{ label: string; url: string; descriptor: numbe
   { label: 'Slight Right', url: '', descriptor: null }
 ]);
 
-const allPhotosCaptured = computed(() => capturedPhotos.value.every(p => !!p.url && !!p.descriptor));
+const allPhotosCaptured = computed(() => {
+  return (
+    capturedPhotos.value.length === 3 &&
+    capturedPhotos.value.every(p => !!p.url && !!p.descriptor)
+  );
+});
+
 const capturedPhotoUrls = computed(() => capturedPhotos.value.map(p => p.url));
 const capturedFacialDescriptors = computed(() => capturedPhotos.value.map(p => p.descriptor).filter(Boolean) as number[][]);
 const capturedFacialDescriptor = computed(() => {
@@ -405,21 +474,20 @@ const readinessText = ref('Align face in camera view...');
 const readinessColor = ref('warning');
 const readinessIcon = ref('mdi-account-search-outline');
 let readinessInterval: any = null;
+let isProcessingFrame = false;
 
 function getImageUrl(path: string) {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
+  if (path.startsWith('http') || path.startsWith('data:')) return path;
   const apiBase = (runtimeConfig.public?.apiBase || '/api').replace('/api', '');
   return apiBase + (path.startsWith('/') ? path : '/' + path);
 }
-
-let isProcessingFrame = false;
 
 function startReadinessMonitoring() {
   stopReadinessMonitoring();
   readinessInterval = setInterval(async () => {
     if (isProcessingFrame) return;
-    if (!videoEl.value || !cameraStarted.value || allPhotosCaptured.value) return;
+    if (!videoEl.value || !cameraActive.value || allPhotosCaptured.value) return;
     const video = videoEl.value;
     if (video.readyState < 2 || !video.videoWidth) return;
 
@@ -450,18 +518,73 @@ function stopReadinessMonitoring() {
     clearInterval(readinessInterval);
     readinessInterval = null;
   }
-  if (videoEl.value && videoEl.value.srcObject) {
+}
+
+function stopCamera() {
+  stopReadinessMonitoring();
+  isFaceReady.value = false;
+  if (activeStream) {
     try {
-      const tracks = (videoEl.value.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => {
+      activeStream.getTracks().forEach(track => {
         try { track.stop(); } catch (_) {}
       });
     } catch (_) {}
+    activeStream = null;
+  }
+  if (videoEl.value) {
     videoEl.value.srcObject = null;
   }
-  recorder.stopRecording();
-  recorder.releaseCamera();
-  cameraStarted.value = false;
+  cameraActive.value = false;
+}
+
+async function startCamera() {
+  isCameraLoading.value = true;
+  cameraError.value = '';
+  try {
+    const videoConstraints: any = {
+      facingMode: 'user',
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      frameRate: { ideal: 15, max: 30 }
+    };
+
+    try {
+      activeStream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false
+      });
+    } catch (e1) {
+      try {
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false
+        });
+      } catch (e2) {
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+    }
+
+    cameraActive.value = true;
+    await faceDetection.loadModel();
+    await nextTick();
+
+    setTimeout(() => {
+      if (videoEl.value && activeStream) {
+        videoEl.value.srcObject = activeStream;
+        videoEl.value.play().catch(e => console.warn('Video play warning:', e));
+        startReadinessMonitoring();
+      }
+    }, 150);
+  } catch (err: any) {
+    console.error('Camera access failed:', err);
+    cameraError.value = 'Camera access was denied or failed. Please allow camera permissions in your browser and try again.';
+    cameraActive.value = false;
+  } finally {
+    isCameraLoading.value = false;
+  }
 }
 
 async function validateToken() {
@@ -517,7 +640,7 @@ async function verifyCandidateCredentials() {
       candidateData.value = data.candidate;
       // Auto-start camera after authentication
       setTimeout(() => {
-        setupCamera();
+        startCamera();
       }, 300);
     } else {
       authError.value = data.message || 'Verification failed. Please check your credentials.';
@@ -529,35 +652,12 @@ async function verifyCandidateCredentials() {
   }
 }
 
-async function setupCamera() {
-  startingCamera.value = true;
-  try {
-    const granted = await recorder.requestCamera();
-    if (granted && recorder.stream.value) {
-      cameraStarted.value = true;
-      await nextTick();
-      
-      setTimeout(async () => {
-        if (videoEl.value && recorder.stream.value) {
-          videoEl.value.srcObject = recorder.stream.value;
-          await videoEl.value.play();
-        }
-      }, 150);
-
-      await faceDetection.loadModel();
-      startReadinessMonitoring();
-    }
-  } catch (e) {
-    readinessText.value = 'Camera access failed.';
-  } finally {
-    startingCamera.value = false;
-  }
-}
-
 async function captureCurrentPosePhoto() {
   if (!videoEl.value) return;
   try {
     isCapturing.value = true;
+
+    // 1. Extract facial descriptor from video stream
     let descriptor: number[] | null = null;
     try {
       const faces = await faceDetection.estimateFaces(videoEl.value, { flipHorizontal: false });
@@ -565,13 +665,14 @@ async function captureCurrentPosePhoto() {
         descriptor = extractFacialDescriptor(faces[0]);
       }
     } catch (err) {
-      console.warn('Face estimation warning during capture', err);
+      console.warn('Face estimation warning during capture:', err);
     }
 
-    if (!descriptor) {
+    if (!descriptor || descriptor.length === 0) {
       descriptor = [0.85, 0.85, 0.45, 0.95, 0.95];
     }
 
+    // 2. Capture frame on canvas
     const video = videoEl.value;
     const rawWidth = video.videoWidth || 640;
     const rawHeight = video.videoHeight || 480;
@@ -588,48 +689,56 @@ async function captureCurrentPosePhoto() {
     if (!ctx) return;
 
     ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+    const dataUrlFallback = canvas.toDataURL('image/jpeg', 0.85);
 
-    const photoUrl = await new Promise<string>((resolve) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          resolve(canvas.toDataURL('image/jpeg', 0.85));
-          return;
+    // 3. Upload photo blob to server (or use dataUrlFallback)
+    let photoUrl = dataUrlFallback;
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      if (blob) {
+        const formData = new FormData();
+        formData.append('image', blob, `re-enroll-pose-${currentPoseIndex.value + 1}.jpg`);
+        const res = await api.post('/public/exams/upload-selfie', formData);
+        if (res.data && res.data.url) {
+          photoUrl = res.data.url;
         }
-        try {
-          const formData = new FormData();
-          formData.append('image', blob, `re-enroll-pose-${currentPoseIndex.value + 1}.jpg`);
-          const res = await api.post('/public/exams/upload-selfie', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          if (res.data && res.data.url) {
-            resolve(res.data.url);
-          } else {
-            resolve(canvas.toDataURL('image/jpeg', 0.85));
-          }
-        } catch (uploadErr) {
-          console.warn('Public upload-selfie failed, using dataURL fallback:', uploadErr);
-          resolve(canvas.toDataURL('image/jpeg', 0.85));
-        }
-      }, 'image/jpeg', 0.85);
-    });
-
-    if (photoUrl) {
-      capturedPhotos.value[currentPoseIndex.value] = {
-        label: poseList[currentPoseIndex.value].label,
-        url: photoUrl,
-        descriptor: descriptor
-      };
-
-      if (currentPoseIndex.value < 2) {
-        currentPoseIndex.value++;
-      } else {
-        stopReadinessMonitoring();
       }
+    } catch (uploadErr) {
+      console.warn('Public upload-selfie failed, using dataURL fallback:', uploadErr);
+      photoUrl = dataUrlFallback;
+    }
+
+    // 4. Update captured photo state
+    const currentIdx = currentPoseIndex.value;
+    capturedPhotos.value[currentIdx] = {
+      label: poseList[currentIdx].label,
+      url: photoUrl,
+      descriptor: descriptor
+    };
+
+    // 5. Advance or Complete
+    if (currentIdx < 2) {
+      currentPoseIndex.value++;
+    } else {
+      // Finished all 3 poses
+      stopCamera();
     }
   } catch (e) {
     console.error('Error capturing pose photo:', e);
   } finally {
     isCapturing.value = false;
+  }
+}
+
+function retakePose(idx: number) {
+  capturedPhotos.value[idx] = {
+    label: poseList[idx].label,
+    url: '',
+    descriptor: null
+  };
+  currentPoseIndex.value = idx;
+  if (!cameraActive.value) {
+    startCamera();
   }
 }
 
@@ -640,7 +749,7 @@ function resetAllPhotos() {
     { label: 'Slight Right', url: '', descriptor: null }
   ];
   currentPoseIndex.value = 0;
-  setupCamera();
+  startCamera();
 }
 
 async function submitNewFaceProfile() {
@@ -658,8 +767,7 @@ async function submitNewFaceProfile() {
     });
 
     enrollSuccess.value = true;
-    recorder.stopRecording();
-    stopReadinessMonitoring();
+    stopCamera();
   } catch (err: any) {
     alert(err.response?.data?.message || 'Re-enrollment submission failed.');
   } finally {
@@ -672,8 +780,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  recorder.stopRecording();
-  stopReadinessMonitoring();
+  stopCamera();
 });
 
 useSeoMeta({ title: 'Face Re-Enrollment - AEMS Exam Portal' });
@@ -690,21 +797,6 @@ useSeoMeta({ title: 'Face Re-Enrollment - AEMS Exam Portal' });
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
-}
-.camera-enroll-box {
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
-  overflow: hidden;
-  position: relative;
-  border: 4px solid #6366f1;
-  background: #0f172a;
-}
-.enroll-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scaleX(-1);
 }
 .face-oval-frame {
   position: absolute;
