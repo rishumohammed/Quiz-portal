@@ -150,6 +150,13 @@ app.get('/health', (req, res) => {
 // Stubs for stripped CRM/LMS features to prevent 404s in frontend console
 app.get('/api/notifications', (req, res) => res.json([]));
 app.get('/api/dashboard/counts', (req, res) => res.json({ followups: 0, unreadMessages: 0, pendingApprovals: 0 }));
+app.post('/api/log-error', (req, res) => {
+  const { message, url } = req.body || {};
+  if (message) {
+    console.warn(`[Client-Side Error] ${message} | URL: ${url || 'unknown'}`);
+  }
+  res.status(200).json({ status: 'logged' });
+});
 
 const PORT = process.env.PORT || 5000;
 
