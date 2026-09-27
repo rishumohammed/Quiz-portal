@@ -1888,28 +1888,22 @@ router.post('/candidates/:id/send-re-enroll-email', async (req, res) => {
     );
     if (rows.length === 0) return res.status(404).json({ message: 'Candidate not found' });
 
-    const candidate = rows[0];
-    let metadata = candidate.metadata ? (typeof candidate.metadata === 'string' ? JSON.parse(candidate.metadata) : candidate.metadata) : {};
-
-    // Ensure active token exists
-    let token = metadata.re_enroll_token;
-    if (!token || metadata.re_enroll_token_used) {
-      token = uuidv4();
-      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-      delete metadata.reference_photo_url;
-      delete metadata.facial_descriptor;
-      metadata.re_enroll_token = token;
-      metadata.re_enroll_token_used = false;
-      metadata.re_enroll_token_expires_at = expiresAt;
-      await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), candidateId]);
-    }
+    // Always generate a fresh single-use token valid for a full 48 hours
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    delete metadata.reference_photo_url;
+    delete metadata.facial_descriptor;
+    metadata.re_enroll_token = token;
+    metadata.re_enroll_token_used = false;
+    metadata.re_enroll_token_expires_at = expiresAt;
+    await pool.query('UPDATE public_exam_candidates SET metadata = ? WHERE id = ?', [JSON.stringify(metadata), candidateId]);
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const reEnrollUrl = `${frontendUrl}/public-exams/${candidate.exam_slug}/re-enroll-face?token=${token}`;
 
     await EmailService.sendFaceReEnrollmentEmail(candidate, { name: candidate.exam_name }, reEnrollUrl);
 
-    res.json({ message: 'Re-enrollment email sent successfully to candidate.' });
+    res.json({ message: 'Re-enrollment email sent successfully to candidate (valid for 48 hours).' });
   } catch (error) {
     console.error('Send re-enroll email error:', error);
     res.status(500).json({ message: 'Internal server error' });

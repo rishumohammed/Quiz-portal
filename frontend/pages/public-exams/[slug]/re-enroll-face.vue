@@ -78,6 +78,10 @@
         <p class="text-body-2 text-secondary mt-1">
           Exam: <strong>{{ examData?.name || candidateData?.exam_name }}</strong>
         </p>
+        <div v-if="expiresAtFormatted" class="d-inline-flex align-center gap-1 mt-2 px-3 py-1 bg-amber-lighten-5 border border-amber rounded-pill">
+          <v-icon size="14" color="amber-darken-3">mdi-clock-outline</v-icon>
+          <span class="text-caption font-weight-bold text-amber-darken-4">Link Valid Until: {{ expiresAtFormatted }} (48 Hours)</span>
+        </div>
       </div>
 
       <v-alert type="info" variant="tonal" rounded="lg" class="mb-6 text-body-2" prepend-icon="mdi-account-check-outline">
@@ -308,6 +312,22 @@ const tokenValid = ref(false);
 const invalidReason = ref('');
 const candidateData = ref<any>(null);
 const examData = ref<any>(null);
+const expiresAt = ref('');
+
+const expiresAtFormatted = computed(() => {
+  if (!expiresAt.value) return '';
+  try {
+    return new Date(expiresAt.value).toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return '';
+  }
+});
 
 // Auth step state
 const isAuthenticated = ref(false);
@@ -462,6 +482,7 @@ async function validateToken() {
       tokenValid.value = true;
       candidateData.value = data.candidate;
       examData.value = data.exam;
+      expiresAt.value = data.expires_at || '';
       if (data.candidate?.email) {
         authForm.value.email = data.candidate.email;
       }

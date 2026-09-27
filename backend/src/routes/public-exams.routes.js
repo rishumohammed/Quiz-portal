@@ -1111,17 +1111,21 @@ router.get('/candidates/validate-re-enroll-token', async (req, res) => {
     const { candidate, meta } = foundCandidate;
 
     if (meta.re_enroll_token_used) {
-      return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has already been used. Please request a new link from the admin.' });
+      return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has already been used. Please request a new link from the administrator.' });
     }
 
-    if (meta.re_enroll_token_expires_at && new Date() > new Date(meta.re_enroll_token_expires_at)) {
-      return res.status(400).json({ valid: false, message: 'This re-enrollment link has expired. Please request a new link from the admin.' });
+    if (meta.re_enroll_token_expires_at) {
+      const expTime = new Date(meta.re_enroll_token_expires_at).getTime();
+      if (!isNaN(expTime) && Date.now() > expTime) {
+        return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has expired (48 hours validity). Please request a new link from your administrator.' });
+      }
     }
 
     res.json({
       valid: true,
       candidate: { id: candidate.id, name: candidate.name, email: candidate.email },
-      exam: { id: candidate.exam_id, name: candidate.exam_name, slug: candidate.exam_slug }
+      exam: { id: candidate.exam_id, name: candidate.exam_name, slug: candidate.exam_slug },
+      expires_at: meta.re_enroll_token_expires_at
     });
   } catch (error) {
     console.error('Validate re-enroll token error:', error);
@@ -1165,8 +1169,11 @@ router.post('/candidates/re-enroll-verify-credentials', async (req, res) => {
       return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has already been used. Please request a new link from the administrator.' });
     }
 
-    if (targetMeta.re_enroll_token_expires_at && new Date() > new Date(targetMeta.re_enroll_token_expires_at)) {
-      return res.status(400).json({ valid: false, message: 'This re-enrollment link has expired. Please request a new link from the administrator.' });
+    if (targetMeta.re_enroll_token_expires_at) {
+      const expTime = new Date(targetMeta.re_enroll_token_expires_at).getTime();
+      if (!isNaN(expTime) && Date.now() > expTime) {
+        return res.status(400).json({ valid: false, message: 'This single-use re-enrollment link has expired (48 hours validity). Please request a new link from your administrator.' });
+      }
     }
 
     // Verify email/identifier if provided
@@ -1234,6 +1241,13 @@ router.post('/candidates/re-enroll-face', async (req, res) => {
 
     if (targetMeta.re_enroll_token_used) {
       return res.status(400).json({ message: 'This re-enrollment link was already consumed. Please request a new link from admin.' });
+    }
+
+    if (targetMeta.re_enroll_token_expires_at) {
+      const expTime = new Date(targetMeta.re_enroll_token_expires_at).getTime();
+      if (!isNaN(expTime) && Date.now() > expTime) {
+        return res.status(400).json({ message: 'This single-use face re-enrollment link has expired (48 hours validity). Please request a new link from your exam administrator.' });
+      }
     }
 
     // Update candidate metadata with new face profile and IMMEDIATELY CONSUME TOKEN
