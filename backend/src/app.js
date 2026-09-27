@@ -91,33 +91,42 @@ const isLocalOrTest = (req) => {
   return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.includes('127.0.0.1') || ip === 'localhost';
 };
 
-// Strict Limiter for Auth Routes (Login, Password Reset)
-const authLimiter = rateLimit({
+// Strict Limiter for Admin Auth Routes (protects against brute force attacks)
+const adminAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'test' ? 10000 : 100,
-  store: createStore('auth'),
+  store: createStore('admin_auth'),
   skip: isLocalOrTest,
-  message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
+  message: { message: 'Too many admin login attempts. Please try again after 15 minutes.' }
 });
 
-// High-Capacity Limiter for Exam Taking & Proctoring Heartbeats
-const examLimiter = rateLimit({
+// Candidate Exam Auth Limiter (High capacity for colleges/schools sharing 1 public IP)
+const candidateAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 50000,
+  store: createStore('cand_auth'),
+  skip: isLocalOrTest,
+  message: { message: 'Too many login attempts. Please wait a moment and try again.' }
+});
+
+// High-Capacity Limiter for Exam Taking, Autosaves & Proctoring Heartbeats (500,000 requests / 15 min)
+const examLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500000,
   store: createStore('exam'),
   skip: isLocalOrTest
 });
 
-// General API Limiter
+// General API Limiter (Scaled to 100,000 requests / 15 min for high concurrency)
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'test' ? 50000 : 2000,
+  max: 100000,
   store: createStore('general'),
   skip: isLocalOrTest
 });
 
-app.use('/api/auth/login', authLimiter);
-app.use('/api/public/candidates/login', authLimiter);
+app.use('/api/auth/login', adminAuthLimiter);
+app.use('/api/public/candidates/login', candidateAuthLimiter);
 app.use('/api/public/exams', examLimiter);
 app.use('/api/proctoring', examLimiter);
 app.use('/api/', generalLimiter);
