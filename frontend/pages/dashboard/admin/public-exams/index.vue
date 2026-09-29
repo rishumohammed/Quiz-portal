@@ -347,13 +347,25 @@
           hint="Leave empty for no expiry"
         ></v-text-field>
 
-        <v-checkbox
-          v-model="reConductForm.allow_retake"
-          label="Allow candidates to attempt exam again"
-          color="purple"
-          hide-details
-          class="mb-2"
-        ></v-checkbox>
+        <div class="d-flex align-center mb-3">
+          <v-checkbox
+            v-model="reConductForm.allow_retake"
+            label="Allow candidates to attempt exam again"
+            color="purple"
+            hide-details
+            class="flex-grow-0 mr-4"
+          ></v-checkbox>
+          <v-text-field
+            v-if="reConductForm.allow_retake"
+            v-model.number="reConductForm.max_retakes"
+            label="Max Retakes (0 = unlimited)"
+            type="number"
+            density="compact"
+            hide-details
+            min="0"
+            style="max-width: 200px;"
+          ></v-text-field>
+        </div>
 
         <v-checkbox
           v-model="reConductForm.send_email_notification"
@@ -467,6 +479,7 @@ const reConductForm = ref({
   exam_start_date: '',
   exam_end_date: '',
   allow_retake: true,
+  max_retakes: 0,
   send_email_notification: true
 });
 
@@ -626,7 +639,8 @@ async function openReConductDialog(exam: any) {
     active_bank: exam.active_question_bank || 'Default Bank',
     exam_start_date: exam.exam_start_date ? new Date(exam.exam_start_date).toISOString().slice(0, 16) : '',
     exam_end_date: exam.exam_end_date ? new Date(exam.exam_end_date).toISOString().slice(0, 16) : '',
-    allow_retake: true,
+    allow_retake: exam.allow_retake !== undefined ? !!exam.allow_retake : true,
+    max_retakes: exam.max_retakes !== undefined ? exam.max_retakes : 0,
     send_email_notification: true
   };
 

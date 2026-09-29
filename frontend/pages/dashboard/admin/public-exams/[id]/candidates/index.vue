@@ -273,9 +273,14 @@
 
           <!-- Status -->
           <template v-slot:item.exam_status="{ item }">
-            <v-chip size="small" :color="getStatusColor(item.exam_status)" variant="flat" class="text-white font-weight-bold">
-              {{ item.exam_status }}
-            </v-chip>
+            <div class="d-flex flex-column align-center">
+              <v-chip size="small" :color="getStatusColor(item.exam_status)" variant="flat" class="text-white font-weight-bold">
+                {{ item.exam_status }}
+              </v-chip>
+              <span v-if="item.attempts_count > 1" class="text-caption text-secondary mt-1 font-weight-medium" style="font-size: 11px;">
+                {{ item.attempts_count }} attempts
+              </span>
+            </div>
           </template>
 
 

@@ -62,6 +62,26 @@
               Register here →
             </v-btn>
           </div>
+          <div v-else-if="latestAttemptId && (loginErrorCode === 'RETAKES_NOT_ALLOWED' || loginErrorCode === 'MAX_RETAKES_REACHED')" class="mt-3 d-flex gap-2 flex-wrap">
+            <v-btn
+              variant="flat"
+              color="primary"
+              size="small"
+              class="text-capitalize font-weight-bold"
+              :to="`/public-exams/${route.params.slug}/result/${latestAttemptId}`"
+            >
+              <v-icon start size="16">mdi-chart-box-outline</v-icon> View Your Scorecard
+            </v-btn>
+            <v-btn
+              variant="outlined"
+              color="grey-darken-2"
+              size="small"
+              class="text-capitalize font-weight-bold"
+              :to="`/public-exams/${route.params.slug}`"
+            >
+              Back to Exam Details
+            </v-btn>
+          </div>
         </v-alert>
 
         <v-form @submit.prevent="handleCredentialLogin" v-model="isFormValid">
@@ -257,6 +277,7 @@ const isFormValid = ref(false);
 const logging = ref(false);
 const loginError = ref('');
 const loginErrorCode = ref('');
+const latestAttemptId = ref<string | null>(null);
 const showPassword = ref(false);
 
 // Step 2 State
@@ -288,6 +309,7 @@ async function handleCredentialLogin() {
   logging.value = true;
   loginError.value = '';
   loginErrorCode.value = '';
+  latestAttemptId.value = null;
 
   try {
     const { data } = await api.post('/public/exams/candidates/login', {
@@ -297,6 +319,14 @@ async function handleCredentialLogin() {
     });
 
     pendingCandidateData.value = data;
+
+    // If candidate has completed the exam and cannot take/retake, display clear message & scorecard link
+    if (data.attempt_info && !data.attempt_info.can_attempt && !data.attempt_info.has_active_attempt) {
+      loginError.value = data.attempt_info.attempt_block_reason || 'You have already attempted this exam. Retakes are not allowed.';
+      loginErrorCode.value = data.attempt_info.attempt_block_code || 'RETAKES_NOT_ALLOWED';
+      latestAttemptId.value = data.attempt_info.latest_attempt_id || null;
+      return;
+    }
 
     // Check if candidate has registered facial descriptor or reference photo
     const hasFaceData = !!(data.candidate?.facial_descriptor || data.candidate?.facial_descriptors || data.candidate?.reference_photo_url);
@@ -494,8 +524,13 @@ async function finalizeLoginAndAttempt(data: any) {
     // Redirect to take exam
     router.push(`/public-exams/${slug}/take`);
   } catch (err: any) {
+    stopFaceVerification();
     loginStep.value = 'credentials';
     loginError.value = err.response?.data?.message || 'Attempt creation failed. Please try again.';
+    loginErrorCode.value = err.response?.data?.code || '';
+    if (data?.attempt_info?.latest_attempt_id) {
+      latestAttemptId.value = data.attempt_info.latest_attempt_id;
+    }
   }
 }
 

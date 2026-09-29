@@ -210,7 +210,7 @@ router.post('/candidates/login', async (req, res) => {
 
     // Find exam by slug
     const [exams] = await pool.query(
-      'SELECT id, name, slug, status, exam_start_date, exam_end_date FROM public_exams WHERE slug = ?',
+      'SELECT id, name, slug, status, exam_start_date, exam_end_date, allow_retake, max_retakes FROM public_exams WHERE slug = ?',
       [exam_slug]
     );
     if (exams.length === 0) {
@@ -273,6 +273,38 @@ router.post('/candidates/login', async (req, res) => {
       console.warn('Login stats update failed (missing columns?):', e.message);
     }
 
+    // Check candidate previous attempts and retake eligibility
+    const [candAttempts] = await pool.query(`
+      SELECT id, status, session_expires_at, started_at
+      FROM public_exam_attempts
+      WHERE exam_id = ? AND candidate_id = ?
+      ORDER BY started_at DESC
+    `, [exam.id, candidate.id]);
+
+    const activeAttempt = candAttempts.find(a => a.status === 'in_progress' && new Date(a.session_expires_at) > new Date());
+    const completedAttempts = candAttempts.filter(a => a.status === 'submitted' || (a.status === 'in_progress' && new Date(a.session_expires_at) <= new Date()));
+    const completedCount = completedAttempts.length;
+    const latestAttempt = candAttempts[0] || null;
+
+    let canAttempt = true;
+    let attemptBlockReason = '';
+    let attemptBlockCode = '';
+
+    if (!activeAttempt && completedCount > 0) {
+      if (!exam.allow_retake) {
+        canAttempt = false;
+        attemptBlockReason = 'You have already attempted this exam. Retakes are not allowed.';
+        attemptBlockCode = 'RETAKES_NOT_ALLOWED';
+      } else if (exam.max_retakes > 0) {
+        const totalAllowed = 1 + Number(exam.max_retakes);
+        if (completedCount >= totalAllowed) {
+          canAttempt = false;
+          attemptBlockReason = `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.`;
+          attemptBlockCode = 'MAX_RETAKES_REACHED';
+        }
+      }
+    }
+
     // Issue JWT
     const token = jwt.sign(
       { candidateId: candidate.id, examId: exam.id, examSlug: exam.slug, name: candidate.name, email: candidate.email },
@@ -295,7 +327,22 @@ router.post('/candidates/login', async (req, res) => {
         facial_descriptor: candMeta.facial_descriptor || null,
         facial_descriptors: candMeta.facial_descriptors || (candMeta.facial_descriptor ? [candMeta.facial_descriptor] : null)
       },
-      exam: { id: exam.id, name: exam.name, slug: exam.slug }
+      exam: {
+        id: exam.id,
+        name: exam.name,
+        slug: exam.slug,
+        allow_retake: !!exam.allow_retake,
+        max_retakes: exam.max_retakes || 0
+      },
+      attempt_info: {
+        can_attempt: canAttempt,
+        attempt_block_reason: attemptBlockReason,
+        attempt_block_code: attemptBlockCode,
+        has_active_attempt: !!activeAttempt,
+        active_attempt_id: activeAttempt?.id || null,
+        completed_attempts_count: completedCount,
+        latest_attempt_id: latestAttempt?.id || null
+      }
     });
   } catch (error) {
     console.error('Candidate login error:', error);
@@ -576,22 +623,88 @@ router.post('/:id/attempt', requireCandidateToken, async (req, res) => {
     const effectiveCandidateId = candidate_id || candidateFromToken?.candidateId || null;
     const effectiveEmail = guest_email || candidateFromToken?.email || null;
 
-    // Check attempts limit for registered candidates
+    // 1. Check if candidate has an active in_progress session that hasn't expired
     if (!is_anonymous && (effectiveCandidateId || effectiveEmail)) {
-      const [existingAttempts] = await pool.query(
-        'SELECT COUNT(*) as count FROM public_exam_attempts WHERE exam_id = ? AND (candidate_id = ? OR (guest_email = ? AND guest_email IS NOT NULL))',
-        [examId, effectiveCandidateId, effectiveEmail]
-      );
+      const [activeAttempts] = await pool.query(`
+        SELECT id, answers_json, session_expires_at
+        FROM public_exam_attempts
+        WHERE exam_id = ? 
+          AND status = 'in_progress' 
+          AND session_expires_at > NOW() 
+          AND (candidate_id = ? OR (guest_email = ? AND guest_email IS NOT NULL))
+        ORDER BY started_at DESC
+        LIMIT 1
+      `, [examId, effectiveCandidateId, effectiveEmail]);
+
+      if (activeAttempts.length > 0) {
+        const activeAtt = activeAttempts[0];
+        const remainingSec = Math.max(1, Math.floor((new Date(activeAtt.session_expires_at).getTime() - Date.now()) / 1000));
+        
+        const activeBank = exam.active_question_bank || 'Default Bank';
+        let [questions] = await pool.query(`
+          SELECT id, question_text, type, options_json, marks, order_index
+          FROM public_exam_questions
+          WHERE exam_id = ? AND (bank_name = ? OR (bank_name IS NULL AND ? = 'Default Bank'))
+          ORDER BY order_index ASC
+        `, [examId, activeBank, activeBank]);
+
+        let formattedQuestions = questions.map(q => {
+          let opts = q.options_json ? (typeof q.options_json === 'string' ? JSON.parse(q.options_json) : q.options_json) : [];
+          if (exam.randomize_options && Array.isArray(opts)) {
+            opts = [...opts].sort(() => Math.random() - 0.5);
+          }
+          return {
+            id: q.id,
+            question_text: q.question_text,
+            type: q.type,
+            marks: q.marks,
+            order_index: q.order_index,
+            options: opts
+          };
+        });
+
+        if (exam.randomize_questions) {
+          formattedQuestions = [...formattedQuestions].sort(() => Math.random() - 0.5);
+        }
+
+        return res.status(200).json({
+          attempt_id: activeAtt.id,
+          guest_name: guest_name || candidateFromToken?.name || 'Candidate',
+          duration_seconds: remainingSec,
+          questions: formattedQuestions,
+          is_resumed: true
+        });
+      }
+    }
+
+    // 2. Check completed attempts limit for registered candidates
+    if (!is_anonymous && (effectiveCandidateId || effectiveEmail)) {
+      const [existingAttempts] = await pool.query(`
+        SELECT COUNT(*) as count 
+        FROM public_exam_attempts 
+        WHERE exam_id = ? 
+          AND (status = 'submitted' OR (status = 'in_progress' AND session_expires_at <= NOW()))
+          AND (candidate_id = ? OR (guest_email = ? AND guest_email IS NOT NULL))
+      `, [examId, effectiveCandidateId, effectiveEmail]);
       
       const attemptCount = existingAttempts[0].count;
       if (attemptCount > 0) {
         if (!exam.allow_retake) {
-          return res.status(403).json({ message: 'You have already attempted this exam. Retakes are not allowed.' });
+          return res.status(403).json({ 
+            message: 'You have already attempted this exam. Retakes are not allowed for this examination.',
+            code: 'RETAKES_NOT_ALLOWED',
+            attempt_count: attemptCount
+          });
         }
         if (exam.max_retakes > 0) {
-          const totalAllowed = 1 + exam.max_retakes; // 1 initial attempt + max_retakes
+          const totalAllowed = 1 + Number(exam.max_retakes); // 1 initial attempt + max_retakes
           if (attemptCount >= totalAllowed) {
-            return res.status(403).json({ message: `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.` });
+            return res.status(403).json({ 
+              message: `You have reached the maximum allowed retakes (${exam.max_retakes}) for this exam.`,
+              code: 'MAX_RETAKES_REACHED',
+              max_retakes: exam.max_retakes,
+              attempt_count: attemptCount
+            });
           }
         }
       }

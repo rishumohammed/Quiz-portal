@@ -490,11 +490,17 @@ async function saveExam() {
   try {
     let examId = route.query.id as string;
     
+    const payload = {
+      ...fields.value,
+      allow_retake: !!fields.value.allow_retake,
+      max_retakes: fields.value.allow_retake ? Math.max(0, parseInt(fields.value.max_retakes) || 0) : 0
+    };
+
     // Save/Update basic details
     if (isEditMode.value) {
-      await api.put(`/admin/public-exams/${examId}`, fields.value);
+      await api.put(`/admin/public-exams/${examId}`, payload);
     } else {
-      const res = await api.post('/admin/public-exams', fields.value);
+      const res = await api.post('/admin/public-exams', payload);
       examId = res.data.id;
     }
 

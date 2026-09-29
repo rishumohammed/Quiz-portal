@@ -233,11 +233,11 @@ router.post('/:id/duplicate', async (req, res) => {
     // Insert duplicated exam
     await connection.query(`
       INSERT INTO public_exams (
-        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, category_id, description, syllabus, duration_minutes, total_questions, total_marks, passing_marks, difficulty_level, status, slug, instructions, pass_percentage, negative_marking, randomize_questions, randomize_options, show_correct_answers, show_explanations, allow_retake, max_retakes, enable_certificate, anonymous_access, require_name, require_email, require_mobile, enable_proctoring, max_proctoring_warnings, enforce_fullscreen
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       newExamId, newName, exam.category_id, exam.description, exam.syllabus, exam.duration_minutes, exam.total_questions, exam.total_marks, exam.passing_marks, exam.difficulty_level, 'draft', newSlug,
-      exam.instructions, exam.pass_percentage, exam.negative_marking, exam.randomize_questions, exam.randomize_options, exam.show_correct_answers, exam.show_explanations, exam.allow_retake, exam.enable_certificate, exam.anonymous_access, exam.require_name, exam.require_email, exam.require_mobile, exam.enable_proctoring, exam.max_proctoring_warnings, exam.enforce_fullscreen
+      exam.instructions, exam.pass_percentage, exam.negative_marking, exam.randomize_questions, exam.randomize_options, exam.show_correct_answers, exam.show_explanations, exam.allow_retake, exam.max_retakes || 0, exam.enable_certificate, exam.anonymous_access, exam.require_name, exam.require_email, exam.require_mobile, exam.enable_proctoring, exam.max_proctoring_warnings, exam.enforce_fullscreen
     ]);
 
     // Copy questions
@@ -688,7 +688,7 @@ router.put('/:id', async (req, res) => {
       return res.json({ message: 'Nothing to update' });
     }
 
-    const [existing] = await pool.query('SELECT registration_end_date, exam_start_date FROM public_exams WHERE id = ?', [req.params.id]);
+    const [existing] = await pool.query('SELECT registration_end_date, exam_start_date, slug FROM public_exams WHERE id = ?', [req.params.id]);
     if (existing.length === 0) {
       return res.status(404).json({ message: 'Exam not found' });
     }
@@ -712,14 +712,23 @@ router.put('/:id', async (req, res) => {
       if (['registration_start_date', 'registration_end_date', 'exam_start_date', 'exam_end_date'].includes(f)) {
         return formatMySQL(req.body[f]);
       }
-      if (['duration_minutes', 'total_questions', 'total_marks', 'passing_marks', 'pass_percentage', 'negative_marking', 'max_retakes', 'max_proctoring_warnings'].includes(f)) {
+      if (f === 'max_retakes') {
+        const val = req.body.max_retakes;
+        return (val === '' || val === null || val === undefined || isNaN(parseInt(val))) ? 0 : Math.max(0, parseInt(val));
+      }
+      if (['duration_minutes', 'total_questions', 'total_marks', 'passing_marks', 'pass_percentage', 'negative_marking', 'max_proctoring_warnings'].includes(f)) {
         return req.body[f] === '' ? 0 : req.body[f];
       }
       return req.body[f];
     });
 
     await pool.query(`UPDATE public_exams SET ${setClause} WHERE id = ?`, [...values, req.params.id]);
-    await clearPublicExamCache(req.body.slug);
+    
+    const oldSlug = existing[0]?.slug;
+    const newSlug = req.body.slug || oldSlug;
+    if (oldSlug) await clearPublicExamCache(oldSlug);
+    if (newSlug && newSlug !== oldSlug) await clearPublicExamCache(newSlug);
+    
     res.json({ message: 'Exam updated successfully' });
   } catch (error) {
     console.error('Update admin exam error:', error);
@@ -1077,7 +1086,7 @@ router.post('/:id/questions/bulk', async (req, res) => {
 router.post('/:id/re-conduct', async (req, res) => {
   try {
     const examId = req.params.id;
-    const { exam_start_date, exam_end_date, active_bank, allow_retake, send_email_notification } = req.body;
+    const { exam_start_date, exam_end_date, active_bank, allow_retake, max_retakes, send_email_notification } = req.body;
 
     const [exams] = await pool.query('SELECT * FROM public_exams WHERE id = ?', [examId]);
     if (exams.length === 0) return res.status(404).json({ message: 'Exam not found' });
@@ -1090,6 +1099,11 @@ router.post('/:id/re-conduct', async (req, res) => {
     if (exam_end_date) { updates.push('exam_end_date = ?'); params.push(formatMySQL(exam_end_date)); }
     if (active_bank) { updates.push('active_question_bank = ?'); params.push(active_bank); }
     if (allow_retake !== undefined) { updates.push('allow_retake = ?'); params.push(!!allow_retake); }
+    if (max_retakes !== undefined) {
+      const parsedMax = (max_retakes === '' || max_retakes === null || isNaN(parseInt(max_retakes))) ? 0 : Math.max(0, parseInt(max_retakes));
+      updates.push('max_retakes = ?');
+      params.push(parsedMax);
+    }
 
     // Reset reminder flag
     updates.push('registration_status = "open"');
@@ -1101,6 +1115,9 @@ router.post('/:id/re-conduct', async (req, res) => {
 
     // Recalculate totals for active bank
     await recalculateExamTotals(examId);
+
+    // Clear public exam cache
+    await clearPublicExamCache(exam.slug);
 
     // Reset candidate reminder flags so automated 24h & 10min reminders re-arm for the new schedule
     await pool.query('UPDATE public_exam_candidates SET reminder_24h_sent = 0, notified_1day_before = 0, notified_10min_before = 0 WHERE exam_id = ?', [examId]);
@@ -1271,30 +1288,26 @@ router.get('/:id/candidates', async (req, res) => {
         c.registration_status, c.metadata,
         c.country, c.state, c.city, c.qualification, c.college, c.course_stream, c.year_of_study,
         a.id as attempt_id, a.status as exam_status, a.started_at, a.submitted_at,
-        r.score, r.percentage, r.passed
+        r.score, r.percentage, r.passed,
+        (SELECT COUNT(*) FROM public_exam_attempts WHERE candidate_id = c.id AND exam_id = ?) as attempts_count
       FROM public_exam_candidates c
       LEFT JOIN (
         SELECT a1.*
         FROM public_exam_attempts a1
         INNER JOIN (
-          SELECT candidate_id, MAX(id) as max_id
+          SELECT candidate_id, MAX(started_at) as max_started_at
           FROM public_exam_attempts
           WHERE exam_id = ?
           GROUP BY candidate_id
-        ) a2 ON a1.id = a2.max_id
+        ) a2 ON a1.candidate_id = a2.candidate_id AND a1.started_at = a2.max_started_at
       ) a ON c.id = a.candidate_id
       LEFT JOIN (
         SELECT r1.attempt_id, r1.score, r1.percentage, r1.passed
         FROM public_exam_results r1
-        INNER JOIN (
-          SELECT attempt_id, MAX(id) as max_r_id
-          FROM public_exam_results
-          GROUP BY attempt_id
-        ) r2 ON r1.id = r2.max_r_id
       ) r ON a.id = r.attempt_id
       WHERE c.exam_id = ?
       ORDER BY c.created_at DESC
-    `, [examId, examId]);
+    `, [examId, examId, examId]);
 
     // Deduplicate in case of duplicate registration rows or legacy data
     const candidateMap = new Map();
@@ -1351,6 +1364,7 @@ router.get('/:id/candidates', async (req, res) => {
         registered_at: c.registered_at,
         registration_status: c.registration_status || 'approved',
         attempt_id: c.attempt_id,
+        attempts_count: c.attempts_count || 0,
         exam_status: status,
         score: c.score || 0,
         percentage: c.percentage || 0,
@@ -1399,9 +1413,10 @@ router.get('/candidates/:id', async (req, res) => {
       FROM public_exam_attempts a
       LEFT JOIN public_exam_results r ON a.id = r.attempt_id
       WHERE a.candidate_id = ?
+      ORDER BY a.started_at DESC
     `, [candidateId]);
 
-    res.json({ candidate: candidates[0], attempt: attempts[0] || null });
+    res.json({ candidate: candidates[0], attempt: attempts[0] || null, attempts: attempts || [] });
   } catch (error) {
     console.error('Fetch candidate detail error:', error);
     res.status(500).json({ message: 'Internal server error' });

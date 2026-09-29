@@ -37,6 +37,18 @@
       <!-- Action Buttons Row -->
       <div class="d-flex flex-wrap gap-3 justify-center mb-12">
         <v-btn
+          v-if="result.allow_retake"
+          color="success"
+          rounded="lg"
+          height="48"
+          class="text-capitalize font-weight-bold px-6"
+          elevation="0"
+          :to="`/public-exams/${route.params.slug}/login`"
+        >
+          <v-icon start>mdi-refresh</v-icon> Retake Exam
+        </v-btn>
+
+        <v-btn
           color="primary"
           variant="outlined"
           rounded="lg"
@@ -241,6 +253,7 @@ interface ExamResult {
   attempt_id: string | number;
   is_anonymous?: boolean;
   guest_name?: string;
+  allow_retake?: boolean;
   questions: ExamQuestion[];
 }
 

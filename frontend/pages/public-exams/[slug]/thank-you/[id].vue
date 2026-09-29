@@ -22,9 +22,34 @@
       </v-card>
 
       <!-- Action Buttons Row -->
-      <div class="d-flex justify-center mb-12">
+      <div class="d-flex justify-center flex-wrap gap-3 mb-12">
+        <v-btn
+          v-if="result.allow_retake"
+          color="success"
+          rounded="lg"
+          height="48"
+          class="text-capitalize font-weight-bold px-6"
+          elevation="0"
+          :to="`/public-exams/${route.params.slug}/login`"
+        >
+          <v-icon start>mdi-refresh</v-icon> Retake Exam
+        </v-btn>
+
         <v-btn
           color="primary"
+          variant="outlined"
+          rounded="lg"
+          height="48"
+          class="text-capitalize font-weight-bold px-6"
+          elevation="0"
+          :to="`/public-exams/${route.params.slug}/result/${result.attempt_id}`"
+        >
+          <v-icon start>mdi-chart-box-outline</v-icon> View Scorecard
+        </v-btn>
+
+        <v-btn
+          color="grey-darken-2"
+          variant="tonal"
           rounded="lg"
           height="48"
           class="text-capitalize font-weight-bold px-6"
@@ -97,5 +122,8 @@ onMounted(() => {
 
 .result-banner {
   border-radius: 20px;
+}
+.gap-3 {
+  gap: 12px;
 }
 </style>
