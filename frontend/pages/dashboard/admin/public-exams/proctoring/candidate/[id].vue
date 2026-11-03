@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="d-flex align-center mb-6 flex-wrap gap-4">
       <div class="d-flex align-center">
-        <v-btn icon="mdi-arrow-left" variant="text" class="mr-3" @click="$router.back()"></v-btn>
+        <v-btn icon="mdi-arrow-left" variant="text" class="mr-3" @click="router.back()"></v-btn>
         
         <!-- Candidate Registered Reference Selfie -->
         <div v-if="candidate?.referenceSelfieUrl" class="mr-4 cursor-pointer" @click="openPreview(candidate.referenceSelfieUrl)">
@@ -158,7 +158,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 
 // Define page meta without type errors
@@ -169,6 +169,7 @@ definePageMeta({
 });
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const loading = ref(true);
 const candidate = ref<any>(null);
