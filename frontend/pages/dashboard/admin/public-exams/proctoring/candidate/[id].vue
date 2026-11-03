@@ -55,11 +55,47 @@
       <div class="text-body-2 text-disabled mt-1">This candidate has no proctored exam attempts.</div>
     </v-card>
 
+    <!-- Date Filter Tabs -->
+    <v-tabs
+      v-if="availableDates.length > 1 || selectedDateTab !== 'all'"
+      v-model="selectedDateTab"
+      color="primary"
+      density="comfortable"
+      show-arrows
+      class="mb-4 bg-white rounded-xl border px-2"
+    >
+      <v-tab value="all" class="text-capitalize font-weight-bold">
+        <v-icon start size="18">mdi-calendar-multiselect</v-icon>
+        All Dates
+        <v-chip size="x-small" variant="tonal" class="ml-2 font-weight-bold" color="primary">
+          {{ candidate?.attempts?.length || 0 }}
+        </v-chip>
+      </v-tab>
+
+      <v-tab
+        v-for="d in availableDates"
+        :key="d.key"
+        :value="d.key"
+        class="text-capitalize font-weight-bold"
+      >
+        <v-icon start size="18">mdi-calendar-check-outline</v-icon>
+        {{ d.label }}
+        <v-chip
+          size="x-small"
+          variant="tonal"
+          class="ml-2 font-weight-bold"
+          :color="selectedDateTab === d.key ? 'primary' : 'default'"
+        >
+          {{ d.count }}
+        </v-chip>
+      </v-tab>
+    </v-tabs>
+
     <!-- Attempts Table -->
     <v-card v-else class="rounded-xl border" elevation="0">
       <v-data-table
         :headers="headers"
-        :items="attempts"
+        :items="filteredAttempts"
         hover
         class="attempts-table"
         items-per-page="10"
@@ -136,9 +172,60 @@ const route = useRoute();
 const api = useApi();
 const loading = ref(true);
 const candidate = ref<any>(null);
+const selectedDateTab = ref<string>((route.query.date as string) || 'all');
 
-const attempts = computed<any[]>(() => {
-  return candidate.value?.attempts || [];
+const getAttemptDateKey = (attempt: any): string | null => {
+  const dt = attempt.started_at || attempt.submitted_at || attempt.violations?.[0]?.timestamp;
+  if (!dt) return null;
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const formatDateLabel = (dateKey: string): string => {
+  if (!dateKey || dateKey === 'all') return 'All Dates';
+  const parts = dateKey.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dateObj = new Date(y, m, d);
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+  }
+  return dateKey;
+};
+
+const availableDates = computed(() => {
+  const map = new Map<string, number>();
+  (candidate.value?.attempts || []).forEach((att: any) => {
+    const key = getAttemptDateKey(att);
+    if (key) {
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+  });
+  const keys = Array.from(map.keys()).sort((a, b) => a.localeCompare(b));
+  return keys.map(k => ({
+    key: k,
+    label: formatDateLabel(k),
+    count: map.get(k) || 0
+  }));
+});
+
+const filteredAttempts = computed<any[]>(() => {
+  const all = candidate.value?.attempts || [];
+  if (selectedDateTab.value === 'all') {
+    return all;
+  }
+  return all.filter((att: any) => getAttemptDateKey(att) === selectedDateTab.value);
 });
 
 const headers: any[] = [

@@ -246,6 +246,7 @@ class ProctoringService {
         ea.id as attempt_id, ea.exam_id, ea.status as attempt_status,
         ea.submitted_at, ea.started_at as attempt_started_at,
         COALESCE(c.name, ea.guest_name) as candidate_name, 
+        COALESCE(c.email, ea.guest_email) as candidate_email,
         COALESCE(ea.candidate_id, ea.id) as cid,
         e.name as exam_title, e.id as eid
       FROM public_exam_attempts ea
@@ -293,6 +294,7 @@ class ProctoringService {
         examGroup.candidates.set(candidateKey, {
           id: row.cid,
           name: row.candidate_name,
+          email: row.candidate_email,
           attempts: new Map()
         });
       }
