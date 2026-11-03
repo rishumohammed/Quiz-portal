@@ -55,41 +55,21 @@
       <div class="text-body-2 text-disabled mt-1">This candidate has no proctored exam attempts.</div>
     </v-card>
 
-    <!-- Date Filter Tabs -->
-    <v-tabs
-      v-if="availableDates.length > 1 || selectedDateTab !== 'all'"
-      v-model="selectedDateTab"
-      color="primary"
-      density="comfortable"
-      show-arrows
-      class="mb-4 bg-white rounded-xl border px-2"
-    >
-      <v-tab value="all" class="text-capitalize font-weight-bold">
-        <v-icon start size="18">mdi-calendar-multiselect</v-icon>
-        All Dates
-        <v-chip size="x-small" variant="tonal" class="ml-2 font-weight-bold" color="primary">
-          {{ candidate?.attempts?.length || 0 }}
-        </v-chip>
-      </v-tab>
-
-      <v-tab
-        v-for="d in availableDates"
-        :key="d.key"
-        :value="d.key"
-        class="text-capitalize font-weight-bold"
-      >
-        <v-icon start size="18">mdi-calendar-check-outline</v-icon>
-        {{ d.label }}
-        <v-chip
-          size="x-small"
-          variant="tonal"
-          class="ml-2 font-weight-bold"
-          :color="selectedDateTab === d.key ? 'primary' : 'default'"
-        >
-          {{ d.count }}
-        </v-chip>
-      </v-tab>
-    </v-tabs>
+    <!-- Date Filter Dropdown -->
+    <div v-if="availableDates.length > 1 || selectedDate !== 'all'" class="d-flex justify-end mb-4">
+      <v-select
+        v-model="selectedDate"
+        :items="dateDropdownOptions"
+        item-title="title"
+        item-value="value"
+        label="Exam Date"
+        variant="outlined"
+        density="compact"
+        hide-details
+        prepend-inner-icon="mdi-calendar"
+        style="width: 240px"
+      ></v-select>
+    </div>
 
     <!-- Attempts Table -->
     <v-card v-else class="rounded-xl border" elevation="0">
@@ -173,7 +153,7 @@ const router = useRouter();
 const api = useApi();
 const loading = ref(true);
 const candidate = ref<any>(null);
-const selectedDateTab = ref<string>((route.query.date as string) || 'all');
+const selectedDate = ref<string>((route.query.date as string) || 'all');
 
 const getAttemptDateKey = (attempt: any): string | null => {
   const dt = attempt.started_at || attempt.submitted_at || attempt.violations?.[0]?.timestamp;
@@ -221,12 +201,26 @@ const availableDates = computed(() => {
   }));
 });
 
+const dateDropdownOptions = computed(() => {
+  const total = candidate.value?.attempts?.length || 0;
+  const options = [
+    { title: `All Dates (${total})`, value: 'all' }
+  ];
+  availableDates.value.forEach(d => {
+    options.push({
+      title: `${d.label} (${d.count})`,
+      value: d.key
+    });
+  });
+  return options;
+});
+
 const filteredAttempts = computed<any[]>(() => {
   const all = candidate.value?.attempts || [];
-  if (selectedDateTab.value === 'all') {
+  if (selectedDate.value === 'all') {
     return all;
   }
-  return all.filter((att: any) => getAttemptDateKey(att) === selectedDateTab.value);
+  return all.filter((att: any) => getAttemptDateKey(att) === selectedDate.value);
 });
 
 const headers: any[] = [

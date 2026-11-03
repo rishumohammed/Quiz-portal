@@ -24,77 +24,6 @@
       </div>
     </div>
 
-    <!-- Date Split Tabs Card -->
-    <v-card v-if="!loading && availableDates.length > 0" class="mb-4 rounded-xl border date-card" elevation="0">
-      <div class="d-flex align-center justify-space-between px-4 pt-3 pb-2 border-b bg-grey-lighten-5 flex-wrap gap-2">
-        <div class="d-flex align-center gap-2">
-          <v-icon color="primary" size="20">mdi-calendar-clock-outline</v-icon>
-          <span class="text-subtitle-2 font-weight-bold text-dark">Filter by Exam Date</span>
-          <v-chip size="x-small" variant="tonal" color="primary" class="font-weight-bold">
-            {{ availableDates.length }} {{ availableDates.length === 1 ? 'Date' : 'Dates' }} Available
-          </v-chip>
-        </div>
-        <div class="d-flex align-center gap-2">
-          <span class="text-caption text-medium-emphasis">
-            Viewing: <strong class="text-dark">{{ selectedDateLabel }}</strong> ({{ activeDateCandidatesCount }} Candidates)
-          </span>
-          <v-btn
-            v-if="selectedDateTab !== 'all'"
-            variant="text"
-            size="small"
-            color="primary"
-            density="compact"
-            class="text-capitalize font-weight-bold"
-            prepend-icon="mdi-refresh"
-            @click="selectedDateTab = 'all'"
-          >
-            Show All Dates
-          </v-btn>
-        </div>
-      </div>
-
-      <v-tabs
-        v-model="selectedDateTab"
-        color="primary"
-        density="comfortable"
-        show-arrows
-        class="date-tabs px-2"
-      >
-        <v-tab value="all" class="text-capitalize font-weight-bold">
-          <v-icon start size="18">mdi-calendar-multiselect</v-icon>
-          All Dates
-          <v-chip size="x-small" variant="tonal" class="ml-2 font-weight-bold" color="primary">
-            {{ candidates.length }}
-          </v-chip>
-        </v-tab>
-
-        <v-tab
-          v-for="d in availableDates"
-          :key="d.key"
-          :value="d.key"
-          class="text-capitalize font-weight-bold"
-        >
-          <v-icon start size="18">mdi-calendar-check-outline</v-icon>
-          {{ d.label }}
-          <v-chip
-            size="x-small"
-            variant="tonal"
-            class="ml-2 font-weight-bold"
-            :color="selectedDateTab === d.key ? 'primary' : 'default'"
-          >
-            {{ d.candidateCount }}
-          </v-chip>
-          <v-badge
-            v-if="d.flaggedCount > 0"
-            color="error"
-            dot
-            inline
-            class="ml-1"
-          ></v-badge>
-        </v-tab>
-      </v-tabs>
-    </v-card>
-
     <!-- Filters -->
     <v-card class="mb-6 rounded-xl filter-card" elevation="0">
       <v-card-text class="d-flex flex-wrap gap-4 align-center py-3">
@@ -113,7 +42,7 @@
 
         <v-select
           v-if="availableDates.length > 0"
-          v-model="selectedDateTab"
+          v-model="selectedDate"
           :items="dateDropdownOptions"
           item-title="title"
           item-value="value"
@@ -123,7 +52,7 @@
           hide-details
           prepend-inner-icon="mdi-calendar"
           class="flex-grow-0"
-          style="width: 230px"
+          style="min-width: 240px;"
         ></v-select>
 
         <v-select
@@ -138,7 +67,7 @@
         ></v-select>
 
         <v-btn
-          v-if="searchQuery || statusFilter !== 'All' || selectedDateTab !== 'all'"
+          v-if="searchQuery || statusFilter !== 'All' || selectedDate !== 'all'"
           variant="text"
           color="secondary"
           size="small"
@@ -173,7 +102,7 @@
             </v-avatar>
             <div>
               <span class="font-weight-bold text-subtitle-2 d-block">{{ item.name }}</span>
-              <span v-if="selectedDateTab === 'all' && item.dateSummary" class="text-caption text-medium-emphasis d-block">
+              <span v-if="selectedDate === 'all' && item.dateSummary" class="text-caption text-medium-emphasis d-block">
                 <v-icon size="12" class="mr-1">mdi-calendar-range</v-icon>{{ item.dateSummary }}
               </span>
               <span v-else-if="item.timeSummary" class="text-caption text-medium-emphasis d-block">
@@ -189,7 +118,7 @@
             <span class="font-weight-medium text-body-2">
               {{ item.displayAttempts.length }} {{ item.displayAttempts.length === 1 ? 'Attempt' : 'Attempts' }}
             </span>
-            <span v-if="selectedDateTab !== 'all' && item.attempts.length > item.displayAttempts.length" class="text-caption text-disabled">
+            <span v-if="selectedDate !== 'all' && item.attempts.length > item.displayAttempts.length" class="text-caption text-disabled">
               ({{ item.attempts.length }} Total)
             </span>
           </div>
@@ -293,7 +222,7 @@ const examTitle = ref('Loading...');
 
 const searchQuery = ref('');
 const statusFilter = ref('All');
-const selectedDateTab = ref<string>('all');
+const selectedDate = ref<string>('all');
 
 const breadcrumbs = computed(() => [
   {
@@ -355,18 +284,17 @@ const formatTime = (dt: string | null) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-// Interface for date tabs
-interface ExamDateTab {
+// Interface for date dropdown items
+interface ExamDateInfo {
   key: string;            // '2026-10-15'
   label: string;          // '15 Oct 2026'
   candidateCount: number; // Unique candidates who took an attempt on this date
   attemptCount: number;   // Total attempts on this date
-  flaggedCount: number;   // Candidates with violations on this date
 }
 
 // Compute all unique dates where exam attempts were taken
-const availableDates = computed<ExamDateTab[]>(() => {
-  const dateMap = new Map<string, { candidateIds: Set<string>; attemptCount: number; flaggedCandidateIds: Set<string> }>();
+const availableDates = computed<ExamDateInfo[]>(() => {
+  const dateMap = new Map<string, { candidateIds: Set<string>; attemptCount: number }>();
 
   (candidates.value || []).forEach(candidate => {
     (candidate.attempts || []).forEach((attempt: any) => {
@@ -375,16 +303,12 @@ const availableDates = computed<ExamDateTab[]>(() => {
         if (!dateMap.has(dateKey)) {
           dateMap.set(dateKey, {
             candidateIds: new Set<string>(),
-            attemptCount: 0,
-            flaggedCandidateIds: new Set<string>()
+            attemptCount: 0
           });
         }
         const group = dateMap.get(dateKey)!;
         group.candidateIds.add(candidate.id);
         group.attemptCount += 1;
-        if ((attempt.violationCount || 0) > 0) {
-          group.flaggedCandidateIds.add(candidate.id);
-        }
       }
     });
   });
@@ -398,8 +322,7 @@ const availableDates = computed<ExamDateTab[]>(() => {
       key,
       label: formatDateLabel(key),
       candidateCount: data.candidateIds.size,
-      attemptCount: data.attemptCount,
-      flaggedCount: data.flaggedCandidateIds.size
+      attemptCount: data.attemptCount
     };
   });
 });
@@ -411,7 +334,7 @@ const dateDropdownOptions = computed(() => {
   ];
   availableDates.value.forEach(d => {
     options.push({
-      title: `${d.label} (${d.candidateCount} candidates)`,
+      title: `${d.label} (${d.candidateCount})`,
       value: d.key
     });
   });
@@ -420,19 +343,10 @@ const dateDropdownOptions = computed(() => {
 
 // Human-readable label for selected date
 const selectedDateLabel = computed(() => {
-  if (selectedDateTab.value === 'all') {
+  if (selectedDate.value === 'all') {
     return 'All Dates';
   }
-  return formatDateLabel(selectedDateTab.value);
-});
-
-// Candidate count for the currently active date tab
-const activeDateCandidatesCount = computed(() => {
-  if (selectedDateTab.value === 'all') {
-    return candidates.value.length;
-  }
-  const dateObj = availableDates.value.find(d => d.key === selectedDateTab.value);
-  return dateObj ? dateObj.candidateCount : 0;
+  return formatDateLabel(selectedDate.value);
 });
 
 onMounted(async () => {
@@ -455,7 +369,7 @@ onMounted(async () => {
   }
 });
 
-// Filter candidates by search, date tab, and status
+// Filter candidates by search, date dropdown, and status
 const filteredCandidates = computed<any[]>(() => {
   return (candidates.value || [])
     .map(candidate => {
@@ -463,8 +377,8 @@ const filteredCandidates = computed<any[]>(() => {
 
       // Determine matching attempts for the selected date
       let displayAttempts = allAttempts;
-      if (selectedDateTab.value !== 'all') {
-        displayAttempts = allAttempts.filter((att: any) => getAttemptDateKey(att) === selectedDateTab.value);
+      if (selectedDate.value !== 'all') {
+        displayAttempts = allAttempts.filter((att: any) => getAttemptDateKey(att) === selectedDate.value);
         // Exclude candidate if they did not take an attempt on this date
         if (displayAttempts.length === 0) {
           return null;
@@ -494,7 +408,7 @@ const filteredCandidates = computed<any[]>(() => {
         ? formattedDates.join(', ')
         : (formattedDates[0] || '');
 
-      // Attempt start times (when viewing a specific date tab)
+      // Attempt start times (when viewing a specific date)
       const attemptTimes = displayAttempts
         .map((att: any) => formatTime(att.started_at || att.submitted_at))
         .filter(Boolean);
@@ -538,14 +452,14 @@ const filteredCandidates = computed<any[]>(() => {
 const resetAllFilters = () => {
   searchQuery.value = '';
   statusFilter.value = 'All';
-  selectedDateTab.value = 'all';
+  selectedDate.value = 'all';
 };
 
 // Generates link to review candidate with optional date context
 const getCandidateReviewLink = (candidate: any) => {
   const base = `/dashboard/admin/public-exams/proctoring/candidate/${examId}_${candidate.id}`;
-  if (selectedDateTab.value !== 'all') {
-    return `${base}?date=${selectedDateTab.value}`;
+  if (selectedDate.value !== 'all') {
+    return `${base}?date=${selectedDate.value}`;
   }
   return base;
 };
@@ -572,11 +486,6 @@ const deleteCandidateLogs = async (candidate: any) => {
 
 <style scoped>
 .text-dark { color: #1e293b; }
-
-.date-card {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: white;
-}
 
 .filter-card {
   border: 1px solid rgba(0, 0, 0, 0.06);
