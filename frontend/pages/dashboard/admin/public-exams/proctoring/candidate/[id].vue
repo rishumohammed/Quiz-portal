@@ -1,9 +1,16 @@
 <template>
   <v-container fluid class="pa-6">
+    <!-- Breadcrumbs -->
+    <v-breadcrumbs :items="breadcrumbs" class="px-0 pt-0 pb-4">
+      <template v-slot:divider>
+        <v-icon icon="mdi-chevron-right" size="small"></v-icon>
+      </template>
+    </v-breadcrumbs>
+
     <!-- Header -->
     <div class="d-flex align-center mb-6 flex-wrap gap-4">
       <div class="d-flex align-center">
-        <v-btn icon="mdi-arrow-left" variant="text" class="mr-3" @click="router.back()"></v-btn>
+        <v-btn icon="mdi-arrow-left" variant="text" class="mr-3" title="Back to Exam Candidates" @click="goBack"></v-btn>
         
         <!-- Candidate Registered Reference Selfie -->
         <div v-if="candidate?.referenceSelfieUrl" class="mr-4 cursor-pointer" @click="openPreview(candidate.referenceSelfieUrl)">
@@ -55,73 +62,76 @@
       <div class="text-body-2 text-disabled mt-1">This candidate has no proctored exam attempts.</div>
     </v-card>
 
-    <!-- Date Filter Dropdown -->
-    <div v-if="availableDates.length > 1 || selectedDate !== 'all'" class="d-flex justify-end mb-4">
-      <v-select
-        v-model="selectedDate"
-        :items="dateDropdownOptions"
-        item-title="title"
-        item-value="value"
-        label="Exam Date"
-        variant="outlined"
-        density="compact"
-        hide-details
-        prepend-inner-icon="mdi-calendar"
-        style="width: 240px"
-      ></v-select>
-    </div>
+    <!-- Content -->
+    <template v-else>
+      <!-- Date Filter Dropdown -->
+      <div v-if="availableDates.length > 1 || selectedDate !== 'all'" class="d-flex justify-end mb-4">
+        <v-select
+          v-model="selectedDate"
+          :items="dateDropdownOptions"
+          item-title="title"
+          item-value="value"
+          label="Exam Date"
+          variant="outlined"
+          density="compact"
+          hide-details
+          prepend-inner-icon="mdi-calendar"
+          style="width: 240px"
+        ></v-select>
+      </div>
 
-    <!-- Attempts Table -->
-    <v-card v-else class="rounded-xl border" elevation="0">
-      <v-data-table
-        :headers="headers"
-        :items="filteredAttempts"
-        hover
-        class="attempts-table"
-        items-per-page="10"
-      >
-        <template v-slot:item.exam_title="{ item }">
-          <div class="d-flex flex-column py-3">
-            <span class="font-weight-bold text-subtitle-1">{{ item.exam_title }}</span>
-            <span class="text-caption text-medium-emphasis font-mono">Attempt ID: {{ item.attempt_id }}</span>
-          </div>
-        </template>
-        
-        <template v-slot:item.date="{ item }">
-          <div class="d-flex flex-column">
-            <span class="text-body-2 font-weight-medium">{{ formatDate(item.started_at) }}</span>
-            <span class="text-caption text-medium-emphasis">{{ formatTime(item.started_at) }}</span>
-          </div>
-        </template>
+      <!-- Attempts Table -->
+      <v-card class="rounded-xl border" elevation="0">
+        <v-data-table
+          :headers="headers"
+          :items="filteredAttempts"
+          hover
+          class="attempts-table"
+          items-per-page="10"
+        >
+          <template v-slot:item.exam_title="{ item }">
+            <div class="d-flex flex-column py-3">
+              <span class="font-weight-bold text-subtitle-1">{{ item.exam_title }}</span>
+              <span class="text-caption text-medium-emphasis font-mono">Attempt ID: {{ item.attempt_id }}</span>
+            </div>
+          </template>
+          
+          <template v-slot:item.date="{ item }">
+            <div class="d-flex flex-column">
+              <span class="text-body-2 font-weight-medium">{{ formatDate(item.started_at) }}</span>
+              <span class="text-caption text-medium-emphasis">{{ formatTime(item.started_at) }}</span>
+            </div>
+          </template>
 
-        <template v-slot:item.violations="{ item }">
-          <v-chip
-            :color="item.violationCount > 0 ? (item.highSeverityCount > 0 ? 'error' : 'warning') : 'success'"
-            size="small"
-            variant="tonal"
-          >
-            {{ item.violationCount }} Violations
-          </v-chip>
-        </template>
+          <template v-slot:item.violations="{ item }">
+            <v-chip
+              :color="item.violationCount > 0 ? (item.highSeverityCount > 0 ? 'error' : 'warning') : 'success'"
+              size="small"
+              variant="tonal"
+            >
+              {{ item.violationCount }} Violations
+            </v-chip>
+          </template>
 
-        <template v-slot:item.status="{ item }">
-          <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal">
-            {{ item.status?.replace(/_/g, ' ') }}
-          </v-chip>
-        </template>
+          <template v-slot:item.status="{ item }">
+            <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal">
+              {{ item.status?.replace(/_/g, ' ') }}
+            </v-chip>
+          </template>
 
-        <template v-slot:item.actions="{ item }">
-          <v-btn
-            variant="tonal"
-            color="primary"
-            size="small"
-            icon="mdi-eye-outline"
-            title="View Logs"
-            :to="`/dashboard/admin/public-exams/proctoring/${item.attempt_id}`"
-          ></v-btn>
-        </template>
-      </v-data-table>
-    </v-card>
+          <template v-slot:item.actions="{ item }">
+            <v-btn
+              variant="tonal"
+              color="primary"
+              size="small"
+              icon="mdi-eye-outline"
+              title="View Logs"
+              :to="`/dashboard/admin/public-exams/proctoring/${item.attempt_id}`"
+            ></v-btn>
+          </template>
+        </v-data-table>
+      </v-card>
+    </template>
 
     <!-- Image Preview Dialog -->
     <v-dialog v-model="showPreviewDialog" max-width="800">
@@ -137,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 
@@ -153,7 +163,90 @@ const router = useRouter();
 const api = useApi();
 const loading = ref(true);
 const candidate = ref<any>(null);
-const selectedDate = ref<string>((route.query.date as string) || 'all');
+const examTitle = ref('');
+
+const [examId, candidateId] = ((route.params.id as string) || '').split('_');
+
+const getInitialDate = (): string => {
+  if (route.query.date && typeof route.query.date === 'string') {
+    return route.query.date;
+  }
+  if (process.client) {
+    try {
+      const saved = sessionStorage.getItem(`proctoring_exam_date_${examId}`);
+      if (saved) return saved;
+    } catch (_) {}
+  }
+  return 'all';
+};
+
+const selectedDate = ref<string>(getInitialDate());
+const isReady = ref(false);
+
+watch(selectedDate, (newDate) => {
+  if (!isReady.value) return;
+  if (process.client) {
+    try {
+      if (newDate && newDate !== 'all') {
+        sessionStorage.setItem(`proctoring_exam_date_${examId}`, newDate);
+      } else {
+        sessionStorage.removeItem(`proctoring_exam_date_${examId}`);
+      }
+    } catch (_) {}
+  }
+});
+
+const goBack = () => {
+  const query: Record<string, string> = {};
+  const dateToUse = (route.query.date as string) || (selectedDate.value !== 'all' ? selectedDate.value : '');
+  if (dateToUse && dateToUse !== 'all') {
+    query.date = dateToUse;
+  }
+  if (route.query.status && route.query.status !== 'All') {
+    query.status = route.query.status as string;
+  }
+  if (route.query.search) {
+    query.search = route.query.search as string;
+  }
+  router.push({
+    path: `/dashboard/admin/public-exams/proctoring/exam/${examId}`,
+    query
+  });
+};
+
+const breadcrumbs = computed(() => {
+  const query: Record<string, string> = {};
+  const dateToUse = (route.query.date as string) || (selectedDate.value !== 'all' ? selectedDate.value : '');
+  if (dateToUse && dateToUse !== 'all') {
+    query.date = dateToUse;
+  }
+  if (route.query.status && route.query.status !== 'All') {
+    query.status = route.query.status as string;
+  }
+  if (route.query.search) {
+    query.search = route.query.search as string;
+  }
+
+  return [
+    {
+      title: 'Exams',
+      disabled: false,
+      to: '/dashboard/admin/public-exams/proctoring'
+    },
+    {
+      title: examTitle.value || 'Exam Details',
+      disabled: false,
+      to: {
+        path: `/dashboard/admin/public-exams/proctoring/exam/${examId}`,
+        query
+      }
+    },
+    {
+      title: candidate.value?.name || 'Candidate Review',
+      disabled: true
+    }
+  ];
+});
 
 const getAttemptDateKey = (attempt: any): string | null => {
   const dt = attempt.started_at || attempt.submitted_at || attempt.violations?.[0]?.timestamp;
@@ -245,16 +338,31 @@ const backendUrl = (path: string) => {
 };
 
 onMounted(async () => {
+  if (process.client) {
+    try {
+      const savedDate = sessionStorage.getItem(`proctoring_exam_date_${examId}`);
+      if (savedDate && (!route.query.date || route.query.date === 'all')) {
+        selectedDate.value = savedDate;
+      }
+    } catch (_) {}
+  }
+
+  if (route.query.date && typeof route.query.date === 'string') {
+    selectedDate.value = route.query.date;
+  }
+
+  isReady.value = true;
+
   loading.value = true;
   try {
     const { data } = await api.get('/proctoring/admin/public-violations');
     if (data && data.exams) {
       // Extract examId and candidateId from route.params.id (format: examId_candidateId)
-      const [examId, candidateId] = (route.params.id as string).split('_');
       let foundCandidate: any = null;
       
       const exam = data.exams.find((e: any) => e.id == examId);
       if (exam) {
+        examTitle.value = exam.title;
         const c = exam.candidates.find((cand: any) => cand.id == candidateId);
         if (c) {
           foundCandidate = {

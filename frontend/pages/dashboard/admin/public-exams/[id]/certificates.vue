@@ -1,6 +1,7 @@
 <template>
   <v-container fluid class="pa-6">
-    <div class="d-flex align-center justify-space-between mb-8">
+    <!-- Header -->
+    <div class="d-flex align-center justify-space-between mb-8 flex-wrap gap-4">
       <div>
         <v-btn variant="text" prepend-icon="mdi-arrow-left" class="mb-2 px-0 text-secondary" to="/dashboard/admin/public-exams">
           Back to Exams
@@ -8,24 +9,72 @@
         <h1 class="text-h4 font-weight-bold mb-1">Generated Certificates</h1>
         <p class="text-subtitle-2 text-secondary">Manage, edit, and resend certificates for this exam.</p>
       </div>
+
+      <!-- Bulk Action Button -->
+      <div class="d-flex align-center gap-3">
+        <v-btn
+          color="primary"
+          rounded="lg"
+          elevation="0"
+          height="42"
+          prepend-icon="mdi-email-send-outline"
+          class="text-capitalize font-weight-bold px-4"
+          :disabled="loading || filteredCertificates.length === 0"
+          @click="openBulkResendDialog"
+        >
+          Resend Certificates {{ selectedDate !== 'all' ? `(${selectedDateLabel})` : '' }}
+        </v-btn>
+      </div>
     </div>
 
-    <!-- Search -->
-    <v-card flat border class="pa-4 mb-6 rounded-xl">
-      <v-row align="center" no-gutters>
-        <v-col cols="12" md="4" class="pa-0">
-          <v-text-field
-            v-model="search"
-            placeholder="Search candidates by name or email..."
-            prepend-inner-icon="mdi-magnify"
-            hide-details
-            clearable
-            density="comfortable"
-            variant="outlined"
-            rounded="lg"
-          ></v-text-field>
-        </v-col>
-      </v-row>
+    <!-- Search & Date Filter -->
+    <v-card flat border class="pa-4 mb-6 rounded-xl bg-white shadow-xs">
+      <div class="d-flex flex-wrap gap-4 align-center">
+        <!-- Search Input -->
+        <v-text-field
+          v-model="search"
+          placeholder="Search candidates by name or email..."
+          prepend-inner-icon="mdi-magnify"
+          hide-details
+          clearable
+          density="compact"
+          variant="outlined"
+          rounded="lg"
+          class="flex-grow-1"
+          style="min-width: 250px"
+        ></v-text-field>
+
+        <!-- Exam Conducted Date Dropdown -->
+        <v-select
+          v-if="availableDates.length > 0"
+          v-model="selectedDate"
+          :items="dateDropdownOptions"
+          item-title="title"
+          item-value="value"
+          label="Exam Conducted Date"
+          variant="outlined"
+          density="compact"
+          hide-details
+          rounded="lg"
+          prepend-inner-icon="mdi-calendar-clock"
+          class="flex-grow-0"
+          style="min-width: 240px"
+        ></v-select>
+
+        <!-- Reset Button -->
+        <v-btn
+          v-if="search || selectedDate !== 'all'"
+          variant="text"
+          color="secondary"
+          size="small"
+          density="compact"
+          class="text-capitalize font-weight-bold"
+          prepend-icon="mdi-filter-remove-outline"
+          @click="resetFilters"
+        >
+          Reset Filters
+        </v-btn>
+      </div>
     </v-card>
 
     <!-- Table -->
@@ -49,6 +98,15 @@
           <div class="text-secondary">{{ item.candidate_email }}</div>
         </template>
 
+        <template v-slot:item.exam_date="{ item }">
+          <div class="d-flex align-center gap-1">
+            <v-icon size="14" color="primary">mdi-calendar-check</v-icon>
+            <span class="text-body-2 text-dark font-weight-medium">
+              {{ formatExamDate(item) }}
+            </span>
+          </div>
+        </template>
+
         <template v-slot:item.created_at="{ item }">
           <span class="text-body-2 text-secondary">{{ formatDate(item.created_at) }}</span>
         </template>
@@ -59,7 +117,7 @@
             <v-btn icon="mdi-open-in-new" variant="tonal" size="small" color="info" :href="getMediaUrl(item.pdf_url)" target="_blank" title="View Certificate" />
             
             <!-- Resend Email -->
-            <v-btn icon="mdi-email-fast-outline" variant="tonal" size="small" color="primary" @click="confirmResend(item)" title="Resend Email" />
+            <v-btn icon="mdi-email-send-outline" variant="tonal" size="small" color="primary" @click="confirmResend(item)" title="Resend Email" />
             
             <!-- Edit Candidate Name -->
             <v-btn icon="mdi-pencil-outline" variant="tonal" size="small" color="warning" @click="openEditDialog(item)" title="Edit Candidate Name" />
@@ -68,8 +126,140 @@
             <v-btn icon="mdi-delete-outline" variant="tonal" size="small" color="error" @click="confirmDelete(item)" title="Delete Certificate" />
           </div>
         </template>
+
+        <template v-slot:no-data>
+          <div class="pa-10 text-center">
+            <v-icon size="48" color="grey-lighten-2" class="mb-3">mdi-certificate-outline</v-icon>
+            <div class="text-subtitle-1 font-weight-bold text-medium-emphasis">No certificates found</div>
+            <div class="text-caption text-disabled mt-1 mb-4">
+              No certificates match your current filters for {{ selectedDateLabel }}.
+            </div>
+            <v-btn
+              v-if="search || selectedDate !== 'all'"
+              variant="outlined"
+              color="primary"
+              size="small"
+              class="text-capitalize font-weight-bold"
+              @click="resetFilters"
+            >
+              Clear Filters
+            </v-btn>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
+
+    <!-- Bulk Resend Dialog with Candidate List & Deselect Options -->
+    <v-dialog v-model="bulkResendDialog" max-width="650" scrollable>
+      <v-card class="rounded-xl overflow-hidden">
+        <!-- Dialog Header -->
+        <div class="px-6 py-4 d-flex justify-space-between align-center border-b bg-grey-lighten-5">
+          <div>
+            <div class="d-flex align-center gap-2">
+              <v-icon color="primary" size="22">mdi-email-send-outline</v-icon>
+              <h3 class="text-h6 font-weight-bold text-dark mb-0">Resend Certificates</h3>
+            </div>
+            <p class="text-caption text-secondary mb-0 mt-1">
+              Exam Date: <strong>{{ selectedDateLabel }}</strong> • {{ selectedCertIds.length }} of {{ filteredCertificates.length }} selected
+            </p>
+          </div>
+          <v-btn icon="mdi-close" variant="text" density="compact" @click="bulkResendDialog = false"></v-btn>
+        </div>
+
+        <!-- Selection Controls -->
+        <div class="px-6 py-3 border-b d-flex justify-space-between align-center flex-wrap gap-2 bg-white">
+          <div class="d-flex align-center gap-3">
+            <v-checkbox
+              :model-value="isAllSelected"
+              :indeterminate="isIndeterminate"
+              hide-details
+              density="compact"
+              color="primary"
+              label="Select All Candidates"
+              @update:model-value="toggleSelectAll"
+            ></v-checkbox>
+          </div>
+          <v-chip size="small" variant="tonal" color="primary" class="font-weight-bold">
+            {{ selectedCertIds.length }} Selected
+          </v-chip>
+        </div>
+
+        <!-- Search inside Dialog -->
+        <div v-if="filteredCertificates.length > 6" class="px-6 pt-3 pb-1 bg-white">
+          <v-text-field
+            v-model="dialogSearch"
+            placeholder="Filter candidates in this list..."
+            prepend-inner-icon="mdi-magnify"
+            density="compact"
+            variant="outlined"
+            rounded="lg"
+            hide-details
+            clearable
+          ></v-text-field>
+        </div>
+
+        <!-- Scrollable Candidate List -->
+        <v-card-text class="pa-0" style="max-height: 380px; overflow-y: auto;">
+          <v-list class="py-0">
+            <v-list-item
+              v-for="cert in dialogCandidatesList"
+              :key="cert.id"
+              class="px-6 py-2 border-b cursor-pointer candidate-item"
+              @click="toggleCertSelection(cert.id)"
+            >
+              <template v-slot:prepend>
+                <v-checkbox-btn
+                  :model-value="selectedCertIds.includes(cert.id)"
+                  color="primary"
+                  class="mr-2"
+                  @click.stop="toggleCertSelection(cert.id)"
+                ></v-checkbox-btn>
+              </template>
+
+              <v-list-item-title class="font-weight-bold text-dark text-subtitle-2">
+                {{ cert.candidate_name }}
+              </v-list-item-title>
+              <v-list-item-subtitle class="text-caption text-secondary">
+                {{ cert.candidate_email }}
+              </v-list-item-subtitle>
+
+              <template v-slot:append>
+                <div class="text-right">
+                  <v-chip size="x-small" variant="tonal" color="primary">
+                    {{ formatExamDate(cert) }}
+                  </v-chip>
+                </div>
+              </template>
+            </v-list-item>
+
+            <div v-if="dialogCandidatesList.length === 0" class="pa-8 text-center text-secondary text-caption">
+              No candidates match "{{ dialogSearch }}"
+            </div>
+          </v-list>
+        </v-card-text>
+
+        <!-- Footer Actions -->
+        <div class="px-6 py-4 border-t d-flex justify-space-between align-center bg-grey-lighten-5 flex-wrap gap-2">
+          <div class="text-caption text-secondary">
+            <strong>{{ selectedCertIds.length }}</strong> {{ selectedCertIds.length === 1 ? 'candidate' : 'candidates' }} will receive their certificate email.
+          </div>
+          <div class="d-flex gap-2">
+            <v-btn variant="text" color="grey" :disabled="bulkSending" @click="bulkResendDialog = false">Cancel</v-btn>
+            <v-btn
+              color="primary"
+              rounded="lg"
+              class="text-capitalize font-weight-bold px-4"
+              :loading="bulkSending"
+              :disabled="selectedCertIds.length === 0"
+              @click="executeBulkResend"
+            >
+              <v-icon start size="18">mdi-send</v-icon>
+              Send to {{ selectedCertIds.length }} {{ selectedCertIds.length === 1 ? 'Candidate' : 'Candidates' }}
+            </v-btn>
+          </div>
+        </div>
+      </v-card>
+    </v-dialog>
 
     <!-- Edit Dialog -->
     <v-dialog v-model="editDialog" max-width="500">
@@ -93,7 +283,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- Resend Dialog -->
+    <!-- Resend Single Dialog -->
     <v-dialog v-model="resendDialog" max-width="400">
       <v-card class="pa-6 rounded-xl">
         <h3 class="text-h6 font-weight-bold mb-3 text-dark">Resend Certificate</h3>
@@ -149,8 +339,15 @@ const config = useRuntimeConfig();
 const loading = ref(true);
 const certificates = ref<any[]>([]);
 const search = ref('');
+const selectedDate = ref<string>('all');
 
-// Dialog states
+// Bulk Resend Dialog states
+const bulkResendDialog = ref(false);
+const bulkSending = ref(false);
+const selectedCertIds = ref<string[]>([]);
+const dialogSearch = ref('');
+
+// Single action dialog states
 const editDialog = ref(false);
 const resendDialog = ref(false);
 const deleteDialog = ref(false);
@@ -168,18 +365,168 @@ const snackbarColor = ref('success');
 const headers = [
   { title: 'Candidate Name', key: 'candidate_name' },
   { title: 'Email', key: 'candidate_email' },
+  { title: 'Exam Date', key: 'exam_date' },
   { title: 'Date Issued', key: 'created_at' },
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ];
 
+// Helper to extract YYYY-MM-DD from certificate attempt date
+const getExamConductedDateKey = (cert: any): string | null => {
+  const dt = cert.exam_started_at || cert.exam_submitted_at || cert.created_at;
+  if (!dt) return null;
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// Helper to format date string for display (e.g. "25 Aug 2026")
+const formatDateLabel = (dateKey: string): string => {
+  if (!dateKey || dateKey === 'all') return 'All Dates';
+  const parts = dateKey.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    const dateObj = new Date(y, m, d);
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+  }
+  return dateKey;
+};
+
+// Compute distinct exam conducted dates
+const availableDates = computed(() => {
+  const dateMap = new Map<string, number>();
+
+  certificates.value.forEach(cert => {
+    const key = getExamConductedDateKey(cert);
+    if (key) {
+      dateMap.set(key, (dateMap.get(key) || 0) + 1);
+    }
+  });
+
+  const sortedKeys = Array.from(dateMap.keys()).sort((a, b) => b.localeCompare(a));
+
+  return sortedKeys.map(key => ({
+    key,
+    label: formatDateLabel(key),
+    candidateCount: dateMap.get(key) || 0
+  }));
+});
+
+// Dropdown options for Exam Date
+const dateDropdownOptions = computed(() => {
+  const options = [
+    { title: `All Dates (${certificates.value.length})`, value: 'all' }
+  ];
+  availableDates.value.forEach(d => {
+    options.push({
+      title: `${d.label} (${d.candidateCount})`,
+      value: d.key
+    });
+  });
+  return options;
+});
+
+// Human-readable label for currently selected date
+const selectedDateLabel = computed(() => {
+  if (selectedDate.value === 'all') {
+    return 'All Dates';
+  }
+  return formatDateLabel(selectedDate.value);
+});
+
+// Filtered certificates based on search & exam conducted date
 const filteredCertificates = computed(() => {
-  if (!search.value) return certificates.value;
-  const s = search.value.toLowerCase();
-  return certificates.value.filter(c => 
-    c.candidate_name?.toLowerCase().includes(s) || 
-    c.candidate_email?.toLowerCase().includes(s)
+  return certificates.value.filter(cert => {
+    // Search query filter
+    if (search.value) {
+      const s = search.value.toLowerCase().trim();
+      const matchName = cert.candidate_name?.toLowerCase().includes(s);
+      const matchEmail = cert.candidate_email?.toLowerCase().includes(s);
+      if (!matchName && !matchEmail) return false;
+    }
+
+    // Exam conducted date filter
+    if (selectedDate.value !== 'all') {
+      const dateKey = getExamConductedDateKey(cert);
+      if (dateKey !== selectedDate.value) return false;
+    }
+
+    return true;
+  });
+});
+
+// Searchable candidate list inside bulk resend dialog
+const dialogCandidatesList = computed(() => {
+  if (!dialogSearch.value.trim()) return filteredCertificates.value;
+  const q = dialogSearch.value.toLowerCase().trim();
+  return filteredCertificates.value.filter(c =>
+    c.candidate_name?.toLowerCase().includes(q) ||
+    c.candidate_email?.toLowerCase().includes(q)
   );
 });
+
+// Selection computed properties
+const isAllSelected = computed(() => {
+  return filteredCertificates.value.length > 0 && selectedCertIds.value.length === filteredCertificates.value.length;
+});
+
+const isIndeterminate = computed(() => {
+  return selectedCertIds.value.length > 0 && selectedCertIds.value.length < filteredCertificates.value.length;
+});
+
+function toggleSelectAll(val: boolean | null) {
+  if (val) {
+    selectedCertIds.value = filteredCertificates.value.map(c => c.id);
+  } else {
+    selectedCertIds.value = [];
+  }
+}
+
+function toggleCertSelection(id: string) {
+  const index = selectedCertIds.value.indexOf(id);
+  if (index >= 0) {
+    selectedCertIds.value.splice(index, 1);
+  } else {
+    selectedCertIds.value.push(id);
+  }
+}
+
+function openBulkResendDialog() {
+  selectedCertIds.value = filteredCertificates.value.map(c => c.id);
+  dialogSearch.value = '';
+  bulkResendDialog.value = true;
+}
+
+async function executeBulkResend() {
+  if (selectedCertIds.value.length === 0) return;
+  bulkSending.value = true;
+  try {
+    const res = await api.post('/admin/public-exams/issued-certificates/bulk-resend', {
+      certificateIds: selectedCertIds.value
+    });
+    showSnackbar(res.data?.message || 'Certificates resent successfully');
+    bulkResendDialog.value = false;
+  } catch (err: any) {
+    showSnackbar(err?.response?.data?.message || 'Failed to resend certificates', 'error');
+  } finally {
+    bulkSending.value = false;
+  }
+}
+
+function resetFilters() {
+  search.value = '';
+  selectedDate.value = 'all';
+}
 
 async function loadData() {
   loading.value = true;
@@ -263,6 +610,12 @@ function showSnackbar(text: string, color: string = 'success') {
   snackbar.value = true;
 }
 
+function formatExamDate(cert: any) {
+  const dt = cert.exam_started_at || cert.exam_submitted_at || cert.created_at;
+  if (!dt) return 'N/A';
+  return appFormatDate(dt);
+}
+
 function formatDate(dateStr: string) {
   if (!dateStr) return 'N/A';
   return appFormatDate(dateStr);
@@ -280,7 +633,10 @@ onMounted(() => {
 
 <style scoped>
 .text-dark { color: #1e293b; }
+.gap-1 { gap: 4px; }
 .gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
 
 .custom-table :deep(th) {
   text-transform: uppercase;
@@ -288,5 +644,9 @@ onMounted(() => {
   font-weight: 800 !important;
   color: #475569 !important;
   letter-spacing: 0.5px;
+}
+
+.candidate-item:hover {
+  background-color: #f8fafc;
 }
 </style>

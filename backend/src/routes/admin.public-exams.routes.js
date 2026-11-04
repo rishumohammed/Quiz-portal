@@ -1782,12 +1782,79 @@ router.get('/:id/issued-certificates', async (req, res) => {
   try {
     const examId = req.params.id;
     const [certificates] = await pool.query(
-      'SELECT c.*, e.name as exam_name FROM public_exam_issued_certificates c JOIN public_exams e ON c.exam_id = e.id WHERE c.exam_id = ? ORDER BY c.created_at DESC',
+      `SELECT 
+        c.*, 
+        e.name as exam_name,
+        a.started_at as exam_started_at,
+        a.submitted_at as exam_submitted_at
+       FROM public_exam_issued_certificates c 
+       JOIN public_exams e ON c.exam_id = e.id 
+       LEFT JOIN public_exam_attempts a ON c.attempt_id = a.id
+       WHERE c.exam_id = ? 
+       ORDER BY c.created_at DESC`,
       [examId]
     );
     res.json(certificates);
   } catch (error) {
     console.error('Fetch issued certificates error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/public-exams/issued-certificates/bulk-resend
+router.post('/issued-certificates/bulk-resend', async (req, res) => {
+  try {
+    const { certificateIds } = req.body;
+    if (!Array.isArray(certificateIds) || certificateIds.length === 0) {
+      return res.status(400).json({ message: 'No certificate IDs provided' });
+    }
+
+    const [certs] = await pool.query(
+      `SELECT c.*, e.name as exam_name 
+       FROM public_exam_issued_certificates c 
+       JOIN public_exams e ON c.exam_id = e.id 
+       WHERE c.id IN (?)`,
+      [certificateIds]
+    );
+
+    if (certs.length === 0) {
+      return res.status(404).json({ message: 'No certificates found for the provided IDs' });
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const cert of certs) {
+      try {
+        const pdfPath = path.join(__dirname, '../../', cert.pdf_url);
+        if (!fs.existsSync(pdfPath)) {
+          failCount++;
+          errors.push({ id: cert.id, candidate: cert.candidate_name, error: 'PDF file not found on disk' });
+          continue;
+        }
+        const pdfBuffer = fs.readFileSync(pdfPath);
+
+        await EmailService.sendExamCertificateEmail(
+          { name: cert.candidate_name, email: cert.candidate_email },
+          { name: cert.exam_name },
+          pdfBuffer
+        );
+        successCount++;
+      } catch (err) {
+        failCount++;
+        errors.push({ id: cert.id, candidate: cert.candidate_name, error: err.message });
+      }
+    }
+
+    res.json({
+      message: `Successfully resent certificates to ${successCount} candidates${failCount > 0 ? ` (${failCount} failed)` : ''}`,
+      successCount,
+      failCount,
+      errors
+    });
+  } catch (error) {
+    console.error('Bulk resend certificates error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

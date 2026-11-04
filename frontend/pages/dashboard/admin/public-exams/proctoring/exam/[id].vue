@@ -96,12 +96,12 @@
         items-per-page="10"
       >
         <template v-slot:item.name="{ item }">
-          <div class="d-flex align-center py-3">
+          <NuxtLink :to="getCandidateReviewLink(item)" class="text-decoration-none text-reset d-flex align-center py-3">
             <v-avatar color="grey-lighten-3" size="36" class="mr-3">
-              <span class="text-caption font-weight-bold">{{ item.name ? item.name.substring(0, 2).toUpperCase() : 'NA' }}</span>
+              <span class="text-caption font-weight-bold text-dark">{{ item.name ? item.name.substring(0, 2).toUpperCase() : 'NA' }}</span>
             </v-avatar>
             <div>
-              <span class="font-weight-bold text-subtitle-2 d-block">{{ item.name }}</span>
+              <span class="font-weight-bold text-subtitle-2 d-block text-primary">{{ item.name }}</span>
               <span v-if="selectedDate === 'all' && item.dateSummary" class="text-caption text-medium-emphasis d-block">
                 <v-icon size="12" class="mr-1">mdi-calendar-range</v-icon>{{ item.dateSummary }}
               </span>
@@ -110,7 +110,7 @@
               </span>
               <span v-if="item.email" class="text-caption text-disabled d-block">{{ item.email }}</span>
             </div>
-          </div>
+          </NuxtLink>
         </template>
         
         <template v-slot:item.attempts="{ item }">
@@ -202,8 +202,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/composables/useApi';
 
 definePageMeta({
@@ -213,6 +213,7 @@ definePageMeta({
 });
 
 const route = useRoute();
+const router = useRouter();
 const api = useApi();
 const examId = route.params.id as string;
 
@@ -220,9 +221,78 @@ const loading = ref(true);
 const candidates = ref<any[]>([]);
 const examTitle = ref('Loading...');
 
-const searchQuery = ref('');
-const statusFilter = ref('All');
-const selectedDate = ref<string>('all');
+// Read initial filter values from URL query or sessionStorage
+const getInitialDate = (): string => {
+  if (route.query.date && typeof route.query.date === 'string') {
+    return route.query.date;
+  }
+  if (process.client) {
+    try {
+      const saved = sessionStorage.getItem(`proctoring_exam_date_${examId}`);
+      if (saved) return saved;
+    } catch (_) {}
+  }
+  return 'all';
+};
+
+const getInitialStatus = (): string => {
+  if (route.query.status && typeof route.query.status === 'string') {
+    return route.query.status;
+  }
+  return 'All';
+};
+
+const getInitialSearch = (): string => {
+  if (route.query.search && typeof route.query.search === 'string') {
+    return route.query.search;
+  }
+  return '';
+};
+
+const searchQuery = ref(getInitialSearch());
+const statusFilter = ref(getInitialStatus());
+const selectedDate = ref<string>(getInitialDate());
+const isReady = ref(false);
+
+// Persist active filters to URL query and sessionStorage
+watch([selectedDate, statusFilter, searchQuery], ([newDate, newStatus, newSearch]) => {
+  if (!isReady.value) return;
+
+  if (process.client) {
+    try {
+      if (newDate && newDate !== 'all') {
+        sessionStorage.setItem(`proctoring_exam_date_${examId}`, newDate);
+      } else {
+        sessionStorage.removeItem(`proctoring_exam_date_${examId}`);
+      }
+    } catch (_) {}
+  }
+
+  const query: Record<string, string | undefined> = {};
+  if (newDate && newDate !== 'all') query.date = newDate;
+  if (newStatus && newStatus !== 'All') query.status = newStatus;
+  if (newSearch && newSearch.trim()) query.search = newSearch.trim();
+
+  // Compare to avoid duplicate router replace
+  const currentQ = route.query;
+  const isChanged =
+    (currentQ.date || undefined) !== query.date ||
+    (currentQ.status || undefined) !== query.status ||
+    (currentQ.search || undefined) !== query.search;
+
+  if (isChanged) {
+    router.replace({ query });
+  }
+});
+
+// Listen to browser navigation changes (e.g. forward/back in browser history)
+watch(() => route.query.date, (newDateQuery) => {
+  if (!isReady.value) return;
+  const val = (newDateQuery as string) || 'all';
+  if (selectedDate.value !== val) {
+    selectedDate.value = val;
+  }
+});
 
 const breadcrumbs = computed(() => [
   {
@@ -350,6 +420,43 @@ const selectedDateLabel = computed(() => {
 });
 
 onMounted(async () => {
+  if (process.client) {
+    try {
+      const savedDate = sessionStorage.getItem(`proctoring_exam_date_${examId}`);
+      if (savedDate && (!route.query.date || route.query.date === 'all')) {
+        selectedDate.value = savedDate;
+      }
+    } catch (_) {}
+  }
+
+  if (route.query.date && typeof route.query.date === 'string') {
+    selectedDate.value = route.query.date;
+  }
+  if (route.query.status && typeof route.query.status === 'string') {
+    statusFilter.value = route.query.status;
+  }
+  if (route.query.search && typeof route.query.search === 'string') {
+    searchQuery.value = route.query.search;
+  }
+
+  isReady.value = true;
+
+  // Sync to URL query if parameters were restored from sessionStorage
+  const initialQuery: Record<string, string | undefined> = {};
+  if (selectedDate.value && selectedDate.value !== 'all') initialQuery.date = selectedDate.value;
+  if (statusFilter.value && statusFilter.value !== 'All') initialQuery.status = statusFilter.value;
+  if (searchQuery.value && searchQuery.value.trim()) initialQuery.search = searchQuery.value.trim();
+
+  const currentQ = route.query;
+  const isChanged =
+    (currentQ.date || undefined) !== initialQuery.date ||
+    (currentQ.status || undefined) !== initialQuery.status ||
+    (currentQ.search || undefined) !== initialQuery.search;
+
+  if (isChanged) {
+    router.replace({ query: initialQuery });
+  }
+
   loading.value = true;
   try {
     const { data } = await api.get('/proctoring/admin/public-violations');
@@ -453,15 +560,26 @@ const resetAllFilters = () => {
   searchQuery.value = '';
   statusFilter.value = 'All';
   selectedDate.value = 'all';
+  if (process.client) {
+    try {
+      sessionStorage.removeItem(`proctoring_exam_date_${examId}`);
+    } catch (_) {}
+  }
+  router.replace({ query: {} });
 };
 
 // Generates link to review candidate with optional date context
 const getCandidateReviewLink = (candidate: any) => {
   const base = `/dashboard/admin/public-exams/proctoring/candidate/${examId}_${candidate.id}`;
-  if (selectedDate.value !== 'all') {
-    return `${base}?date=${selectedDate.value}`;
+  const query: Record<string, string> = {};
+  if (selectedDate.value && selectedDate.value !== 'all') {
+    query.date = selectedDate.value;
   }
-  return base;
+  if (statusFilter.value && statusFilter.value !== 'All') {
+    query.status = statusFilter.value;
+  }
+  const qStr = new URLSearchParams(query).toString();
+  return qStr ? `${base}?${qStr}` : base;
 };
 
 const deleteCandidateLogs = async (candidate: any) => {
